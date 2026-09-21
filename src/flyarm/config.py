@@ -210,6 +210,20 @@ class FlyLegConfig(BaseModel):
         return self
 
 
+class TaskVariantConfig(BaseModel):
+    """Harder pick-and-place conditions (see flyarm.rl.batched_pick_place.TaskVariant)."""
+
+    model_config = ConfigDict(extra="forbid")
+    mass_scale: tuple[float, float] = (1.0, 1.0)
+    friction_scale: tuple[float, float] = (1.0, 1.0)
+    goal_reach: float = Field(default=0.11, ge=0.05, le=0.3)
+    goal_visible_steps: int | None = Field(default=None, ge=1)
+
+
+def default_eval_variants() -> dict[str, TaskVariantConfig]:
+    return {"nominal": TaskVariantConfig()}
+
+
 class PPOConfig(BaseModel):
     """PPO fine-tuning of the motor decoder of a trained B1a pick-and-place checkpoint."""
 
@@ -236,3 +250,12 @@ class PPOConfig(BaseModel):
     eval_episodes: int = Field(default=24, ge=1, le=256)
     horizon: int = Field(default=400, ge=20, le=2000)
     seed: int = Field(default=0, ge=0, le=999)
+    train_variant: TaskVariantConfig = Field(default_factory=TaskVariantConfig)
+    eval_variants: dict[str, TaskVariantConfig] = Field(default_factory=default_eval_variants)
+    best_on: str = "nominal"
+
+    @model_validator(mode="after")
+    def best_variant_is_evaluated(self) -> PPOConfig:
+        if self.best_on not in self.eval_variants:
+            raise ValueError("best_on must name one of eval_variants")
+        return self
