@@ -310,7 +310,19 @@ def _train(
             )
             phases.append({"phase": "behavior_cloning", **summary})
         else:
-            phases.append({"phase": "initialized", "source": str(initial), "training_seconds": 0.0})
+            score = selector(policy) if selector is not None else None
+            phases.append(
+                {
+                    "phase": "initialized",
+                    "source": str(initial),
+                    "selection_score": score,
+                    "training_seconds": 0.0,
+                }
+            )
+        # With closed-loop selection the kept weights are the best over every phase, not the
+        # last phase's best: a DAgger round may make the controller worse.
+        best_score = phases[-1].get("selection_score")
+        best_phase, best_parameters = phases[-1]["phase"], policy.parameters()
         aggregate = _pad(train, env.spec.max_episode_steps)
         for iteration in range(config.dagger_iterations if expert is not None else 0):
             assert expert is not None
@@ -337,17 +349,23 @@ def _train(
             phases.append(
                 {"phase": phase, **summary, **stats, "aggregate_episodes": len(aggregate["obs"])}
             )
+            score = summary.get("selection_score")
+            if score is not None and (best_score is None or score > best_score):
+                best_score, best_phase, best_parameters = score, phase, policy.parameters()
             print(
                 f"  {phase}: beta {beta:.2f}, rollout mean tasks {stats['rollout_mean_tasks']:.2f}",
                 flush=True,
             )
+        if selector is not None:
+            policy.update(best_parameters)
     finally:
         env.close()
     training = {
+        "selected_phase": best_phase,
         "phases": phases,
         "loss": phases[-1]["loss"],
         "selection": phases[-1]["selection"],
-        "selection_score": phases[-1]["selection_score"],
+        "selection_score": best_score,
         "best_validation_loss": phases[-1]["best_validation_loss"],
         "training_seconds": float(sum(phase["training_seconds"] for phase in phases)),
     }
@@ -384,7 +402,10 @@ def _run(pack_root: Path, annotations: Path, output: Path, config: FlyLegConfig)
     pack = ConnectomePack.load(pack_root)
     pack.validate_b1a_provenance()
     leg = front_leg_interface(
-        pack, annotations, include_head=config.sensory_channels == "proprioception+head"
+        pack,
+        annotations,
+        include_head=config.sensory_channels == "proprioception+head",
+        include_descending=config.readout == "leg_motor+descending",
     )
     data = kitchen.load(config.split)
     output.mkdir(parents=True)

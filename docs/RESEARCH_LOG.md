@@ -121,13 +121,17 @@ Far goals and low friction did not improve.
 This run predates validation-seed selection, so only final-iteration numbers are reported.
 Control: the same run on the degree-preserving shuffle (runs/ppo-pick-place-randomized-shuffled-001) started after it, with validation-seed selection.
 
-### E18. Beta-mixed DAgger with the tracker on the kitchen, MLP probe (runs/flyleg-kitchen-dagger-dev-001, commit 90cadbf, running)
-Method: from behavior cloning, four DAgger rounds of 20 episodes in which the teacher acts with probability 0.5, 0.25, 0.125, 0.0625.
-Seed 0: 20.6, below behavior cloning alone (31.2); rollout completions fell from 3.8 to 1.75 tasks as the teacher share dropped.
-Reading so far: negative for the MLP.
+### E18. Beta-mixed DAgger with the tracker on the kitchen, MLP probe (runs/flyleg-kitchen-dagger-dev-001, commit 90cadbf, stopped)
+Method: from behavior cloning, four DAgger rounds of 20 episodes in which the teacher acts with probability 0.5, 0.25, 0.125, 0.0625, every visited state labelled by the tracker.
+Result: seed 0 20.6 (behavior cloning alone 31.2); rollouts completed 3.8, 2.1, 1.4 and 1.75 tasks as the teacher share fell.
+The run was stopped after seed 1 once E19 was negative too.
 
-### E19. Beta-mixed DAgger on the fly controller (runs/flyleg-kitchen-dagger-fly-dev-001, commit 3eddaf6, running)
-Method: starts from the E11 fly seed-0 checkpoint, three rounds of 16 episodes, 10 epochs each.
+### E19. Beta-mixed DAgger on the fly controller (runs/flyleg-kitchen-dagger-fly-dev-001, commit 3eddaf6)
+Method: from the E11 fly seed-0 checkpoint (25, microwave), three rounds of 16 episodes and 10 epochs with teacher shares 0.5, 0.25, 0.125.
+Result: 0 on the 20 test episodes and 0 in every OOD variant; rollouts completed 3.0, 0.38 and 0.06 tasks; the best validation score in the three rounds was 0, 1 and 0 tasks.
+Reading: negative; further training on tracker-labelled states destroys the fragile microwave skill even in the first, mostly teacher-driven round.
+Implementation flaw found: each round kept its own best checkpoint and the last round's was used; the experiment now keeps the best over all phases, including the starting checkpoint (commit after 7f9734a).
+Decision: the tracker-teacher DAgger line is closed.
 
 ### E20. Near-critical gain on the kitchen (runs/flyleg-kitchen-gain099-dev-001, commit b37c927, running)
 Question: does the connectome's longer memory at gain 0.99 let the fly controller go beyond the first kitchen task?
@@ -148,3 +152,8 @@ Partial: seed 3 connectome lift 9, place 5; its first shuffle lift 15, place 11 
 - Batched MuJoCo (mjbatch 0.1.1, MuJoCo 3.13.0) with a step-for-step equivalence test against the single environment (tests/test_batched_pick_place.py).
 - Local dashboard of every run, curve, log and rollout (flyarm dashboard, port 8780).
 - Control-network figure (docs/figures/control_network-figure.png), QA-gated.
+
+### E22. Readout ablation on the kitchen (runs/flyleg-kitchen-descending-dev-001, running)
+Question: is the fly controller underfitting because it reads only 68 motor neurons?
+Evidence for the question: after behavior cloning the fly's training L1 is 0.106, against 0.068 for the GRU, 0.075 for the MLP and 0.043 for ACT (E11), and neither longer memory (E20) nor corrective data (E19) helped.
+Method: E11 protocol with the decoder reading the 68 left front-leg motor neurons plus the brain's 1,314 descending neurons (readout "leg_motor+descending"), fly only, seed 0, 20 test episodes; inputs unchanged.

@@ -43,7 +43,10 @@ def load_flyleg_policy(
     pack = ConnectomePack.load(pack_root)
     pack.validate_b1a_provenance()
     leg = front_leg_interface(
-        pack, annotations, include_head=config.sensory_channels == "proprioception+head"
+        pack,
+        annotations,
+        include_head=config.sensory_channels == "proprioception+head",
+        include_descending=config.readout == "leg_motor+descending",
     )
     if NeuralInterface.load(run_root / "interface.json") != leg.interface:
         raise ValueError("Saved interface differs from the one regenerated from annotations")

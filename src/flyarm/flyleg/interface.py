@@ -7,7 +7,7 @@ nerve, side), so the interface is reproducible and auditable; nothing is hand-pi
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +24,7 @@ PROPRIOCEPTOR_SUBCLASSES = ("chordotonal organ", "hair plate", "campaniform sens
 FRONT_LEG_NERVE = "ProLN"
 LABEL = "left front leg: ProLN proprioceptors + head sensory in, fl motor neurons out"
 PROPRIOCEPTIVE_LABEL = "left front leg: ProLN proprioceptors in, fl motor neurons out"
+DESCENDING_SUFFIX = " + all descending neurons out"
 COLUMNS = ["bodyId", "superclass", "class", "subclass", "type", "entryNerve", "exitNerve"]
 
 
@@ -35,6 +36,9 @@ class FrontLegInterface:
     proprioceptors: np.ndarray
     exteroceptors: np.ndarray
     motor_neurons: np.ndarray
+    # Optional wider readout: the brain's descending command neurons, read after the motor
+    # neurons. Empty for the leg-only interface.
+    descending: np.ndarray = field(default_factory=lambda: np.array([], dtype=np.int64))
 
     @property
     def channel_sizes(self) -> tuple[int, int]:
@@ -50,7 +54,11 @@ def _annotations(pack: ConnectomePack, path: Path) -> pd.DataFrame:
 
 
 def front_leg_interface(
-    pack: ConnectomePack, annotations_path: Path, *, include_head: bool = True
+    pack: ConnectomePack,
+    annotations_path: Path,
+    *,
+    include_head: bool = True,
+    include_descending: bool = False,
 ) -> FrontLegInterface:
     table = _annotations(pack, annotations_path)
     ids = pack.body_ids
@@ -66,13 +74,19 @@ def front_leg_interface(
     proprioceptors = ids[proprio.to_numpy()]
     exteroceptors = ids[head.to_numpy()] if include_head else np.array([], dtype=np.int64)
     motor_neurons = ids[motor.to_numpy()]
+    descending = (
+        ids[(table.superclass == "descending_neuron").to_numpy()]
+        if include_descending
+        else np.array([], dtype=np.int64)
+    )
+    label = LABEL if include_head else PROPRIOCEPTIVE_LABEL
     interface = NeuralInterface.bind(
         pack,
         np.concatenate((proprioceptors, exteroceptors)),
-        motor_neurons,
-        label=LABEL if include_head else PROPRIOCEPTIVE_LABEL,
+        np.concatenate((motor_neurons, descending)),
+        label=label + DESCENDING_SUFFIX if include_descending else label,
     )
-    return FrontLegInterface(interface, proprioceptors, exteroceptors, motor_neurons)
+    return FrontLegInterface(interface, proprioceptors, exteroceptors, motor_neurons, descending)
 
 
 def leg_channels(leg: FrontLegInterface) -> list[tuple[int, int, int]]:

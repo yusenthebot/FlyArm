@@ -149,6 +149,9 @@ class FlyLegConfig(BaseModel):
     split: Literal["complete", "partial", "mixed"]
     # "proprioception" wires only the front-leg proprioceptors; scene state is then unused.
     sensory_channels: Literal["proprioception+head", "proprioception"] = "proprioception+head"
+    # What the decoder reads: the 68 left front-leg motor neurons, or those plus the brain's
+    # 1,314 descending command neurons.
+    readout: Literal["leg_motor", "leg_motor+descending"] = "leg_motor"
     validation_fraction: float = Field(default=0.1, gt=0, le=0.3)
     epochs: int = Field(default=60, ge=1, le=1000)
     decoder_warmup_epochs: int = Field(default=2, ge=0, le=50)
