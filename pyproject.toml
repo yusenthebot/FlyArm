@@ -1,0 +1,29 @@
+[project]
+name = "flyarm"
+version = "0.1.0"
+description = "Reproducible connectome-informed arm control experiments"
+requires-python = ">=3.12,<3.14"
+dependencies = ["numpy>=2.1", "scipy>=1.14", "pandas>=2.2", "pyarrow>=18", "torch>=2.6", "gymnasium>=1.0", "mujoco>=3.3", "pydantic>=2.10", "imageio[ffmpeg]>=2.36", "matplotlib>=3.9", "httpx>=0.28"]
+
+[project.scripts]
+flyarm = "flyarm.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff>=0.11", "bandit>=1.8", "pip-audit>=2.8", "mypy>=1.15"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.mypy]
+ignore_missing_imports = true
+check_untyped_defs = true

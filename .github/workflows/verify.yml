@@ -1,0 +1,23 @@
+name: Verify
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: astral-sh/setup-uv@d0d8abe699bfb85fec6de9f7adb5ae17292296ff
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --python 3.12
+      - run: uv run ruff check src tests
+      - run: uv run ruff format --check src tests
+      - run: uv run mypy src tests
+      - run: uv run bandit -r src -q
+      - name: Fetch pinned robot assets only
+        run: uv run python -c 'from pathlib import Path; from flyarm.assets import fetch_arm; fetch_arm(Path("assets/menagerie"))'
+      - run: uv run pytest -q
+        env:
+          FLYARM_MODEL: assets/menagerie/franka_emika_panda/scene.xml

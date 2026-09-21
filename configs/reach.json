@@ -1,0 +1,14 @@
+{
+  "train_episodes": 96,
+  "val_episodes": 16,
+  "test_episodes": 24,
+  "horizon": 100,
+  "epochs": 35,
+  "batch_size": 16,
+  "bptt_steps": 20,
+  "learning_rate": 0.002,
+  "seeds": [0, 1, 2],
+  "policies": ["connectome", "shuffled", "mlp", "gru"],
+  "max_seconds": 1800,
+  "threads": 2
+}
