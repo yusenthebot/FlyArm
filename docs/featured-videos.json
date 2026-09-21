@@ -3,19 +3,13 @@
     "root": "main",
     "path": "ppo-pick-place-randomized-001/videos/heavier_6_10x-before-after.mp4",
     "title": "RL on the fly brain: cubes heavier than any it trained on",
-    "note": "Left: the fly controller after imitation only. Right: after PPO tuned only its motor decoder; the connectome is frozen. Cube mass 6 to 10x, never seen in training."
-  },
-  {
-    "root": "main",
-    "path": "ppo-pick-place-randomized-001/videos/train_distribution-before-after.mp4",
-    "title": "RL on the fly brain: randomized cube mass and grip friction",
-    "note": "Same comparison on the training distribution (mass 1 to 4x, friction 0.15 to 1x)."
+    "note": "Cube mass 6 to 10x, never seen in training. Left, imitation only: grasps but cannot lift (3 of 3). Right, after PPO tuned only the motor decoder with the connectome frozen: placed 3 of 3."
   },
   {
     "root": "main",
     "path": "ppo-pick-place-001/videos/nominal-before-after.mp4",
     "title": "RL on the fly brain: the standard pick-and-place task",
-    "note": "PPO raised lifting from 18/24 to 24/24 held-out episodes; placing did not improve reliably."
+    "note": "Same seeds before and after PPO: 1 placed and 2 only grasped before, 1 placed and 2 lifted after. Over 24 test episodes PPO raised lifting from 18 to 24; placing did not improve reliably."
   },
   {
     "root": "main",
@@ -40,5 +34,11 @@
     "path": "overnight/videos/proprio/kitchen-complete-lesions-seed2-episode0.mp4",
     "title": "Kitchen: the fly leg opens the slide cabinet, and every lesion removes it",
     "note": "Proprioception-only interface, seed 2: intact, leg deafferented, edges off, direct synapses only."
+  },
+  {
+    "root": "main",
+    "path": "ppo-pick-place-randomized-001/videos/train_distribution-before-after.mp4",
+    "title": "RL on the fly brain: randomized cube mass and grip friction",
+    "note": "Training distribution (mass 1 to 4x, friction 0.15 to 1x). On these three seeds PPO lifts every cube but places none; over 24 test episodes placement doubled (5 to 10)."
   }
 ]
