@@ -15,7 +15,7 @@ Numbers marked exploratory come from scratch probes that were later superseded b
 | Measured wiring beats a degree-preserving shuffle | open: strong in seeds 0 to 2, reversed in seed 3, replication running | E3, E21 |
 | The fly controller solves more than one kitchen task | not yet: one task (microwave) | E4, E11 |
 | RL on the frozen connectome improves a skill | supported for lifting (18/24 to 24/24), not for placing | E12 |
-| RL on the frozen connectome generalizes to unseen physics | exploratory positive (heavier cubes), run in progress | E17 |
+| RL on the frozen connectome generalizes to unseen physics | partly: lifting generalizes to heavier cubes; placement gains on heavy cubes are partly physical; shuffle control running | E17 |
 | The rate model holds information for seconds | only near critical recurrent gain (0.99); about 0.2 s at the default 0.8 | E15, E16 |
 
 ## 2026-09-20 to 21: B1a and B2, first protocol
@@ -112,10 +112,14 @@ gain 0.95: 4.7e-4, 1.6e-3, 0.64, 0.33, 0.19, 0.084.
 gain 0.99: 5.2e-4, 1.7e-3, 0.67, 0.39, 0.28, 0.19.
 Reading: near-critical gain extends the connectome's memory from about 0.2 s to seconds with the wiring unchanged, while pathway gains change by less than a factor of two.
 
-### E17. PPO with physics randomization (runs/ppo-pick-place-randomized-001, configs/ppo-pick-place-randomized.json, running)
-Method: as E12, trained on cube mass 1 to 4x, grip friction 0.15 to 1x, goals within 14 cm; evaluated on held-out variants.
-Partial result at iteration 429 of 800 (place / lift, start checkpoint in brackets): mass 6 to 10x 6/19 (0/13); goals within 18 cm 1/21 (3/15); friction 0.08 to 0.12x 0/0 (0/0); nominal 3/23 (4/18); training distribution 5/24 (5/16).
-Reading so far: the connectome controller learned to place cubes heavier than any it trained on; low friction remains unsolved.
+### E17. PPO with physics randomization (runs/ppo-pick-place-randomized-001, configs/ppo-pick-place-randomized.json)
+Method: as E12, trained on cube mass 1 to 4x, grip friction 0.15 to 1x, goals within 14 cm; 800 iterations (6.6 M steps); evaluated every 25 iterations on held-out variants with the 24 test seeds.
+Result, final checkpoint (iteration 800, no selection), place / lift with the start checkpoint in brackets: nominal 4/24 (4/18); training distribution 10/24 (5/16); held-out mass 6 to 10x 17/23 (0/13); held-out goals within 18 cm 2/22 (3/15); held-out friction 0.08 to 0.12x 0/0 (0/0).
+Reading: through the frozen connectome, RL raised lifting to near ceiling everywhere, including cubes heavier than any trained (13 to 23 of 24), and doubled placement on the training distribution.
+The large placement gain on heavy cubes is partly physical: a heavy cube does not bounce or slide on release, and the light nominal cube stays at 4/24.
+Far goals and low friction did not improve.
+This run predates validation-seed selection, so only final-iteration numbers are reported.
+Control: the same run on the degree-preserving shuffle (runs/ppo-pick-place-randomized-shuffled-001) started after it, with validation-seed selection.
 
 ### E18. Beta-mixed DAgger with the tracker on the kitchen, MLP probe (runs/flyleg-kitchen-dagger-dev-001, commit 90cadbf, running)
 Method: from behavior cloning, four DAgger rounds of 20 episodes in which the teacher acts with probability 0.5, 0.25, 0.125, 0.0625.
