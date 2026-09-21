@@ -171,8 +171,14 @@ def train_ppo(
     output: Path,
     settings: PPOConfig,
     eval_seeds: list[int],
+    select_seeds: list[int] | None = None,
 ) -> dict[str, Any]:
-    """Fine-tune ``policy``'s decoder in place with PPO; returns curves and evaluations."""
+    """Fine-tune ``policy``'s decoder in place with PPO; returns curves and evaluations.
+
+    At every evaluation point the variants are scored on ``eval_seeds`` (reported) and, when
+    given, on ``select_seeds`` (disjoint validation seeds); the kept "best" checkpoint is
+    chosen on the validation score only, and its test score is what gets reported.
+    """
     output.mkdir(parents=True, exist_ok=True)
     mx.random.seed(settings.seed)
     generator = np.random.default_rng(settings.seed)
@@ -329,13 +335,24 @@ def train_ppo(
             flush=True,
         )
         if (iteration + 1) % settings.eval_every == 0 or iteration + 1 == settings.iterations:
-            scored = {
-                name: evaluate(
-                    policy, head, model_path, eval_seeds, settings.horizon, task_variant(variant)
-                )
-                for name, variant in settings.eval_variants.items()
+
+            def score(seeds: list[int]) -> dict[str, dict[str, Any]]:
+                return {
+                    name: evaluate(
+                        policy, head, model_path, seeds, settings.horizon, task_variant(variant)
+                    )
+                    for name, variant in settings.eval_variants.items()
+                }
+
+            scored = score(eval_seeds)
+            chosen = score(select_seeds) if select_seeds else None
+            entry: dict[str, Any] = {
+                "iteration": iteration + 1,
+                "env_steps": env_steps,
+                "variants": scored,
             }
-            entry = {"iteration": iteration + 1, "env_steps": env_steps, "variants": scored}
+            if chosen is not None:
+                entry["selection"] = chosen
             evaluations.append(entry)
             print(
                 "  eval: "
@@ -346,8 +363,14 @@ def train_ppo(
                 flush=True,
             )
             policy.save(output / f"policy-{iteration + 1:04d}.safetensors")
-            if scored[settings.best_on]["success_rate"] > best.get("success_rate", -1.0):
-                best = {**scored[settings.best_on], "iteration": iteration + 1}
+            criterion = (chosen or scored)[settings.best_on]["success_rate"]
+            if criterion > best.get("criterion", -1.0):
+                best = {
+                    **scored[settings.best_on],
+                    "iteration": iteration + 1,
+                    "criterion": criterion,
+                    "selected_on": "validation seeds" if chosen else "test seeds (biased)",
+                }
         (output / "curves.json").write_text(json.dumps(curves, indent=1))
         (output / "evaluations.json").write_text(json.dumps(evaluations, indent=1))
     return {"curves": curves, "evaluations": evaluations, "best": best}
@@ -369,6 +392,7 @@ def run_ppo(config: PPOConfig, pack_root: Path, model_path: Path, output: Path) 
         Path(config.base_run), config.base_kind, config.base_seed, pack_root, model_path
     )
     eval_seeds = task.seeds("test", config.eval_episodes)
+    select_seeds = task.seeds("validation", config.eval_episodes)
     task.close()
     if not isinstance(policy, BrainPolicy):
         raise ValueError("PPO fine-tuning is defined for brain policies (connectome, shuffled)")
@@ -392,7 +416,7 @@ def run_ppo(config: PPOConfig, pack_root: Path, model_path: Path, output: Path) 
     }
     save_json(output / "results.json", results)
     try:
-        run = train_ppo(policy, model_path, output, config, eval_seeds)
+        run = train_ppo(policy, model_path, output, config, eval_seeds, select_seeds)
     except (Exception, KeyboardInterrupt) as error:
         results.update(status="failed", error=f"{type(error).__name__}: {error}")
         save_json(output / "results.json", results)
