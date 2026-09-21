@@ -199,24 +199,33 @@ def build(site: Path) -> Path:
                 site,
                 "kitchen-complete-comparison-seed0-episode0.mp4",
                 "Same held-out episode, four controllers trained on the same 17 human "
-                "demonstrations (seed 0).",
+                "demonstrations (seed 0): fly CNS, shuffled CNS, MLP, GRU.",
                 wide=True,
             ),
+            video(
+                site,
+                "proprio/kitchen-complete-lesions-seed2-episode0.mp4",
+                "Proprioception-only fly leg, seed 2: intact (opens the slide cabinet), leg "
+                "proprioceptors silenced, every edge removed.",
+                wide=True,
+            ),
+            video(
+                site,
+                "proprio/kitchen-complete-flyleg-seed2.mp4",
+                "Proprioception-only fly leg, seed 2, two episodes.",
+            ),
+            video(
+                site,
+                "proprio/kitchen-complete-flyleg_shuffled-seed2.mp4",
+                "Same interface on the shuffled CNS, seed 2.",
+            ),
+            video(site, "kitchen-complete-mlp-seed2.mp4", "MLP behavior cloning, seed 2."),
             video(
                 site,
                 "kitchen-complete-lesions-seed0-episode0.mp4",
-                "Causal lesions of the trained fly controller on the same episode: intact, "
-                "head senses removed, leg proprioceptors silenced, every edge removed.",
-                wide=True,
+                "Fly with head senses, seed 0: intact, head senses removed, leg deafferented, "
+                "edges off.",
             ),
-            video(
-                site,
-                "proprio/kitchen-complete-flyleg-seed0.mp4",
-                "Fly CNS wired through leg proprioceptors only, three episodes.",
-            ),
-            video(site, "kitchen-complete-flyleg-seed1.mp4", "Fly CNS, training seed 1."),
-            video(site, "kitchen-complete-mlp-seed0.mp4", "MLP behavior cloning, three episodes."),
-            video(site, "kitchen-complete-gru-seed0.mp4", "GRU, three episodes."),
         ]
     )
     pick_videos = "".join(
@@ -225,8 +234,14 @@ def build(site: Path) -> Path:
             f"pick-place-{kind}-seed{seed}.mp4",
             f"{BRAIN[kind]} · seed {seed} · three held-out episodes.",
         )
-        for kind in ("connectome", "shuffled", "gru")
-        for seed in (0, 1, 2)
+        for kind, seed in (
+            ("connectome", 0),
+            ("connectome", 2),
+            ("shuffled", 0),
+            ("shuffled", 2),
+            ("gru", 2),
+            ("connectome", 1),
+        )
     )
     shots = "".join(
         [
