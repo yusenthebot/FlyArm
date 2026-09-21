@@ -181,26 +181,72 @@ def build_whole_brain_payload(
     interface: NeuralInterface,
     annotations_path: Path,
     modes: Sequence[str],
+    *,
+    input_groups: Sequence[tuple[np.ndarray, str]] | None = None,
+    output_label: str = "output · descending + motor",
+    place_afferents: bool = False,
+    task: str = "pick-place",
 ) -> tuple[dict[str, Any], np.ndarray]:
-    """Columnar payload: every neuron with a measured soma, plus context edges."""
+    """Columnar payload: every neuron with a measured soma, plus context edges.
+
+    ``input_groups`` splits the declared inputs into labelled roles 1, 3, 4...; by default all
+    inputs share role 1. With ``place_afferents``, declared input neurons that have no soma in
+    the CNS (sensory afferents) are drawn at the contact-weighted centroid of their drawn
+    postsynaptic partners' somata, i.e. roughly where their axons terminate, and are counted
+    separately so the proxy placement is never mistaken for a measured soma.
+    """
     table = feather.read_table(annotations_path, columns=["bodyId", "somaLocation"]).to_pandas()
     soma = table.set_index("bodyId").somaLocation.reindex(pack.body_ids)
-    drawn = soma.notna().to_numpy()
-    xyz = np.stack(soma[drawn].to_numpy()).astype(np.float64)
+    measured = soma.notna().to_numpy()
+    raw = np.zeros((pack.nodes, 3))
+    raw[measured] = np.stack(soma[measured].to_numpy()).astype(np.float64)
+    inputs, outputs = interface.resolve_indices(pack)
+    drawn = measured.copy()
+    proxies = 0
+    if place_afferents:
+        rows = pack.rows()
+        by_source = np.argsort(pack.col_idx, kind="stable")
+        source_ptr = np.concatenate(
+            ([0], np.cumsum(np.bincount(pack.col_idx, minlength=pack.nodes)))
+        )
+        for neuron in inputs[~measured[inputs]]:
+            slots = by_source[source_ptr[neuron] : source_ptr[neuron + 1]]
+            targets = rows[slots]
+            keep = measured[targets]
+            if not np.any(keep):
+                continue
+            weights = pack.contacts[slots][keep].astype(np.float64)
+            raw[neuron] = (raw[targets[keep]] * weights[:, None]).sum(0) / weights.sum()
+            drawn[neuron] = True
+            proxies += 1
+    xyz = raw[measured]
     center = (xyz.min(axis=0) + xyz.max(axis=0)) / 2
     scale = float(np.max(np.ptp(xyz, axis=0)))
+    state_index = np.flatnonzero(drawn)
     # Normalized and Y-up with MaleCNS Z vertical as in the subgraph view, then turned 180
     # degrees about the view axis (a rotation, not a mirror) so the brain sits above the VNC.
-    positions = ((xyz - center) / scale * 1.9)[:, [0, 2, 1]] * np.array([-1.0, -1.0, 1.0])
-    state_index = np.flatnonzero(drawn)
-    inputs, outputs = interface.resolve_indices(pack)
+    positions = ((raw[state_index] - center) / scale * 1.9)[:, [0, 2, 1]] * np.array(
+        [-1.0, -1.0, 1.0]
+    )
     role = np.zeros(pack.nodes, dtype=np.uint8)
-    role[inputs], role[outputs] = 1, 2
+    labels = {"0": "internal", "2": output_label}
+    if input_groups is None:
+        role[inputs] = 1
+        labels["1"] = "input · ascending"
+    else:
+        index = {int(body): position for position, body in enumerate(pack.body_ids)}
+        for number, (body_ids, label) in enumerate(input_groups):
+            code = 1 if number == 0 else number + 2
+            role[[index[int(body)] for body in body_ids]] = code
+            labels[str(code)] = label
+    role[outputs] = 2
     drawn_slot = np.full(pack.nodes, -1, dtype=np.int64)
     drawn_slot[state_index] = np.arange(len(state_index))
 
     rows = pack.rows()
-    direct = (role[pack.col_idx] == 1) & (role[rows] == 2)
+    is_input = np.zeros(pack.nodes, dtype=bool)
+    is_input[inputs] = True
+    direct = is_input[pack.col_idx] & (role[rows] == 2)
     direct &= (drawn_slot[pack.col_idx] >= 0) & (drawn_slot[rows] >= 0)
     candidates = np.flatnonzero(direct)
     strongest = candidates[np.argsort(-pack.contacts[candidates], kind="stable")[:CONTEXT_EDGES]]
@@ -210,6 +256,7 @@ def build_whole_brain_payload(
     undrawn = neurons.superclass[~drawn].value_counts().to_dict()
     payload = {
         "format": "columnar-v1",
+        "task": task,
         "dataset": pack.manifest["dataset"],
         "layout": "measured_soma_locations",
         "title": f"complete CNS · {pack.nodes:,} neurons · {pack.edges:,} edges",
@@ -217,15 +264,17 @@ def build_whole_brain_payload(
         "interface_fingerprint": interface.fingerprint,
         "neurons": pack.nodes,
         "drawn": int(drawn.sum()),
+        "proxy_positioned_afferents": proxies,
         "undrawn_by_superclass": {str(k): int(v) for k, v in undrawn.items()},
         "ids": _b64(pack.body_ids[state_index], "<u4"),
         "state_index": _b64(state_index, "<u4"),
         "positions": _b64(positions, "<f4"),
         "roles": _b64(role[state_index], "u1"),
+        "role_labels": labels,
         "context_edges": _b64(edge_pairs, "<u4"),
         "context_edge_note": (
             f"strongest {len(strongest):,} of {int(direct.sum()):,} drawn direct "
-            "ascending->output synapses"
+            "input->output synapses"
         ),
         "modes": list(modes),
     }

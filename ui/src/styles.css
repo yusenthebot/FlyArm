@@ -218,3 +218,8 @@ footer { display: flex; align-items: center; justify-content: space-between; col
 .partners li { display: flex; justify-content: space-between; gap: 6px; padding: 1px 0; border-bottom: 1px solid #edf2f5; font: 9px/1.45 "IBM Plex Mono", monospace; }
 .partners li span { overflow: hidden; color: #1d3444; text-overflow: ellipsis; white-space: nowrap; }
 .partners li b { color: #667f8f; font-weight: 500; }
+.sim-readout .task-done dd { color: var(--green); font-weight: 600; }
+.robot-viewport .sim-readout { background: rgba(248, 251, 252, 0.88); border-radius: 4px; padding: 6px 8px; box-shadow: 0 0 0 1px rgba(28, 57, 72, 0.08); }
+.robot-viewport .sim-readout div { grid-template-columns: 98px 1fr; }
+.brand { min-width: 0; flex: 0 1 auto; }
+.brand p { max-width: 34vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -4,6 +4,7 @@ import { controls, loadGraph, loadNeuron, openStateStream } from "./api";
 import { AuditPanel, type SelectedNeuron } from "./components/AuditPanel";
 import { ConnectomeView } from "./components/ConnectomeView";
 import { Panel } from "./components/Panel";
+import { KitchenView } from "./components/KitchenView";
 import { RobotView } from "./components/RobotView";
 import { Timeline } from "./components/Timeline";
 import { Toolbar } from "./components/Toolbar";
@@ -113,6 +114,7 @@ function App() {
     setTimeline([]);
   };
   const whole = graph !== null && isWholeBrain(graph);
+  const kitchenTask = graph !== null && isWholeBrain(graph) && graph.task === "kitchen";
   const selected = useMemo<SelectedNeuron | null>(() => {
     if (!graph) return null;
     if (isWholeBrain(graph)) return detail;
@@ -147,13 +149,19 @@ function App() {
             <ConnectomeView graph={graph} hidden={hidden} selectedId={selectedId} onSelect={setSelectedId} />
           )}
         </Panel>
-        <Panel title="MUJOCO PICK + PLACE" className="robot-panel">
-          <RobotView state={state} onMove={move} />
-        </Panel>
+        {kitchenTask ? (
+          <Panel title="D4RL FRANKAKITCHEN · FRANKA AS THE FLY'S LEFT FRONT LEG" className="robot-panel">
+            <KitchenView state={state} />
+          </Panel>
+        ) : (
+          <Panel title="MUJOCO PICK + PLACE" className="robot-panel">
+            <RobotView state={state} onMove={move} />
+          </Panel>
+        )}
         <AuditPanel graph={graph} selected={selected} detail={whole ? detail : null} hidden={hidden} state={state} />
       </div>
       <Panel title="SYNCHRONIZED LIVE TIMELINE" className="timeline-panel">
-        <Timeline samples={timeline} />
+        <Timeline samples={timeline} kitchen={kitchenTask} />
       </Panel>
       <footer>
         <span>MaleCNS v1.0 · CC BY 4.0 · source hashes verified</span>
