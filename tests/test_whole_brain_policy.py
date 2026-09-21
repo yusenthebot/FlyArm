@@ -176,3 +176,21 @@ def test_config_rejects_dagger_for_reach() -> None:
         WholeBrainConfig(task="reach", dagger_iterations=1)
     with pytest.raises(ValidationError, match="warmup"):
         WholeBrainConfig(task="reach", epochs=2, decoder_warmup_epochs=2)
+
+
+def test_channel_encoders_write_only_their_own_input_block(pack) -> None:
+    ids = pack.body_ids
+    interface = NeuralInterface.bind(pack, ids[:6], ids[-5:])
+    dynamics = RateDynamics(pack, interface)
+    policy = BrainPolicy(
+        "flyleg", dynamics, obs_dim=5, action_dim=2, channels=[(0, 2, 2), (2, 5, 4)]
+    )
+    obs = mx.array(np.array([[0.0, 0.0, 1.0, -2.0, 3.0]], dtype=np.float32))
+    policy.encoders[0].bias = mx.zeros_like(policy.encoders[0].bias)
+    current = np.asarray(policy.encode(obs))
+    assert current.shape == (1, 6) and np.all(current[0, :2] == 0)
+    deprived = policy.silence_channel("head_deprived", 1)
+    assert np.all(np.asarray(deprived.encode(obs))[0, 2:] == 0)
+    assert np.array_equal(np.asarray(deprived.decoder.weight), np.asarray(policy.decoder.weight))
+    with pytest.raises(ValueError, match="cover every"):
+        BrainPolicy("x", dynamics, obs_dim=5, action_dim=2, channels=[(0, 5, 3)])

@@ -11,6 +11,7 @@ from flyarm.config import ExperimentConfig, PickPlaceConfig
 from flyarm.graph import prepare_graph
 
 DEFAULT_PACK = "data/whole_brain/malecns-v1.0-c3"
+DEFAULT_ANNOTATIONS = "data/raw/body-annotations-male-cns-v1.0-minconf-0.5.feather"
 
 
 def _whole_brain(args: argparse.Namespace) -> None:
@@ -134,6 +135,13 @@ def main() -> None:
     brain_serve.add_argument("--ui", type=Path, default=Path("ui/dist"))
     brain_serve.add_argument("--host", default="127.0.0.1")
     brain_serve.add_argument("--port", type=int, default=8769)
+    leg = sub.add_parser("flyleg", help="B2: the arm as the fly's left front leg (FrankaKitchen)")
+    leg_sub = leg.add_subparsers(dest="leg_command", required=True)
+    leg_run = leg_sub.add_parser("run", help="Train and evaluate on a D4RL kitchen split")
+    leg_run.add_argument("--config", type=Path, required=True)
+    leg_run.add_argument("--pack", type=Path, default=Path(DEFAULT_PACK))
+    leg_run.add_argument("--annotations", type=Path, default=Path(DEFAULT_ANNOTATIONS))
+    leg_run.add_argument("--output", type=Path, required=True)
     serve = sub.add_parser("serve", help="Launch the real-time causal simulator and 3D UI")
     serve.add_argument("--run", type=Path, required=True)
     serve.add_argument("--graph", type=Path, default=Path("data/graphs/malecns-256-v1.npz"))
@@ -170,6 +178,13 @@ def main() -> None:
         print(f"Complete: {args.output}; {len(result['models'])} trained models")
     elif args.command == "whole-brain":
         _whole_brain(args)
+    elif args.command == "flyleg":
+        from flyarm.config import FlyLegConfig
+        from flyarm.flyleg.experiment import run_flyleg_experiment
+
+        leg_config = FlyLegConfig.model_validate_json(args.config.read_text())
+        outcome = run_flyleg_experiment(args.pack, args.annotations, args.output, leg_config)
+        print(json.dumps(outcome["summary"], indent=2))
     else:
         from flyarm.live import serve_live
 

@@ -126,3 +126,44 @@ class WholeBrainConfig(BaseModel):
         if self.task == "reach" and self.dagger_iterations:
             raise ValueError("DAgger is defined for the pick-place teacher only")
         return self
+
+
+FlyLegPolicyKind = Literal["flyleg", "flyleg_shuffled", "mlp", "gru"]
+
+
+def default_flyleg_policies() -> list[FlyLegPolicyKind]:
+    return ["flyleg", "flyleg_shuffled", "mlp", "gru"]
+
+
+class FlyLegConfig(BaseModel):
+    """B2 budget: front-leg MaleCNS vs controls on one D4RL FrankaKitchen split."""
+
+    model_config = ConfigDict(extra="forbid")
+    split: Literal["complete", "partial", "mixed"]
+    validation_fraction: float = Field(default=0.1, gt=0, le=0.3)
+    epochs: int = Field(default=60, ge=1, le=1000)
+    decoder_warmup_epochs: int = Field(default=2, ge=0, le=50)
+    batch_size: int = Field(default=8, ge=1, le=128)
+    bptt_steps: int = Field(default=8, ge=1, le=100)
+    learning_rate: float = Field(default=0.001, gt=0, le=0.05)
+    neural_steps: int = Field(default=3, ge=1, le=8)
+    eval_episodes: int = Field(default=50, ge=2, le=500)
+    ood_joint_offsets: list[float] = Field(default_factory=lambda: [0.05, 0.1], max_length=6)
+    seeds: list[int] = Field(default_factory=lambda: [0, 1, 2], min_length=1, max_length=10)
+    policies: list[FlyLegPolicyKind] = Field(default_factory=default_flyleg_policies, min_length=1)
+    max_seconds: int = Field(default=43200, ge=60, le=259200)
+
+    @field_validator("seeds", "policies")
+    @classmethod
+    def unique_entries(cls, values: list) -> list:
+        if len(set(values)) != len(values):
+            raise ValueError("entries must be unique")
+        return values
+
+    @model_validator(mode="after")
+    def warmup_leaves_joint_epochs(self) -> FlyLegConfig:
+        if self.decoder_warmup_epochs >= self.epochs:
+            raise ValueError("decoder_warmup_epochs must leave at least one joint epoch")
+        if any(not 0 < offset <= 0.5 for offset in self.ood_joint_offsets):
+            raise ValueError("OOD joint offsets must be in (0, 0.5] rad")
+        return self

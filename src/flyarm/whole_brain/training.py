@@ -17,7 +17,7 @@ import mlx.nn as nn
 import mlx.optimizers as optim
 import numpy as np
 
-from flyarm.whole_brain.policy import BrainPolicy, SequencePolicy
+from flyarm.whole_brain.policy import SequencePolicy
 
 
 @dataclass(frozen=True)
@@ -30,8 +30,9 @@ class Budget:
     deadline: float
 
 
-def _input_side(policy: SequencePolicy) -> nn.Module:
-    return policy.encoder if isinstance(policy, BrainPolicy) else policy.cell
+def _set_input_frozen(policy: SequencePolicy, frozen: bool) -> None:
+    for module in policy.input_modules():
+        module.freeze() if frozen else module.unfreeze()
 
 
 def _chunk_loss(
@@ -96,10 +97,7 @@ def train_sequence_policy(
         if time.monotonic() >= budget.deadline:
             raise TimeoutError("Whole-brain budget exhausted; partial artifacts retained")
         warmup = epoch < budget.decoder_warmup_epochs
-        if warmup:
-            _input_side(policy).freeze()
-        else:
-            _input_side(policy).unfreeze()
+        _set_input_frozen(policy, warmup)
         if optimizer is None or epoch == budget.decoder_warmup_epochs:
             # MLX optimizers cannot absorb parameters unfrozen after initialization.
             optimizer = optim.Adam(learning_rate=budget.learning_rate)
@@ -147,7 +145,7 @@ def train_sequence_policy(
         if validation_loss < best_loss:
             best_loss, best_epoch = validation_loss, epoch + 1
             best_parameters = policy.parameters()
-    _input_side(policy).unfreeze()
+    _set_input_frozen(policy, False)
     policy.update(best_parameters)
     return curves, {
         "best_epoch": best_epoch,
