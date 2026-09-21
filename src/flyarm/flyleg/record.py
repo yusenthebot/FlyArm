@@ -11,19 +11,13 @@ import numpy as np
 from flyarm.benchmarks import kitchen
 from flyarm.config import FlyLegConfig
 from flyarm.experiment import save_json
+from flyarm.flyleg.experiment import make_policy
 from flyarm.flyleg.interface import front_leg_interface, leg_channels
 from flyarm.interfaces import NeuralInterface
 from flyarm.video import annotate, tile, write_video
 from flyarm.whole_brain.backend_mlx import RateDynamics
 from flyarm.whole_brain.compiler import ConnectomePack
-from flyarm.whole_brain.policy import (
-    BrainPolicy,
-    GRUPolicy,
-    MLPPolicy,
-    MlxController,
-    SequencePolicy,
-    gru_hidden_for_budget,
-)
+from flyarm.whole_brain.policy import BrainPolicy, MlxController, SequencePolicy
 from flyarm.whole_brain.shuffle import shuffle_pack
 
 TITLES = {
@@ -31,6 +25,7 @@ TITLES = {
     "flyleg_shuffled": "Degree-matched shuffled CNS, same leg interface",
     "mlp": "MLP behavior cloning (D4RL BC)",
     "gru": "GRU, parameter-matched",
+    "act": "ACT reference (transformer + CVAE), not a fly model",
 }
 
 
@@ -46,37 +41,26 @@ def load_flyleg_policy(
     if NeuralInterface.load(run_root / "interface.json") != leg.interface:
         raise ValueError("Saved interface differs from the one regenerated from annotations")
     channels = leg_channels(leg)
-    dims = {"obs_dim": kitchen.FEATURE_DIM, "action_dim": kitchen.ACTION_DIM}
-    policy: SequencePolicy
-    if kind == "mlp":
-        policy = MLPPolicy(**dims, seed=seed)
-    elif kind == "gru":
-        budget = BrainPolicy(
-            "flyleg", RateDynamics(pack, leg.interface), channels=channels, **dims
-        ).trainable_parameter_count()
-        hidden = gru_hidden_for_budget(kitchen.FEATURE_DIM, kitchen.ACTION_DIM, budget)
-        policy = GRUPolicy(**dims, hidden=hidden, seed=seed)
-    else:
-        graph_pack, interface = pack, leg.interface
-        if kind == "flyleg_shuffled":
-            graph_pack = shuffle_pack(pack, seed + 17000)
-            recorded = json.loads((run_root / f"shuffled-{seed}.json").read_text())
-            if graph_pack.fingerprint() != recorded["fingerprint"]:
-                raise ValueError("Regenerated shuffle differs from the one used in training")
-            interface = NeuralInterface.bind(
-                graph_pack,
-                leg.interface.input_body_ids,
-                leg.interface.output_body_ids,
-                label=leg.interface.label,
-            )
-        policy = BrainPolicy(
-            kind,
-            RateDynamics(graph_pack, interface),
-            neural_steps=config.neural_steps,
-            seed=seed,
-            channels=channels,
-            **dims,
+    measured = RateDynamics(pack, leg.interface)
+    dynamics: RateDynamics | None = measured
+    if kind == "flyleg_shuffled":
+        graph_pack = shuffle_pack(pack, seed + 17000)
+        recorded = json.loads((run_root / f"shuffled-{seed}.json").read_text())
+        if graph_pack.fingerprint() != recorded["fingerprint"]:
+            raise ValueError("Regenerated shuffle differs from the one used in training")
+        interface = NeuralInterface.bind(
+            graph_pack,
+            leg.interface.input_body_ids,
+            leg.interface.output_body_ids,
+            label=leg.interface.label,
         )
+        dynamics = RateDynamics(graph_pack, interface)
+    fly_budget = make_policy(
+        "flyleg", config, 0, dynamics=measured, channels=channels, fly_budget=0
+    ).trainable_parameter_count()
+    policy = make_policy(
+        kind, config, seed, dynamics=dynamics, channels=channels, fly_budget=fly_budget
+    )
     policy.load(run_root / f"{kind}-{seed}" / "policy.safetensors")
     return policy
 
@@ -151,7 +135,7 @@ def record_kitchen(
     annotations: Path,
     output: Path,
 ) -> dict[str, Any]:
-    """Per-controller clips plus a 2x2 comparison of the same episode for every controller."""
+    """Per-controller clips plus a grid comparing every controller on the same episode."""
     config = FlyLegConfig.model_validate_json((run_root / "config.json").read_text())
     kinds = [kind for kind in config.policies if (run_root / f"{kind}-{seed}").is_dir()]
     env = (
@@ -176,7 +160,7 @@ def record_kitchen(
             path = output / f"kitchen-{config.split}-{kind}-seed{seed}.mp4"
             write_video(path, [f for episode in episodes for f in clips[kind][episode]], 12)
         for episode in episodes:
-            grid = tile([clips[kind][episode] for kind in kinds])
+            grid = tile([clips[kind][episode] for kind in kinds], 3 if len(kinds) > 4 else 2)
             path = output / f"kitchen-{config.split}-comparison-seed{seed}-episode{episode}.mp4"
             write_video(path, grid, 12)
         if "flyleg" in kinds:

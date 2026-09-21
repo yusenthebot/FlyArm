@@ -1,0 +1,31 @@
+{
+  "task": "pick-place",
+  "train_episodes": 96,
+  "val_episodes": 16,
+  "test_episodes": 24,
+  "horizon": 400,
+  "epochs": 20,
+  "decoder_warmup_epochs": 2,
+  "batch_size": 8,
+  "bptt_steps": 8,
+  "learning_rate": 0.002,
+  "neural_steps": 3,
+  "dagger_iterations": 2,
+  "dagger_episodes": 24,
+  "dagger_epochs": 10,
+  "seeds": [
+    3,
+    4,
+    5
+  ],
+  "policies": [
+    "connectome",
+    "shuffled",
+    "gru"
+  ],
+  "max_seconds": 100000,
+  "shuffle_replicates": [
+    0,
+    1
+  ]
+}

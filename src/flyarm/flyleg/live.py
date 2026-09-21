@@ -92,6 +92,7 @@ class KitchenRuntime:
     def _snapshot(self) -> dict[str, Any]:
         controller = self.controllers[self.mode]
         hidden = np.asarray(controller.state)[:, 0]
+        plan = controller.plan
         goals = self.env.unwrapped.goal
         achieved = self._observation.get("achieved_goal", {})
         distances = {
@@ -108,6 +109,7 @@ class KitchenRuntime:
             "mode": self.mode,
             "step": self._step,
             "sim_time": self._step * model_dt,
+            "control_dt": model_dt,
             "stage": f"{done}/{total} tasks",
             "success": done == total,
             "tasks": list(goals),
@@ -135,6 +137,8 @@ class KitchenRuntime:
             "robot_points": [],
             "gripper_points": [],
             "action": self._action.tolist(),
+            # Chunked controllers: the newest predicted chunk [k, 9], rows control_dt apart.
+            "plan": plan.tolist() if plan is not None and len(plan) > 1 else None,
             "robot_bodies": body_poses(self.env.unwrapped.data, self.body_ids),
             "hidden_q": encode_activity(hidden),
             "hidden_count": int(hidden.size),

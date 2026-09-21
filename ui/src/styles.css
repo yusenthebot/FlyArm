@@ -221,5 +221,13 @@ footer { display: flex; align-items: center; justify-content: space-between; col
 .sim-readout .task-done dd { color: var(--green); font-weight: 600; }
 .robot-viewport .sim-readout { background: rgba(248, 251, 252, 0.88); border-radius: 4px; padding: 6px 8px; box-shadow: 0 0 0 1px rgba(28, 57, 72, 0.08); }
 .robot-viewport .sim-readout div { grid-template-columns: 98px 1fr; }
+.motor-plan { position: absolute; z-index: 2; right: 10px; top: 9px; margin: 0; padding: 6px 8px 4px; background: rgba(248, 251, 252, 0.88); border-radius: 4px; box-shadow: 0 0 0 1px rgba(28, 57, 72, 0.08); font: 10px/1.35 "IBM Plex Mono", monospace; color: #395668; }
+.motor-plan figcaption { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 4px; color: #718996; }
+.motor-plan figcaption span:first-child { color: #395668; font-weight: 600; }
+.motor-plan svg { display: block; overflow: visible; }
+.motor-plan text { font: 9px "IBM Plex Mono", monospace; fill: #718996; }
+.motor-plan .plan-zero { stroke: rgba(28, 57, 72, 0.14); stroke-width: 1; }
+.motor-plan .plan-line { fill: none; stroke: var(--cyan); stroke-width: 1.4; stroke-linejoin: round; }
+.motor-plan .plan-now { fill: var(--yellow); }
 .brand { min-width: 0; flex: 0 1 auto; }
 .brand p { max-width: 34vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

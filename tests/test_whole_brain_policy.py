@@ -74,7 +74,7 @@ def test_only_adapters_are_trainable_and_training_reduces_loss(pack) -> None:
         seed=0,
     )
     assert curves[0]["decoder_only"] and not curves[-1]["decoder_only"]
-    assert summary["best_validation_mse"] < curves[0]["validation_mse"]
+    assert summary["best_validation_loss"] < curves[0]["validation_loss"]
     assert not np.array_equal(np.asarray(policy.encoder.weight), np.asarray(before.encoder.weight))
     assert dynamics.matrix is not None
 
@@ -176,6 +176,22 @@ def test_config_rejects_dagger_for_reach() -> None:
         WholeBrainConfig(task="reach", dagger_iterations=1)
     with pytest.raises(ValidationError, match="warmup"):
         WholeBrainConfig(task="reach", epochs=2, decoder_warmup_epochs=2)
+
+
+def test_shuffle_replicates_keep_the_original_shuffle_and_names() -> None:
+    from pydantic import ValidationError
+
+    from flyarm.config import WholeBrainConfig
+    from flyarm.whole_brain.experiment import run_name, shuffle_seed
+
+    assert shuffle_seed(2, 0) == 2 + 17000  # the shuffle of every run before replicates
+    assert len({shuffle_seed(seed, r) for seed in range(6) for r in range(3)}) == 18
+    assert run_name("shuffled", 3) == "shuffled-3"
+    assert run_name("shuffled", 3, 1) == "shuffled-3-r1"
+    with pytest.raises(ValidationError, match="unique"):
+        WholeBrainConfig(task="pick-place", horizon=400, shuffle_replicates=[1, 1])
+    with pytest.raises(ValidationError, match="seeds < 1000"):
+        WholeBrainConfig(task="pick-place", horizon=400, seeds=[1000], shuffle_replicates=[0, 1])
 
 
 def test_channel_encoders_write_only_their_own_input_block(pack) -> None:

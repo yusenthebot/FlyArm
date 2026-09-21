@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { loadRobot } from "../api";
 import type { RobotPayload, RuntimeState } from "../types";
 import { FrankaModel } from "./FrankaModel";
+import { MotorPlan } from "./MotorPlan";
 
 // FrankaKitchen's default free camera (lookat, distance 2.2, azimuth 70, elevation -35),
 // converted from MuJoCo z-up coordinates (x, y, z) to the scene's y-up frame (x, z, -y).
@@ -50,6 +51,9 @@ export function KitchenView({ state }: { state: RuntimeState }) {
           </div>
         ))}
       </dl>
+      {state.plan && state.plan.length > 1 && (
+        <MotorPlan plan={state.plan} dt={state.control_dt ?? 0.08} />
+      )}
       <div className="viewport-caption">
         <span>
           D4RL FrankaKitchen · task done when distance &lt; 0.30

@@ -33,18 +33,22 @@ def _whole_brain(args: argparse.Namespace) -> None:
         save_json(args.output, report)
         print(json.dumps({"go": report["go"], **report["checks"]}, indent=2))
     elif args.brain_command == "record":
-        from flyarm.whole_brain.experiment import load_trained_policy, record_rollouts
+        from flyarm.whole_brain.experiment import load_trained_policy, record_rollouts, run_name
 
-        task, policy = load_trained_policy(args.run, args.kind, args.seed, args.pack, args.model)
+        task, policy = load_trained_policy(
+            args.run, args.kind, args.seed, args.pack, args.model, replicate=args.replicate
+        )
         try:
             seeds = task.seeds("test", args.episodes)
-            path = args.output or args.run / f"{args.kind}-{args.seed}" / "rollout.mp4"
+            checkpoint = run_name(args.kind, args.seed, args.replicate)
+            path = args.output or args.run / checkpoint / "rollout.mp4"
             names = {
                 "connectome": "Complete MaleCNS (166,700 neurons)",
                 "shuffled": "Degree-matched shuffled CNS",
                 "gru": "GRU, parameter-matched",
             }
-            title = f"{names[args.kind]} · {task.name} · seed {args.seed}"
+            replicate = f" #{args.replicate + 1}" if args.kind == "shuffled" else ""
+            title = f"{names[args.kind]}{replicate} · {task.name} · seed {args.seed}"
             record_rollouts(task, policy, seeds, path, title=title)
         finally:
             task.close()
@@ -120,6 +124,7 @@ def main() -> None:
     record.add_argument("--run", type=Path, required=True)
     record.add_argument("--kind", choices=["connectome", "shuffled", "gru"], default="connectome")
     record.add_argument("--seed", type=int, default=0)
+    record.add_argument("--replicate", type=int, default=0, help="shuffle replicate index")
     record.add_argument("--episodes", type=int, default=3)
     record.add_argument("--pack", type=Path, default=Path(DEFAULT_PACK))
     record.add_argument("--output", type=Path, help="MP4 path (default: inside the run)")

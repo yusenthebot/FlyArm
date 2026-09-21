@@ -7,6 +7,11 @@ Controllers, all trained by the same masked sequence behavior cloning on the sam
 - ``flyleg_shuffled``: the same interface on a degree-preserving shuffle of the whole CNS.
 - ``mlp``: the standard D4RL BC architecture (two 256-unit ReLU layers, no memory).
 - ``gru``: a recurrent control with the fly policy's trainable-parameter budget.
+- ``act``: ACT (transformer + CVAE), a reference for what the demonstrations support; not a
+  fly model and not parameter-matched.
+
+With ``action_chunk`` k > 1 every controller predicts the next k actions at each step and
+executes their temporal ensemble (ACT's action chunking), so all rows share one protocol.
 
 Post-training checks of every ``flyleg`` checkpoint: edges off, direct sensory-to-motor
 synapses only, deafferented leg (proprioceptors silenced), head-sensory deprivation and
@@ -37,7 +42,9 @@ from flyarm.whole_brain.compiler import ConnectomePack
 from flyarm.whole_brain.diagnostics import direct_only_weights
 from flyarm.whole_brain.experiment import ResetEveryStep
 from flyarm.whole_brain.policy import (
+    ACTPolicy,
     BrainPolicy,
+    Channel,
     GRUPolicy,
     MLPPolicy,
     MlxController,
@@ -45,7 +52,12 @@ from flyarm.whole_brain.policy import (
     gru_hidden_for_budget,
 )
 from flyarm.whole_brain.shuffle import shuffle_pack
-from flyarm.whole_brain.training import Budget, train_sequence_policy
+from flyarm.whole_brain.training import (
+    ACTBudget,
+    Budget,
+    train_act_policy,
+    train_sequence_policy,
+)
 
 VALIDATION_SEED = 90_000
 
@@ -79,6 +91,85 @@ def _evaluate(
     finally:
         env.close()
     return {**result, "environment_overrides": variant}
+
+
+def make_policy(
+    kind: str,
+    config: FlyLegConfig,
+    seed: int,
+    *,
+    dynamics: RateDynamics | None,
+    channels: list[Channel],
+    fly_budget: int,
+) -> SequencePolicy:
+    """Untrained controller of one kind; the same constructor serves training and replay."""
+    dims = {
+        "obs_dim": kitchen.FEATURE_DIM,
+        "action_dim": kitchen.ACTION_DIM,
+        "chunk": config.action_chunk,
+    }
+    if kind == "mlp":
+        return MLPPolicy(**dims, seed=seed)
+    if kind == "gru":
+        output_dim = kitchen.ACTION_DIM * config.action_chunk
+        hidden = gru_hidden_for_budget(kitchen.FEATURE_DIM, output_dim, fly_budget)
+        return GRUPolicy(**dims, hidden=hidden, seed=seed)
+    if kind == "act":
+        slices = [
+            (kitchen.PROPRIOCEPTION.start, kitchen.PROPRIOCEPTION.stop),
+            (kitchen.EXTEROCEPTION.start, kitchen.EXTEROCEPTION.stop),
+        ]
+        return ACTPolicy(**dims, token_slices=slices, seed=seed)
+    if dynamics is None:
+        raise ValueError(f"{kind} needs connectome dynamics")
+    return BrainPolicy(
+        kind, dynamics, neural_steps=config.neural_steps, seed=seed, channels=channels, **dims
+    )
+
+
+def _train(
+    policy: SequencePolicy,
+    config: FlyLegConfig,
+    train: dict[str, np.ndarray],
+    validation: dict[str, np.ndarray],
+    seed: int,
+    deadline: float,
+) -> tuple[list[dict[str, Any]], dict[str, Any], dict[str, float] | None]:
+    if isinstance(policy, ACTPolicy):
+        budget = ACTBudget(
+            steps=config.act_steps,
+            batch_size=config.act_batch_size,
+            learning_rate=config.act_learning_rate,
+            kl_weight=config.act_kl_weight,
+            eval_every=max(1, config.act_steps // 50),
+            deadline=deadline,
+        )
+        return (*train_act_policy(policy, train, validation, budget, seed), None)
+    calibration = None
+    brain = isinstance(policy, BrainPolicy)
+    if brain:
+        samples = train["obs"][train["mask"].astype(bool)]
+        policy.set_normalization(samples.mean(0), np.maximum(samples.std(0), 0.05))
+        calibration = policy.calibrate_readout(train["obs"], train["mask"])
+    curves, training = train_sequence_policy(
+        policy,
+        train,
+        train["mask"],
+        validation,
+        validation["mask"],
+        Budget(
+            epochs=config.epochs,
+            decoder_warmup_epochs=config.decoder_warmup_epochs if brain else 0,
+            batch_size=config.batch_size,
+            bptt_steps=config.bptt_steps,
+            learning_rate=config.learning_rate,
+            deadline=deadline,
+            loss=config.loss,
+        ),
+        seed,
+        set_normalization=not brain,
+    )
+    return curves, training, calibration
 
 
 def _short(result: dict[str, Any]) -> str:
@@ -172,15 +263,9 @@ def _run(pack_root: Path, annotations: Path, output: Path, config: FlyLegConfig)
 
     channels = leg_channels(leg)
     measured = RateDynamics(pack, leg.interface)
-    budget_policy = BrainPolicy(
-        "flyleg",
-        measured,
-        obs_dim=kitchen.FEATURE_DIM,
-        action_dim=kitchen.ACTION_DIM,
-        channels=channels,
-    )
-    fly_budget = budget_policy.trainable_parameter_count()
-    weights_train, weights_validation = train["mask"], validation["mask"]
+    fly_budget = make_policy(
+        "flyleg", config, 0, dynamics=measured, channels=channels, fly_budget=0
+    ).trainable_parameter_count()
 
     for seed in config.seeds:
         dynamics = {"flyleg": measured}
@@ -204,52 +289,16 @@ def _run(pack_root: Path, annotations: Path, output: Path, config: FlyLegConfig)
             print(f"{config.split} {kind} seed={seed}", flush=True)
             run = output / f"{kind}-{seed}"
             run.mkdir()
-            policy: SequencePolicy
-            if kind == "mlp":
-                policy = MLPPolicy(
-                    obs_dim=kitchen.FEATURE_DIM, action_dim=kitchen.ACTION_DIM, seed=seed
-                )
-            elif kind == "gru":
-                hidden = gru_hidden_for_budget(kitchen.FEATURE_DIM, kitchen.ACTION_DIM, fly_budget)
-                policy = GRUPolicy(
-                    obs_dim=kitchen.FEATURE_DIM,
-                    action_dim=kitchen.ACTION_DIM,
-                    hidden=hidden,
-                    seed=seed,
-                )
-            else:
-                policy = BrainPolicy(
-                    kind,
-                    dynamics[kind],
-                    obs_dim=kitchen.FEATURE_DIM,
-                    action_dim=kitchen.ACTION_DIM,
-                    neural_steps=config.neural_steps,
-                    seed=seed,
-                    channels=channels,
-                )
-            calibration = None
-            if isinstance(policy, BrainPolicy):
-                samples = train["obs"][train["mask"].astype(bool)]
-                policy.set_normalization(samples.mean(0), np.maximum(samples.std(0), 0.05))
-                calibration = policy.calibrate_readout(train["obs"], train["mask"])
-            curves, training = train_sequence_policy(
-                policy,
-                train,
-                weights_train,
-                validation,
-                weights_validation,
-                Budget(
-                    epochs=config.epochs,
-                    decoder_warmup_epochs=(
-                        config.decoder_warmup_epochs if isinstance(policy, BrainPolicy) else 0
-                    ),
-                    batch_size=config.batch_size,
-                    bptt_steps=config.bptt_steps,
-                    learning_rate=config.learning_rate,
-                    deadline=deadline,
-                ),
+            policy = make_policy(
+                kind,
+                config,
                 seed,
-                set_normalization=not isinstance(policy, BrainPolicy),
+                dynamics=dynamics.get(kind),
+                channels=channels,
+                fly_budget=fly_budget,
+            )
+            curves, training, calibration = _train(
+                policy, config, train, validation, seed, deadline
             )
             save_json(run / "learning.json", curves)
             policy.save(run / "policy.safetensors")
@@ -258,6 +307,7 @@ def _run(pack_root: Path, annotations: Path, output: Path, config: FlyLegConfig)
                 "seed": seed,
                 "trainable_parameters": policy.trainable_parameter_count(),
                 "state_size": policy.state_size,
+                "action_chunk": policy.chunk,
                 "readout_calibration": calibration,
                 **training,
                 "clean": _evaluate(config, MlxController(policy), seeds),
