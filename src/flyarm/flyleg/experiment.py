@@ -159,14 +159,21 @@ def _dagger_rollouts(
     episodes: int,
     seed: int,
     iteration: int,
+    beta: float = 0.0,
 ) -> tuple[dict[str, np.ndarray], dict[str, Any]]:
-    """Learner-driven episodes from clean starts, every visited state labelled by the tracker."""
+    """Episodes from clean starts, every visited state labelled by the tracker.
+
+    Each step executes the teacher's action with probability ``beta`` and the learner's
+    otherwise; the learner sees every observation either way, so its state stays in step.
+    """
     horizon = env.spec.max_episode_steps
     obs = np.zeros((episodes, horizon, kitchen.FEATURE_DIM), np.float32)
     actions = np.zeros((episodes, horizon, kitchen.ACTION_DIM), np.float32)
     mask = np.zeros((episodes, horizon), np.float32)
     controller = MlxController(policy)
+    generator = np.random.default_rng([DAGGER_SEED, seed, iteration])
     completed: list[int] = []
+    teacher_steps = 0
     for episode in range(episodes):
         observation, info = env.reset(seed=DAGGER_SEED + 10_000 * seed + 100 * iteration + episode)
         controller.reset()
@@ -177,13 +184,18 @@ def _dagger_rollouts(
             actions[episode, step] = expert.label(full)
             mask[episode, step] = 1.0
             action = controller.act(obs[episode, step])
+            if beta and generator.random() < beta:
+                action = actions[episode, step]
+                teacher_steps += 1
             observation, _, terminated, truncated, info = env.step(action.astype(np.float64))
             if terminated or truncated:
                 break
         completed.append(len(info.get("episode_task_completions", [])))
     stats = {
         "rollout_episodes": episodes,
-        "learner_mean_tasks": float(np.mean(completed)),
+        "beta": beta,
+        "teacher_step_fraction": teacher_steps / max(int(mask.sum()), 1),
+        "rollout_mean_tasks": float(np.mean(completed)),
         "labelled_states": int(mask.sum()),
     }
     return {"obs": obs, "actions": actions, "mask": mask}, stats
@@ -286,8 +298,9 @@ def _train(
         aggregate = _pad(train, env.spec.max_episode_steps)
         for iteration in range(config.dagger_iterations if expert is not None else 0):
             assert expert is not None
+            beta = config.dagger_beta * config.dagger_beta_decay**iteration
             rollouts, stats = _dagger_rollouts(
-                policy, expert, env, config.dagger_episodes, seed, iteration
+                policy, expert, env, config.dagger_episodes, seed, iteration, beta
             )
             aggregate = {
                 key: np.concatenate((aggregate[key], rollouts[key]))
@@ -308,7 +321,10 @@ def _train(
             phases.append(
                 {"phase": phase, **summary, **stats, "aggregate_episodes": len(aggregate["obs"])}
             )
-            print(f"  {phase}: learner mean tasks {stats['learner_mean_tasks']:.2f}", flush=True)
+            print(
+                f"  {phase}: beta {beta:.2f}, rollout mean tasks {stats['rollout_mean_tasks']:.2f}",
+                flush=True,
+            )
     finally:
         env.close()
     training = {
