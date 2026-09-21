@@ -10,10 +10,7 @@ It runs in real time on a Mac (MLX, 4 ms per control step).
 
 ## How it works
 
-```
-observation -> linear -> sensory neurons -> 166,700-neuron rate dynamics on the measured wiring -> motor neurons -> linear -> action
-                          (inputs only)      frozen, 3 steps per control step, state persists     (outputs only)
-```
+![Control network: trained linear maps write the observation into sensory neurons, the frozen MaleCNS runs three rate-dynamics steps per control step, and trained linear maps read motor neurons into actions](docs/figures/control_network-figure.png)
 
 - **The brain is not trained.** Connection weights come from measured synapse counts, and the only path from inputs to outputs runs through the connectome.
 - **Biologically mapped I/O.** In FrankaKitchen the arm is the fly's left front leg: joint angles enter through its 23 leg proprioceptors, the scene through 4,868 head sensory neurons, and actions are read from its 68 leg motor neurons, all selected by annotation rules.
