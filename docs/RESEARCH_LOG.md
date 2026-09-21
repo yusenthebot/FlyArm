@@ -157,3 +157,26 @@ Partial: seed 3 connectome lift 9, place 5; its first shuffle lift 15, place 11 
 Question: is the fly controller underfitting because it reads only 68 motor neurons?
 Evidence for the question: after behavior cloning the fly's training L1 is 0.106, against 0.068 for the GRU, 0.075 for the MLP and 0.043 for ACT (E11), and neither longer memory (E20) nor corrective data (E19) helped.
 Method: E11 protocol with the decoder reading the 68 left front-leg motor neurons plus the brain's 1,314 descending neurons (readout "leg_motor+descending"), fly only, seed 0, 20 test episodes; inputs unchanged.
+
+### E23. Stateful-teacher labels in B1a DAgger (found by the multi-task agent, quantified here)
+Finding: the scripted pick-and-place teacher keeps its own stage machine, so while labelling learner-driven DAgger states it can still be in "approach" or "descend" after the learner has already grasped and lifted the cube, and it then labels those states "open the gripper".
+Quantification over every saved B1a DAgger set (runs/whole-brain-pick-place-001 to -003, 36 files): 337,014 labelled states, 6,353 with both fingers on a cube at least 6 cm above rest, 931 of those (15%) labelled with an open gripper, all in teacher stages 0 or 1.
+Reading: 0.28% of all labels, concentrated in the lift and transport phase; every controller in a run received the same labels, so the comparisons stay matched, but absolute B1a scores are probably depressed.
+Action: the multi-task branch derives the teacher's stage from the physical state (0 of 1,067 such labels remain, its own demonstrations unchanged); B1a pick-and-place should be rerun with a stateless teacher before its numbers go into the paper, with the current runs kept as the first protocol.
+
+## Parallel tracks, status 2026-09-21 evening
+
+### Multi-task (branch feat/multitask-manipulation, commits 92dba87 to f790242)
+Teachers (50 episodes per cell): pick and place 50/50 everywhere; push 50/50 train, 49/50 iid, worst held-out cell 46/50; lift and hold 50/50, worst 48/50; stack 50/50, worst 46/50.
+Scene changes needed for pushing: elliptic friction cones and floor friction 0.6.
+Early controls, seed 0, 12 episodes per cell (successes): GRU iid 5/48, interp 12/48, extrap 3/48, compositional 3/24, object 6/48; MLP 27/48, 26/48, 10/48, 0/24, 27/48; neither combines a skill with a region it never trained in.
+The connectome run (runs/multitask-001, about 15 to 20 h) waits for the GPU.
+
+### Long-horizon (branch feat/long-horizon)
+Tasks: tower, sort and clear with four colour-coded cubes, 600 to 1,000 control steps; teacher 900/900.
+Design decision pending with the user: the observation includes a memoryless sub-task cue (the cube to handle now, recomputed from the scene every step), because without it no controller learned to pick the next cube in a pilot (MLP correct first pick 0/36, with the cue 27/36); a cue-silenced lesion keeps the brain's own sequencing testable.
+Early controls, seed 0, 36 test episodes per split (progress): GRU iid 0.25 (4/36 full), MLP 0.11 (1/36); both near 0 without the cue; tower about 0 for both.
+The connectome and shuffle runs (12 to 24 h) wait for the GPU.
+
+### Dexterous hand (branch feat/dexterous-hand)
+LEAP hand, four fly legs as fingers; privileged PPO teacher 64/64 rotation episodes without drops; distilled GRU 60/64; the fly runs (about 6 to 7 h) wait for the GPU.
