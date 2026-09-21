@@ -32,7 +32,8 @@ from flyarm.config import WholeBrainConfig
 from flyarm.env import PandaReachEnv
 from flyarm.experiment import save_json
 from flyarm.interfaces import NeuralInterface
-from flyarm.pick_place_env import PandaPickPlaceEnv
+from flyarm.pick_place_env import PandaPickPlaceEnv, physical_stage
+from flyarm.video import annotate
 from flyarm.whole_brain.backend_mlx import RateDynamics
 from flyarm.whole_brain.compiler import ConnectomePack
 from flyarm.whole_brain.diagnostics import direct_only_weights
@@ -116,18 +117,44 @@ def _scalars(info: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def record_rollouts(task: Task, policy: SequencePolicy, seeds: list[int], output: Path) -> None:
-    """Real MuJoCo frames plus a same-frame trace; output-neuron activity goes to an NPZ."""
+def _status(info: dict[str, Any]) -> tuple[str, bool]:
+    if "goal_xy_error" in info:
+        stage = physical_stage(info)
+        return f"{stage} · goal error {100 * info['goal_xy_error']:.1f} cm", stage == "placed"
+    return f"distance {1000 * info['distance']:.1f} mm", bool(info["is_success"])
+
+
+def record_rollouts(
+    task: Task,
+    policy: SequencePolicy,
+    seeds: list[int],
+    output: Path,
+    *,
+    title: str | None = None,
+) -> None:
+    """Real MuJoCo frames plus a same-frame trace; output-neuron activity goes to an NPZ.
+
+    With ``title`` every frame carries the controller name, episode, step and physical state.
+    """
     if output.exists():
         raise FileExistsError(output)
+    output.parent.mkdir(parents=True, exist_ok=True)
     controller = MlxController(policy)
     trace: list[dict[str, Any]] = []
     activity: list[np.ndarray] = []
+
+    def frame(seed: int, step: int, info: dict[str, Any]) -> np.ndarray:
+        image = task.env.render()
+        if title is None:
+            return image
+        status, success = _status(info)
+        return annotate(image, title, f"episode {seed} · step {step} · {status}", success=success)
+
     with cast(Any, imageio.get_writer(output, fps=20, codec="libx264", quality=7)) as writer:
         for seed in seeds:
             observation, info = task.env.reset(seed=seed)
             controller.reset()
-            writer.append_data(task.env.render())
+            writer.append_data(frame(seed, 0, info))
             for step in range(task.env.horizon):
                 action = controller.act(observation)
                 observation, _, terminated, truncated, info = task.env.step(action)
@@ -145,7 +172,7 @@ def record_rollouts(task: Task, policy: SequencePolicy, seeds: list[int], output
                         **_scalars(info),
                     }
                 )
-                writer.append_data(task.env.render())
+                writer.append_data(frame(seed, step + 1, info))
                 if terminated or truncated:
                     break
     save_json(
