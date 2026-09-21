@@ -64,3 +64,32 @@ The leg reflex arc is the strongest path in the CNS, which is what makes this in
 - Uses the CNS beyond reflexes: direct sensory-to-motor synapses alone lose at least a third of the score.
 - Uses both senses: deafferentation and head-sensory deprivation each reduce the score.
 - Topology advantage: measured beats shuffle by a significant margin over at least three seeds; otherwise the result is "the fly CNS is a usable controller", not "its wiring is better".
+
+## Findings while building the benchmark
+
+**Copycat failure of behavior cloning with velocity inputs.**
+With the full 59-dimensional observation, every BC controller scored 0 on kitchen-complete, including a two-layer MLP with validation MSE 0.008.
+Replaying a demonstration open loop scores 100, and replay tolerates action noise of 0.005 (4/4 tasks), so the environment and data are consistent.
+The robot joint velocities in the observation are almost exactly the previous velocity command, so the policy learns to repeat its last action and never leaves the start pose.
+Removing all velocities from the controller input (robot joint positions plus object joint positions, 30 dimensions) raised the same MLP from 0 to 45 on 10 episodes.
+All controllers therefore see the same position-only features; recurrent controllers, including the fly CNS, can still infer velocity from their own state.
+The benchmark itself is unchanged: its environment, observations, actions and scoring are used as released.
+
+**Motor-neuron readout scale.**
+Left front-leg motor-neuron activity under behavior-cloning inputs has a median RMS of 2.8e-4 (range 4.4e-5 to 6.4e-3), far below the unit-scale inputs the linear decoder expects, and Adam could not grow the decoder weights fast enough (validation MSE 0.074 after 30 epochs).
+Before training, each output neuron is now scaled by the inverse of its RMS activity on the training episodes (a frozen buffer saved with the checkpoint); validation MSE then reached 0.027 after 20 epochs.
+The rescaling touches only the declared motor neurons and adds no pathway.
+
+**Compatibility.**
+Gymnasium-Robotics 1.4.2 cannot construct FrankaKitchen with MuJoCo 3.13 because it tests joint types with `in (enum, ...)`, which the newer bindings evaluate as false for numpy integers.
+`flyarm.benchmarks._robotics_compat` replaces its four joint accessors with integer comparisons; MuJoCo is not downgraded.
+
+## Live UI
+
+```bash
+uv run flyarm flyleg serve --run runs/flyleg-kitchen-complete-001 --seed 0 --port 8770
+```
+
+The kitchen scene, every visible geom of FrankaKitchen-v1, is exported from the compiled MuJoCo model and posed from live body states; the complete CNS is drawn with the three interface groups in their own colors.
+Sensory afferents have no soma inside the CNS; the 4,676 that have drawn partners are placed at the contact-weighted centroid of their postsynaptic partners' somata and labelled as such.
+Modes: measured CNS, shuffled CNS (trained separately), edges off, direct sensory-to-motor synapses only, deafferented leg, head senses removed.
