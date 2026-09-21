@@ -163,6 +163,15 @@ def main() -> None:
     leg_record.add_argument("--output", type=Path, required=True)
     report = sub.add_parser("report", help="Aggregate completed runs into a Markdown report")
     report.add_argument("--output", type=Path, required=True)
+    rl = sub.add_parser("rl", help="Reinforcement learning with batched MuJoCo (mjbatch)")
+    rl_sub = rl.add_subparsers(dest="rl_command", required=True)
+    ppo = rl_sub.add_parser("ppo", help="PPO fine-tuning of a pick-place checkpoint's decoder")
+    ppo.add_argument("--config", type=Path, required=True)
+    ppo.add_argument("--pack", type=Path, default=Path(DEFAULT_PACK))
+    ppo.add_argument(
+        "--model", type=Path, default=Path("assets/menagerie/franka_emika_panda/scene.xml")
+    )
+    ppo.add_argument("--output", type=Path, required=True)
     leg_serve = leg_sub.add_parser("serve", help="Live kitchen UI driven by a B2 checkpoint")
     leg_serve.add_argument("--run", type=Path, required=True)
     leg_serve.add_argument("--seed", type=int, default=0)
@@ -208,6 +217,13 @@ def main() -> None:
         print(f"Complete: {args.output}; {len(result['models'])} trained models")
     elif args.command == "whole-brain":
         _whole_brain(args)
+    elif args.command == "rl":
+        from flyarm.config import PPOConfig
+        from flyarm.rl.ppo import run_ppo
+
+        ppo_config = PPOConfig.model_validate_json(args.config.read_text())
+        outcome = run_ppo(ppo_config, args.pack, args.model, args.output)
+        print(json.dumps({k: outcome[k] for k in ("base", "best")}, indent=2))
     elif args.command == "report":
         from flyarm.report import build_report
 

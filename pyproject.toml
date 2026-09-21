@@ -20,6 +20,7 @@ dependencies = [
     "mlx>=0.29 ; platform_machine == 'arm64' and sys_platform == 'darwin'",
     "gymnasium-robotics>=1.4",
     "minari[hdf5]>=0.5",
+    "mjbatch>=0.1.1",
 ]
 
 [project.scripts]
