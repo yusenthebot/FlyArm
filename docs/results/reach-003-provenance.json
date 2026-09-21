@@ -1,0 +1,85 @@
+{
+  "graph_sha256": "0f2d1ad1bdebf802ec2533558c3969cf42d3cafdba533f2a6a8b9d7a4f41501e",
+  "graph_content_sha256": "7a5018c5481d14307e1efec305f4f448648545e5feda7caf9297dab518f4da5d",
+  "source_files_sha256": {
+    "__init__.py": "4e4d38ee7ac6671dfc8b2cf0e3daf1c6ce48cb01c156431faefadc08e1d854cb",
+    "assets.py": "916d8c5f2fc2fd98e6f0a7332074290e77c75de25824d1da17b4f1880ef3d0da",
+    "cli.py": "28728d47c6e63783803bc8589041a5a77c4b8324e1ee4a1a373ecfedf0dd5cfc",
+    "config.py": "1bf59a9997587543c7b671e669536b4e66c72bcdb7493eaa659f58bacbb74182",
+    "env.py": "bf6487b022c1f35d250f5dbb231ca9d1ddf7ee5f98eeee226d0d62d59cb4c2a6",
+    "experiment.py": "302d31e57b6dd656e33cb8962c5ab234c1264146879b62cd544256b8ec1452e8",
+    "graph.py": "3c3ca21aca1afc2ca8ef0c00f8a9d430aef87112909d02413f19f7a347be9554",
+    "models.py": "347ff66fa25621555809057e3e9e4d92cae87069dd042394bbf0050b22314ce0"
+  },
+  "rng_plan": "torch model seed; numpy Generator training seed; graph seed+7000; noise episode+987654; Gym episode seeds",
+  "deterministic_algorithms": true,
+  "torch_threads": 2,
+  "torch_interop_threads": 18,
+  "reproducibility_scope": "seed replay on recorded platform, not cross-platform bitwise guarantee",
+  "python": "3.12.13",
+  "platform": "macOS-26.3.2-arm64-arm-64bit",
+  "versions": {
+    "torch": "2.14.0",
+    "mujoco": "3.13.0",
+    "numpy": "2.5.3",
+    "gymnasium": "1.3.0"
+  },
+  "menagerie_revision": "822c2d8f877dd166c5b7d3c9f7e3c3b6589473b7",
+  "observation": "privileged_state_20d",
+  "action": "normalized_3d_cartesian_displacement",
+  "task": "fixed_orientation_reaching_no_grasping",
+  "graph": {
+    "schema_version": 1,
+    "recipe_version": "descending-contact-v1",
+    "dataset": "MaleCNS v1.0",
+    "scope": "measured_subgraph_not_whole_brain",
+    "selection": "descending seeds, strongest adjacent contact sums, ID tie break",
+    "seed_types": [
+      "DNa02",
+      "DNg13",
+      "DNge104",
+      "DNp01"
+    ],
+    "min_contacts": 3,
+    "self_loops": "excluded",
+    "nodes": 256,
+    "edges": 4678,
+    "retained_annotated_nodes": 166700,
+    "eligible_edges": 10520377,
+    "node_fraction": 0.0015356928614277145,
+    "edge_fraction": 0.0004446608709935015,
+    "zero_sign_nodes": 3,
+    "nt_counts": {
+      "acetylcholine": 141,
+      "gaba": 65,
+      "glutamate": 47,
+      "unclear": 3
+    },
+    "sign_assumption": "ACh +1; GABA/glutamate -1; other/unknown 0; no receptor modeling",
+    "dynamics": "abstract leaky tanh state; not physiological spikes",
+    "sources": {
+      "dataset": "MaleCNS v1.0",
+      "license": "CC-BY-4.0",
+      "files": {
+        "annotations": {
+          "name": "body-annotations-male-cns-v1.0-minconf-0.5.feather",
+          "url": "https://storage.googleapis.com/flyem-male-cns/v1.0/connectome-data/flat-connectome/body-annotations-male-cns-v1.0-minconf-0.5.feather?generation=1780494878811468",
+          "bytes": 14483314,
+          "sha256": "2177e246113e4cfbf1e7772ec37c6da1955ff22e8063d0b1f833101f99a9a3b2"
+        },
+        "weights": {
+          "name": "connectome-weights-male-cns-v1.0-minconf-0.5.feather",
+          "url": "https://storage.googleapis.com/flyem-male-cns/v1.0/connectome-data/flat-connectome/connectome-weights-male-cns-v1.0-minconf-0.5.feather?generation=1780494887545976",
+          "bytes": 1051241946,
+          "sha256": "e35da783d1c686b2b58b3b87cd6a403ae43bfcfba8bff28e08ef752c1a56afc1"
+        },
+        "neurotransmitters": {
+          "name": "body-neurotransmitters-male-cns-v1.0.feather",
+          "url": "https://storage.googleapis.com/flyem-male-cns/v1.0/connectome-data/flat-connectome/body-neurotransmitters-male-cns-v1.0.feather?generation=1780894899156750",
+          "bytes": 43282834,
+          "sha256": "95c9289220663abeb3409f3ad9e5a7f8a53f8093f5139d15502cd08da8879621"
+        }
+      }
+    }
+  }
+}
