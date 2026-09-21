@@ -288,7 +288,9 @@ def serve_flyleg(
     ui_dist = _validate_server_scope(ui_dist, host)
     pack = ConnectomePack.load(pack_root)
     pack.validate_b1a_provenance()
-    leg = front_leg_interface(pack, annotations)
+    config = json.loads((run_root / "config.json").read_text())
+    include_head = config.get("sensory_channels", "proprioception+head") == "proprioception+head"
+    leg = front_leg_interface(pack, annotations, include_head=include_head)
     policy = load_flyleg_policy(run_root, "flyleg", seed, pack_root, annotations)
     if not isinstance(policy, BrainPolicy):
         raise ValueError("Expected a front-leg brain checkpoint")
@@ -302,8 +304,9 @@ def serve_flyleg(
             RateDynamics(pack, leg.interface, weights=direct_only_weights(pack, leg.interface)),
         ),
         "deafferented": policy.silence_channel("deafferented", 0),
-        "head_deprived": policy.silence_channel("head_deprived", 1),
     }
+    if include_head:
+        variants["head_deprived"] = policy.silence_channel("head_deprived", 1)
     if (run_root / f"flyleg_shuffled-{seed}" / "policy.safetensors").is_file():
         shuffled = load_flyleg_policy(run_root, "flyleg_shuffled", seed, pack_root, annotations)
         if isinstance(shuffled, BrainPolicy):
@@ -318,16 +321,13 @@ def serve_flyleg(
         leg.interface,
         annotations,
         modes,
-        input_groups=[
-            (leg.proprioceptors, "front-leg proprioceptor"),
-            (leg.exteroceptors, "head sensory"),
-        ],
+        input_groups=[(leg.proprioceptors, "front-leg proprioceptor")]
+        + ([(leg.exteroceptors, "head sensory")] if include_head else []),
         output_label="front-leg motor neuron",
         place_afferents=True,
         task="kitchen",
     )
     payload["title"] = f"complete CNS · left front leg · {pack.nodes:,} neurons"
-    config = json.loads((run_root / "config.json").read_text())
     env = kitchen.recover_env(config["split"])
     model = env.unwrapped.model
     body_ids = sorted(

@@ -140,6 +140,8 @@ class FlyLegConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
     split: Literal["complete", "partial", "mixed"]
+    # "proprioception" wires only the front-leg proprioceptors; scene state is then unused.
+    sensory_channels: Literal["proprioception+head", "proprioception"] = "proprioception+head"
     validation_fraction: float = Field(default=0.1, gt=0, le=0.3)
     epochs: int = Field(default=60, ge=1, le=1000)
     decoder_warmup_epochs: int = Field(default=2, ge=0, le=50)

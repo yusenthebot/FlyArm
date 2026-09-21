@@ -23,6 +23,7 @@ SIDE = "L"
 PROPRIOCEPTOR_SUBCLASSES = ("chordotonal organ", "hair plate", "campaniform sensilla")
 FRONT_LEG_NERVE = "ProLN"
 LABEL = "left front leg: ProLN proprioceptors + head sensory in, fl motor neurons out"
+PROPRIOCEPTIVE_LABEL = "left front leg: ProLN proprioceptors in, fl motor neurons out"
 COLUMNS = ["bodyId", "superclass", "class", "subclass", "type", "entryNerve", "exitNerve"]
 
 
@@ -48,7 +49,9 @@ def _annotations(pack: ConnectomePack, path: Path) -> pd.DataFrame:
     return table.assign(side=table.somaSide.fillna(table.rootSide))
 
 
-def front_leg_interface(pack: ConnectomePack, annotations_path: Path) -> FrontLegInterface:
+def front_leg_interface(
+    pack: ConnectomePack, annotations_path: Path, *, include_head: bool = True
+) -> FrontLegInterface:
     table = _annotations(pack, annotations_path)
     ids = pack.body_ids
     left = table.side == SIDE
@@ -61,15 +64,29 @@ def front_leg_interface(pack: ConnectomePack, annotations_path: Path) -> FrontLe
     head = table.superclass == "cb_sensory"
     motor = (table.superclass == "vnc_motor") & (table.subclass == "fl") & left
     proprioceptors = ids[proprio.to_numpy()]
-    exteroceptors = ids[head.to_numpy()]
+    exteroceptors = ids[head.to_numpy()] if include_head else np.array([], dtype=np.int64)
     motor_neurons = ids[motor.to_numpy()]
     interface = NeuralInterface.bind(
         pack,
         np.concatenate((proprioceptors, exteroceptors)),
         motor_neurons,
-        label=LABEL,
+        label=LABEL if include_head else PROPRIOCEPTIVE_LABEL,
     )
     return FrontLegInterface(interface, proprioceptors, exteroceptors, motor_neurons)
+
+
+def leg_channels(leg: FrontLegInterface) -> list[tuple[int, int, int]]:
+    """Encoder channels over the position features: joints -> proprioceptors, scene -> head."""
+    from flyarm.benchmarks import kitchen
+
+    channels = [
+        (kitchen.PROPRIOCEPTION.start, kitchen.PROPRIOCEPTION.stop, len(leg.proprioceptors))
+    ]
+    if len(leg.exteroceptors):
+        channels.append(
+            (kitchen.EXTEROCEPTION.start, kitchen.EXTEROCEPTION.stop, len(leg.exteroceptors))
+        )
+    return channels
 
 
 def front_leg_report(
@@ -84,6 +101,8 @@ def front_leg_report(
     motor = np.array([index[int(body)] for body in leg.motor_neurons])
 
     def channel(body_ids: np.ndarray) -> dict[str, Any]:
+        if len(body_ids) == 0:
+            return {"count": 0}
         positions = np.array([index[int(body)] for body in body_ids])
         hops = hop_distances(source_ptr, rows[by_source], positions)[motor]
         members = table.iloc[positions]
