@@ -1,135 +1,65 @@
 # FlyArm
 
-**用真实果蝇连接组作为固定循环网络，训练输入/输出适配器控制机械臂。**
+**一只果蝇的完整大脑接线图，不改一根线，驱动一台 Franka 机械臂。**
 
-Research MVP: a measured MaleCNS v1.0 subgraph → trainable adapters → actual Panda
-MuJoCo reach and real-contact pick-and-place. This is **not a whole-brain emulation**,
-not a naturally mapped fruit-fly motor system, and not a claim that biological topology
-beats an MLP. See the [auditable baseline definition](docs/BASELINE.md).
+A frozen, complete fruit-fly central nervous system (MaleCNS v1.0: 166,700 neurons, 10.5 M connections) is the controller of a simulated Franka arm.
+Only a linear map into sensory neurons and a linear map out of motor neurons are trained.
+It runs in real time on a Mac (MLX, 4 ms per control step).
 
-## Current scope
+![Kitchen live view: the complete CNS, the Franka as the fly's left front leg, and the motor plan decoded from its motor neurons](docs/images/ui-kitchen.png)
 
-- Pinned official MaleCNS exports; deterministic 256-neuron / 4,678-edge subgraph.
-- Frozen signed sparse recurrence, trained encoder/readout; sequence behavior cloning.
-- Reused Google DeepMind Menagerie Panda, MuJoCo dynamics, Gymnasium and PyTorch.
-- Shared-data connectome / degree-preserving shuffled / MLP / GRU comparisons;
-  teacher, zero-action and post-training edges-silenced checks.
-- Three seeds; episode-disjoint splits; clean and 1 cm observation-noise evaluation.
-- Real MP4 rollouts with same-frame hidden-state/action/error traces. No teacher
-  corrections during learned evaluation and no direct qpos edits during stepping.
-- Real-contact 4 cm cube grasping with friction, gravity, dual-finger contact, lift,
-  transport, release and ten-step stable-success checks; no object weld or attachment.
-- Live React/Three.js research console backed by the running MuJoCo policy: reset,
-  run/pause/step, movable object/goal, selectable measured neurons and causal modes.
+## How it works
 
-The task uses **privileged target position**, fixed end-effector orientation, an open
-gripper and local 3D reaching. See [protocol](docs/PROTOCOL.md) for limitations.
-Initial corrected reach runs solve that small task across all four model families;
-this is pipeline evidence, **not** a connectome advantage. Pick-and-place is reported
-separately because teacher feasibility and learned-policy success are different claims.
+```
+observation -> linear -> sensory neurons -> 166,700-neuron rate dynamics on the measured wiring -> motor neurons -> linear -> action
+                          (inputs only)      frozen, 3 steps per control step, state persists     (outputs only)
+```
 
-See [initial measured results and diagnostic history](docs/RESULTS.md) and the
-[restricted pick-and-place protocol](docs/PICK_PLACE_PROTOCOL.md). The latest
-pick-and-place run is deliberately reported as a negative learned-controller baseline:
-the scripted teacher succeeds, while the measured-connectome policy does not yet place.
+- **The brain is not trained.** Connection weights come from measured synapse counts, and the only path from inputs to outputs runs through the connectome.
+- **Biologically mapped I/O.** In FrankaKitchen the arm is the fly's left front leg: joint angles enter through its 23 leg proprioceptors, the scene through 4,868 head sensory neurons, and actions are read from its 68 leg motor neurons, all selected by annotation rules.
+- **Causal controls, as in neuroscience.** Every result is compared with a degree-preserving shuffle of the same CNS, a parameter-matched GRU and an MLP, and checked with lesions: edges off, direct synapses only, deafferentation, state reset every step.
 
-## Run locally
+## Results so far
 
-Tested on Apple Silicon with Python 3.12, CPU PyTorch and off-screen MuJoCo rendering.
-Git and [uv](https://docs.astral.sh/uv/) are required. Downloads total about 1.1 GB
-for connectome exports plus Panda assets; graph preparation benefits from ample RAM.
+Real-contact pick and place, 3 training seeds x 24 held-out episodes:
+
+| Controller | Grasp | Lift | Stable place |
+|---|---:|---:|---:|
+| Complete MaleCNS | 69/72 | **58/72** | 14/72 |
+| Shuffled CNS (same degrees) | 65/72 | 27/72 | 10/72 |
+| GRU, parameter-matched | 43/72 | 33/72 | 4/72 |
+| MaleCNS, every edge removed | 11/72 | 0/72 | 0/72 |
+| MaleCNS, state reset every step | 60/72 | 0/72 | 0/72 |
+
+![Complete MaleCNS rollout: approach, grasp, lift, place](docs/images/pick-place-rollout.png)
+
+In progress: a replication with 6 seeds and several shuffles per seed, and D4RL FrankaKitchen with ACT-style action chunking for every controller.
+The first new seed favours the shuffle, so a topology advantage is not yet a claim.
+Details: [whole-brain controller](docs/WHOLE_BRAIN.md), [kitchen protocol and findings](docs/B2_FLYLEG_GOAL.md).
+
+![Pick-and-place live view](docs/images/ui-pick-place.png)
+
+## Run
+
+Apple Silicon, Python 3.12 and [uv](https://docs.astral.sh/uv/); downloads are about 1.1 GB.
 
 ```bash
-uv sync --frozen --python 3.12
+uv sync
 uv run flyarm fetch
-uv run flyarm prepare
-uv run flyarm run --config configs/smoke.json --output runs/smoke
-uv run flyarm run --config configs/reach.json --output runs/reach
-uv run flyarm pick-place --config configs/pick-place.json --output runs/pick-place
+uv run flyarm whole-brain compile
+uv run flyarm whole-brain run --config configs/whole-brain-pick-place.json --output runs/pick-place
+uv run flyarm flyleg run --config configs/flyleg-kitchen-complete-chunk.json --output runs/kitchen
 
 cd ui && npm ci && npm run build && cd ..
-uv run flyarm serve --run runs/pick-place
+uv run flyarm flyleg serve --run runs/kitchen --seed 0 --port 8771
 ```
 
-### B1a: complete MaleCNS as the controller (Apple Silicon, MLX)
+## Scope
 
-The whole annotated connectome (166,700 neurons / 10.5M edges) replaces the 256-node
-subgraph; tasks, teachers and evaluation are unchanged. See [B1a](docs/WHOLE_BRAIN.md).
+- An abstract rate model on the measured wiring, not a physiological or spiking emulation of the fly.
+- Observations are simulator state, not vision.
+- Simulation only.
 
-```bash
-uv run flyarm whole-brain compile                       # memory-mapped CSR pack, ~6 s
-uv run flyarm whole-brain check --output runs/whole-brain-check.json   # go/no-go
-uv run flyarm whole-brain run --config configs/whole-brain-reach.json --output runs/wb-reach
-uv run flyarm whole-brain run --config configs/whole-brain-pick-place.json --output runs/wb-pick
-uv run flyarm whole-brain record --run runs/wb-pick --kind connectome --seed 0
-```
-
-`fetch` is explicit: importing the package does not access the network. Sources are
-generation-pinned, hash-checked and gitignored. `prepare` can explore other graph
-sizes, but `run` intentionally accepts only the canonical 256-node MVP graph;
-register a separately reviewed protocol before comparing a different graph.
-
-`smoke` uses two epochs to test plumbing, not policy quality. Existing run directories
-are never overwritten. Failures retain partial files and a `failed` results status;
-retry with a **new output path**. Resume is not implemented. Training is budgeted
-with a configured deadline, checked at epoch boundaries, plus bounded episode loops.
-
-Run output includes config, exact source-file and data provenance, graph artifacts,
-episode splits, demonstrations, checkpoints, validation curves, per-episode results,
-MP4, PNG and JSON replay traces. Reproducibility means seed replay on the recorded
-platform; cross-platform bitwise equality is not promised.
-
-On a headless Linux machine, set `MUJOCO_GL=egl` only if a working EGL driver is
-installed. This platform/rendering path has not been verified here.
-
-Local macOS troubleshooting: if an editable install exists but `import flyarm`
-fails, inspect `python -v` for `Skipping hidden .pth file`. This host sometimes
-marks generated `.pth` files with `UF_HIDDEN`. A process-scoped workaround is
-`PYTHONPATH=src uv run flyarm ...`; no system Python changes are required. An ordinary
-non-editable wheel installation also avoids the editable `.pth` mechanism.
-
-## Verify
-
-```bash
-uv run ruff check src tests
-uv run ruff format --check src tests
-uv run mypy src tests
-uv run bandit -r src -q
-uv run pip-audit --progress-spinner off
-FLYARM_MODEL=assets/menagerie/franka_emika_panda/scene.xml uv run pytest -q
-```
-
-Without `FLYARM_MODEL`, physics integration tests are explicitly skipped; do not
-confuse a unit-only pass with a verified simulation. CI fetches only the pinned
-robot assets and runs physics tests; the full 1.1 GB connectome experiment is local.
-
-## Layout and reuse
-
-- `src/flyarm/assets.py`: pinned downloads, checksums and clean robot checkout checks.
-- `graph.py`: IDs, anatomy-based selection, source binding and degree-preserving nulls.
-- `models.py`: frozen graph policy and parameter-matched controls.
-- `env.py`: minimal fixed-orientation reach wrapper, IK and real MuJoCo stepping.
-- `experiment.py`: masked sequence imitation, held-out rollout evaluation and replays.
-- `pick_place_env.py`: physical grasp/lift/place/release task and same-API teacher.
-- `interfaces.py` / `pick_place_models.py`: graph-bound disjoint neural I/O and controls.
-- `live.py` / `ui/`: real-time MuJoCo server and interactive 3D research console.
-- `whole_brain/`: B1a pack compiler, MLX/Metal rate backend, annotation interface,
-  full-graph shuffle, MLX policies and trainer, go/no-go checks and experiment runner.
-- `configs/`: bounded smoke and initial comparison settings.
-- [架构图绘制 Prompt](docs/ARCHITECTURE_PROMPT.zh.md): ready to give another agent.
-- [Third-party attribution](THIRD_PARTY.md): what is reused versus method-only references.
-
-We do not reinvent robot meshes/physics, autodiff, GRUs or the environment API.
-FlyGM / FLYNN / Shiu are method references; Stable-Baselines3 and a spiking (LIF) full-brain
-backend, for which drosophila-brain-mlx is the reuse candidate, are future options. Fly-body locomotion assets are not needed
-for an arm task. Source data retains CC BY 4.0; Panda assets retain Apache 2.0;
-FlyArm's own code is MIT.
-
-## Next research milestones
-
-1. Data-budget curves and more seeds to test sample efficiency instead of saturated success.
-2. Retrained disconnected/leaky controls, graph-size ablations and OOD disturbances.
-3. Improve phase-transition learning for contact/release without exposing teacher state,
-   then repeat preregistered multi-seed graph-versus-shuffle comparisons.
-4. Only after a measurable simulation result: visual input, larger brain models,
-   reinforcement learning and separately safety-reviewed hardware trials.
+Data: MaleCNS v1.0 (CC BY 4.0).
+Robot: MuJoCo Menagerie Franka Panda (Apache 2.0) and Gymnasium-Robotics FrankaKitchen.
+Code: MIT; see [third-party attribution](THIRD_PARTY.md).
