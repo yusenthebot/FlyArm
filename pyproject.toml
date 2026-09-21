@@ -3,7 +3,21 @@ name = "flyarm"
 version = "0.1.0"
 description = "Reproducible connectome-informed arm control experiments"
 requires-python = ">=3.12,<3.14"
-dependencies = ["numpy>=2.1", "scipy>=1.14", "pandas>=2.2", "pyarrow>=18", "torch>=2.6", "gymnasium>=1.0", "mujoco>=3.3", "pydantic>=2.10", "imageio[ffmpeg]>=2.36", "matplotlib>=3.9", "httpx>=0.28"]
+dependencies = [
+    "numpy>=2.1",
+    "scipy>=1.14",
+    "pandas>=2.2",
+    "pyarrow>=18",
+    "torch>=2.6",
+    "gymnasium>=1.0",
+    "mujoco>=3.3",
+    "pydantic>=2.10",
+    "imageio[ffmpeg]>=2.36",
+    "matplotlib>=3.9",
+    "httpx>=0.28",
+    "fastapi>=0.116",
+    "uvicorn[standard]>=0.35",
+]
 
 [project.scripts]
 flyarm = "flyarm.cli:main"

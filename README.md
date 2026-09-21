@@ -3,8 +3,9 @@
 **用真实果蝇连接组作为固定循环网络，训练输入/输出适配器控制机械臂。**
 
 Research MVP: a measured MaleCNS v1.0 subgraph → trainable adapters → actual Panda
-MuJoCo reaching. This is **not a whole-brain emulation**, not a naturally mapped
-fruit-fly motor system, and not a claim that biological topology beats an MLP.
+MuJoCo reach and real-contact pick-and-place. This is **not a whole-brain emulation**,
+not a naturally mapped fruit-fly motor system, and not a claim that biological topology
+beats an MLP. See the [auditable baseline definition](docs/BASELINE.md).
 
 ## Current scope
 
@@ -16,13 +17,21 @@ fruit-fly motor system, and not a claim that biological topology beats an MLP.
 - Three seeds; episode-disjoint splits; clean and 1 cm observation-noise evaluation.
 - Real MP4 rollouts with same-frame hidden-state/action/error traces. No teacher
   corrections during learned evaluation and no direct qpos edits during stepping.
+- Real-contact 4 cm cube grasping with friction, gravity, dual-finger contact, lift,
+  transport, release and ten-step stable-success checks; no object weld or attachment.
+- Live React/Three.js research console backed by the running MuJoCo policy: reset,
+  run/pause/step, movable object/goal, selectable measured neurons and causal modes.
 
 The task uses **privileged target position**, fixed end-effector orientation, an open
 gripper and local 3D reaching. See [protocol](docs/PROTOCOL.md) for limitations.
-Initial corrected runs solve this small task across all four model families;
-this is pipeline evidence, **not** a connectome advantage.
+Initial corrected reach runs solve that small task across all four model families;
+this is pipeline evidence, **not** a connectome advantage. Pick-and-place is reported
+separately because teacher feasibility and learned-policy success are different claims.
 
-See [initial measured results and diagnostic history](docs/RESULTS.md).
+See [initial measured results and diagnostic history](docs/RESULTS.md) and the
+[restricted pick-and-place protocol](docs/PICK_PLACE_PROTOCOL.md). The latest
+pick-and-place run is deliberately reported as a negative learned-controller baseline:
+the scripted teacher succeeds, while the measured-connectome policy does not yet place.
 
 ## Run locally
 
@@ -36,6 +45,10 @@ uv run flyarm fetch
 uv run flyarm prepare
 uv run flyarm run --config configs/smoke.json --output runs/smoke
 uv run flyarm run --config configs/reach.json --output runs/reach
+uv run flyarm pick-place --config configs/pick-place.json --output runs/pick-place
+
+cd ui && npm ci && npm run build && cd ..
+uv run flyarm serve --run runs/pick-place
 ```
 
 `fetch` is explicit: importing the package does not access the network. Sources are
@@ -84,6 +97,9 @@ robot assets and runs physics tests; the full 1.1 GB connectome experiment is lo
 - `models.py`: frozen graph policy and parameter-matched controls.
 - `env.py`: minimal fixed-orientation reach wrapper, IK and real MuJoCo stepping.
 - `experiment.py`: masked sequence imitation, held-out rollout evaluation and replays.
+- `pick_place_env.py`: physical grasp/lift/place/release task and same-API teacher.
+- `interfaces.py` / `pick_place_models.py`: graph-bound disjoint neural I/O and controls.
+- `live.py` / `ui/`: real-time MuJoCo server and interactive 3D research console.
 - `configs/`: bounded smoke and initial comparison settings.
 - [架构图绘制 Prompt](docs/ARCHITECTURE_PROMPT.zh.md): ready to give another agent.
 - [Third-party attribution](THIRD_PARTY.md): what is reused versus method-only references.
@@ -98,5 +114,7 @@ FlyArm's own code is MIT.
 
 1. Data-budget curves and more seeds to test sample efficiency instead of saturated success.
 2. Retrained disconnected/leaky controls, graph-size ablations and OOD disturbances.
-3. Only after a measurable result: visual input, contact/grasping, larger brain models,
+3. Improve phase-transition learning for contact/release without exposing teacher state,
+   then repeat preregistered multi-seed graph-versus-shuffle comparisons.
+4. Only after a measurable simulation result: visual input, larger brain models,
    reinforcement learning and separately safety-reviewed hardware trials.
