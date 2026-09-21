@@ -185,6 +185,9 @@ class FlyLegConfig(BaseModel):
     # dagger_beta * dagger_beta_decay**i (per step), the learner's otherwise; every visited
     # state is labelled by the teacher either way. 0 is pure learner rollouts.
     dagger_beta: float = Field(default=0.0, ge=0, le=1)
+    # Start every controller from {init_from}/{kind}-{seed}/policy.safetensors of an earlier
+    # run with the same interface and action chunk, and skip behavior cloning.
+    init_from: str | None = None
     dagger_beta_decay: float = Field(default=0.5, ge=0, le=1)
     act_dagger_steps: int = Field(default=5000, ge=100, le=200000)
     tracker_gain: float = Field(default=0.5, ge=0, le=1)
@@ -210,6 +213,8 @@ class FlyLegConfig(BaseModel):
         if (self.dagger_iterations or self.dart_episodes) and self.split != "complete":
             raise ValueError("The demonstration tracker is validated as a teacher on complete only")
         # DAgger rollouts use env seeds 200000 + 10000 seed + ...; keep them below DART's.
+        if self.init_from is not None and not self.dagger_iterations:
+            raise ValueError("init_from skips behavior cloning, so it needs DAgger iterations")
         if self.dagger_iterations and any(not 0 <= seed < 10 for seed in self.seeds):
             raise ValueError("DAgger needs training seeds in [0, 10) to keep env seeds disjoint")
         return self
