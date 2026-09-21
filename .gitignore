@@ -12,4 +12,8 @@ assets/
 runs/
 *.egg-info/
 dist/
+node_modules/
+ui/dist/
+.playwright-cli/
+*.tsbuildinfo
 .DS_Store

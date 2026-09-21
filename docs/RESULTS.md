@@ -36,10 +36,10 @@ The full bounded run took about 20.2 s after asset preparation. Timing can vary.
   the trained-edges-silenced check, not only averages.
 - Full local checkpoints, demonstrations and six-episode MP4/state trace are under
   the gitignored run directory; regenerate with the README commands.
-- The interactive preview uses actual recorded h states. Its 3D sphere layout is
-  schematic and only displays the strongest 200 edges for legibility. It is neither
-  anatomical coordinates nor physiological membrane voltage. The controller itself
-  uses all 4,678 selected edges.
+- The historical reach-only preview used recorded hidden states, a schematic sphere
+  layout and the strongest 200 edges. The current pick-and-place UI is a distinct live
+  WebSocket/MuJoCo view using measured soma coordinates and the full graph payload.
+  Neither display represents physiological membrane voltage.
 
 ## Retained diagnostic history
 
@@ -66,3 +66,36 @@ failed-run reporting fixes. Remote CI status should be checked separately.
 Next useful experiment: predefine a training-data budget sweep and stronger
 perturbations/OOD targets, with matched controls and additional seeds. Simply running
 longer on this saturated target distribution cannot demonstrate a connectome benefit.
+
+# Restricted pick-and-place baseline: 2026-09-20
+
+**Outcome: the physical Franka task is feasible, but the learned MaleCNS controller
+does not yet solve pick-and-place. No graph-mediation or topology-advantage claim is
+supported.** This is the honest handoff baseline, not a successful demo claim.
+
+Run: `runs/pick-place-observable-001`, using `configs/pick-place-dagger.json` with the
+37-dimensional observation defined in `PICK_PLACE_PROTOCOL.md`. One training seed,
+24 held-out 60000-series test episodes, 96 teacher training episodes, phase-balanced
+behavior cloning and two 24-episode DAgger aggregation rounds. The run completed in
+336.3 seconds on the recorded host.
+
+| Policy | Trainable params | Grasp | Lift | Stable place |
+|---|---:|---:|---:|---:|
+| Restricted measured MaleCNS | 1,050 | 6/24 | 0/24 | 0/24 |
+| Restricted degree-preserving shuffle | 1,050 | 8/24 | 0/24 | 0/24 |
+| Parameter-matched MLP | 1,050 | 19/24 | 19/24 | 1/24 |
+| Near-matched GRU | 998 | 20/24 | 9/24 | 0/24 |
+
+The same-interface scripted teacher achieved grasp, lift and stable place on 24/24
+held-out episodes; zero action achieved 0/24. The teacher therefore validates contact
+dynamics and the task definition, not the learned fly controller. The measured graph's
+trained-edges-silenced check produced 0/24 grasps; resetting state every step produced
+9/24 grasps. Because the intact measured policy itself has 0/24 lifts and places, those
+ablations cannot establish successful graph-mediated task control.
+
+The reusable engineering result is narrower: real MaleCNS neurons/edges are bound to a
+disjoint 23-ascending-input / 43-descending-output interface with no adapter bypass, the
+Franka cube moves only through MuJoCo contact, and learned policies can be compared under
+identical data and task seeds. The next agent should treat phase transitions around
+contact, lift, and release as the first learning problem; it must not relax the interface
+or silently add teacher stage/action to the observation.
