@@ -204,4 +204,7 @@ class FlyLegConfig(BaseModel):
             raise ValueError("OOD joint offsets must be in (0, 0.5] rad")
         if (self.dagger_iterations or self.dart_episodes) and self.split != "complete":
             raise ValueError("The demonstration tracker is validated as a teacher on complete only")
+        # DAgger rollouts use env seeds 200000 + 10000 seed + ...; keep them below DART's.
+        if self.dagger_iterations and any(not 0 <= seed < 10 for seed in self.seeds):
+            raise ValueError("DAgger needs training seeds in [0, 10) to keep env seeds disjoint")
         return self
