@@ -176,7 +176,7 @@ button { font: inherit; }
 .signal.dx { stroke: #ff526d; }.signal.dy { stroke: #55e27d; }.signal.dz { stroke: #42dff4; }.signal.grip { stroke: #d65bff; }
 .signal.height { stroke: #6abdf2; }.signal.error { stroke: #8dc7e6; }.signal.activation { stroke: #f87943; }
 .contact { stroke: var(--coral); stroke-width: 2; }.contact.both { stroke: var(--cyan); }
-.timeline-legend { position: absolute; left: 100px; bottom: 3px; display: flex; gap: 11px; color: #5f7888; font: 8px "IBM Plex Mono", monospace; }
+.timeline-legend { position: absolute; z-index: 1; left: 100px; bottom: 3px; display: flex; gap: 11px; padding: 0 6px 0 2px; background: var(--surface); color: #5f7888; font: 8px "IBM Plex Mono", monospace; }
 .c-dx { color: #ff526d; }.c-dy { color: #55e27d; }.c-dz { color: #42dff4; }.c-grip { color: #d65bff; }
 
 footer { display: flex; align-items: center; justify-content: space-between; color: #6b8290; font: 8px "IBM Plex Mono", monospace; padding: 0 5px; }
