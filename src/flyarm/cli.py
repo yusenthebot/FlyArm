@@ -10,6 +10,28 @@ from flyarm.assets import fetch_arm, fetch_data
 from flyarm.config import ExperimentConfig, PickPlaceConfig
 from flyarm.graph import prepare_graph
 
+DEFAULT_PACK = "data/whole_brain/malecns-v1.0-c3"
+
+
+def _whole_brain(args: argparse.Namespace) -> None:
+    # MLX is imported lazily so the subgraph commands keep working on non-Apple hosts.
+    if args.brain_command == "compile":
+        from flyarm.whole_brain.compiler import compile_connectome
+
+        pack = compile_connectome(args.raw, args.output, min_contacts=args.min_contacts)
+        summary = {k: v for k, v in pack.manifest.items() if k != "sources"}
+        print(json.dumps({**summary, "fingerprint": pack.fingerprint()}, indent=2))
+    elif args.brain_command == "check":
+        from flyarm.experiment import save_json
+        from flyarm.whole_brain.diagnostics import go_no_go
+
+        if args.output.exists():
+            raise FileExistsError(args.output)
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        report = go_no_go(args.pack)
+        save_json(args.output, report)
+        print(json.dumps({"go": report["go"], **report["checks"]}, indent=2))
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="FlyArm connectome control research MVP")
@@ -39,6 +61,15 @@ def main() -> None:
         "--model", type=Path, default=Path("assets/menagerie/franka_emika_panda/scene.xml")
     )
     pick.add_argument("--output", type=Path, required=True)
+    brain = sub.add_parser("whole-brain", help="B1a: full MaleCNS rate controller (MLX)")
+    brain_sub = brain.add_subparsers(dest="brain_command", required=True)
+    compile_pack = brain_sub.add_parser("compile", help="Compile the full connectome CSR pack")
+    compile_pack.add_argument("--raw", type=Path, default=Path("data/raw"))
+    compile_pack.add_argument("--output", type=Path, default=Path(DEFAULT_PACK))
+    compile_pack.add_argument("--min-contacts", type=int, default=3)
+    check = brain_sub.add_parser("check", help="Go/no-go: load, determinism, bypass, speed")
+    check.add_argument("--pack", type=Path, default=Path(DEFAULT_PACK))
+    check.add_argument("--output", type=Path, required=True)
     serve = sub.add_parser("serve", help="Launch the real-time causal simulator and 3D UI")
     serve.add_argument("--run", type=Path, required=True)
     serve.add_argument("--graph", type=Path, default=Path("data/graphs/malecns-256-v1.npz"))
@@ -73,6 +104,8 @@ def main() -> None:
         pick_config = PickPlaceConfig.model_validate_json(args.config.read_text())
         result = run_pick_place_experiment(args.graph, args.model, args.output, pick_config)
         print(f"Complete: {args.output}; {len(result['models'])} trained models")
+    elif args.command == "whole-brain":
+        _whole_brain(args)
     else:
         from flyarm.live import serve_live
 
