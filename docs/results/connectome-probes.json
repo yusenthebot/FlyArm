@@ -1,0 +1,93 @@
+{
+  "pack_fingerprint": "7aa88acd850bd908317d205edfaf53bbb65e17438d98112cca8722a521c172e6",
+  "protocol": {
+    "drive": "random +-0.5 per input neuron",
+    "control_steps": 10,
+    "neural_steps_per_control_step": 3,
+    "readout": "68 left front-leg motor neurons, mean over neural steps"
+  },
+  "pathway_gain": {
+    "left front-leg proprioceptors": {
+      "inputs": 23,
+      "motor_rms": 0.0012138101737946272,
+      "motor_max": 0.0060118213295936584
+    },
+    "head sensory (cb_sensory)": {
+      "inputs": 4868,
+      "motor_rms": 0.0003446967457421124,
+      "motor_max": 0.002392984926700592
+    },
+    "visual projection (all)": {
+      "inputs": 9201,
+      "motor_rms": 0.0001083176612155512,
+      "motor_max": 0.000940161757171154
+    },
+    "visual projection LC/LPLC": {
+      "inputs": 4581,
+      "motor_rms": 5.66585804335773e-05,
+      "motor_max": 0.0003885284240823239
+    },
+    "ascending neurons": {
+      "inputs": 1846,
+      "motor_rms": 0.01115342229604721,
+      "motor_max": 0.07105711102485657
+    },
+    "descending neurons (reference)": {
+      "inputs": 1314,
+      "motor_rms": 0.015950897708535194,
+      "motor_max": 0.06536946445703506
+    }
+  },
+  "recurrent_gain_sweep": {
+    "0.8": {
+      "head_to_motor_rms": 0.0003032454987987876,
+      "proprio_to_motor_rms": 0.0012694530887529254,
+      "residual_max_state_after_steps": {
+        "1": 0.524803102016449,
+        "5": 0.132645845413208,
+        "10": 0.027084093540906906,
+        "20": 0.0011477069929242134
+      }
+    },
+    "0.9": {
+      "head_to_motor_rms": 0.00040599427302367985,
+      "proprio_to_motor_rms": 0.0014703322667628527,
+      "residual_max_state_after_steps": {
+        "1": 0.6035316586494446,
+        "5": 0.25321751832962036,
+        "10": 0.11028945446014404,
+        "20": 0.023320402950048447
+      }
+    },
+    "0.95": {
+      "head_to_motor_rms": 0.0004664385342039168,
+      "proprio_to_motor_rms": 0.001576592680066824,
+      "residual_max_state_after_steps": {
+        "1": 0.6401305794715881,
+        "5": 0.3282148241996765,
+        "10": 0.19416990876197815,
+        "20": 0.08383682370185852
+      }
+    },
+    "0.99": {
+      "head_to_motor_rms": 0.0005198076250962913,
+      "proprio_to_motor_rms": 0.0016647506272420287,
+      "residual_max_state_after_steps": {
+        "1": 0.6677886843681335,
+        "5": 0.3911805748939514,
+        "10": 0.27954113483428955,
+        "20": 0.18688878417015076
+      }
+    },
+    "0.9999": {
+      "head_to_motor_rms": 0.000533759652171284,
+      "proprio_to_motor_rms": 0.001687031821347773,
+      "residual_max_state_after_steps": {
+        "1": 0.6743980050086975,
+        "5": 0.40679794549942017,
+        "10": 0.30201590061187744,
+        "20": 0.2186797857284546
+      }
+    }
+  }
+}

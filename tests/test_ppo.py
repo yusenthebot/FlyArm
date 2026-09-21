@@ -74,8 +74,11 @@ def test_ppo_changes_only_the_motor_decoder(tmp_path) -> None:
         eval_episodes=2,
         horizon=20,
     )
-    run = train_ppo(policy, Path(MODEL), tmp_path / "ppo", config, [60000, 60001])
+    run = train_ppo(policy, Path(MODEL), tmp_path / "ppo", config, [60000, 60001], [50000])
     assert len(run["curves"]) == 2 and run["curves"][1]["policy_trained"]
+    # The kept checkpoint is chosen on validation seeds; its reported score is on test seeds.
+    assert run["best"]["selected_on"] == "validation seeds"
+    assert run["best"]["seeds"] == [60000, 60001] and "selection" in run["evaluations"][-1]
     assert np.array_equal(np.asarray(policy.encoder.weight), encoder)
     assert not np.array_equal(np.asarray(policy.decoder.weight), decoder)
     assert policy.dynamics.matrix is not None  # the connectome itself is untouched and frozen

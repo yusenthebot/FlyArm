@@ -190,9 +190,10 @@ def _ppo_best(run: Path) -> dict[str, Any] | None:
     best: dict[str, Any] | None = None
     for entry in evaluations:
         scored = entry.get("variants", {"nominal": entry})
-        first = next(iter(scored.values()))
-        if "successes" in first and (best is None or first["successes"] > best["successes"]):
-            best = {**first, "iteration": entry.get("iteration")}
+        chosen = entry.get("selection", scored)
+        first, key = next(iter(scored.values())), next(iter(chosen.values()))
+        if "successes" in first and (best is None or key["successes"] > best["criterion"]):
+            best = {**first, "iteration": entry.get("iteration"), "criterion": key["successes"]}
     return best
 
 
