@@ -81,6 +81,41 @@ def load_flyleg_policy(
     return policy
 
 
+def _lesions(
+    run_root: Path, seed: int, pack_root: Path, annotations: Path
+) -> list[tuple[str, str, SequencePolicy]]:
+    """Causal variants of the trained measured-CNS policy, most informative first."""
+    policy = load_flyleg_policy(run_root, "flyleg", seed, pack_root, annotations)
+    if not isinstance(policy, BrainPolicy) or policy.channels is None:
+        return []
+    pack = ConnectomePack.load(pack_root)
+    interface = NeuralInterface.load(run_root / "interface.json")
+    variants: list[tuple[str, str, SequencePolicy]] = []
+    if len(policy.channels) > 1:
+        variants.append(
+            (
+                "head_sensory_deprived",
+                "Lesion: head senses removed",
+                policy.silence_channel("head_sensory_deprived", 1),
+            )
+        )
+    variants.append(
+        (
+            "deafferented_leg",
+            "Lesion: leg proprioceptors silenced",
+            policy.silence_channel("deafferented_leg", 0),
+        )
+    )
+    variants.append(
+        (
+            "edges_off",
+            "Lesion: every connectome edge removed",
+            policy.with_dynamics("edges_off", RateDynamics(pack, interface, edges=False)),
+        )
+    )
+    return variants
+
+
 def rollout_frames(
     env: Any, policy: SequencePolicy, episode_seed: int, title: str
 ) -> tuple[list[np.ndarray], list[str]]:
@@ -144,6 +179,18 @@ def record_kitchen(
             grid = tile([clips[kind][episode] for kind in kinds])
             path = output / f"kitchen-{config.split}-comparison-seed{seed}-episode{episode}.mp4"
             write_video(path, grid, 12)
+        if "flyleg" in kinds:
+            lesion_clips = [clips["flyleg"][episodes[0]]]
+            for name, title, lesioned in _lesions(run_root, seed, pack_root, annotations):
+                frames, completed = rollout_frames(
+                    env, lesioned, episodes[0], f"{title} · seed {seed}"
+                )
+                lesion_clips.append(frames)
+                manifest["videos"].append(
+                    {"kind": f"flyleg:{name}", "episode": episodes[0], "completed": completed}
+                )
+            path = output / f"kitchen-{config.split}-lesions-seed{seed}-episode{episodes[0]}.mp4"
+            write_video(path, tile(lesion_clips[:4]), 12)
     finally:
         env.close()
     save_json(output / f"kitchen-{config.split}-seed{seed}.json", manifest)
