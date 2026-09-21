@@ -186,7 +186,8 @@ User decision (2026-09-21): keep the cue for the main run and add a no-cue contr
 Reading rule 8 on that branch: a controller sequences on its own if its no-cue iid progress is at least half its cued progress and its first pick is right in at least half of the episodes.
 
 ### Dexterous hand (branch feat/dexterous-hand)
-LEAP hand, four fly legs as fingers; privileged PPO teacher 64/64 rotation episodes without drops; distilled GRU 60/64; the fly runs (about 6 to 7 h) wait for the GPU.
+LEAP hand, four fly legs as fingers; privileged PPO teacher frozen at iteration 925 (15.2 M steps): 64/64 rotation episodes, 0 drops, 50 rad in 20 s on selection seeds; held-out transfer of the teacher around iteration 500 (selection seeds): small cube 54/64, sphere 53/64, cylinder 49/64; distilled GRU pilot 60/64.
+The main fly run (connectome, shuffle, GRU; seeds 0 to 2) started 2026-09-21 19:30 after its GPU gate was raised from fewer than 3 to fewer than 7 other full-connectome runs.
 
 ### E24. B1a pick-and-place protocol v2 (configs/whole-brain-pick-place-v2a.json and -v2b.json, queued)
 Change from the first protocol: the stage-resynchronized teacher (teacher "resync", commit 5a9f2d9), whose demonstrations are bit-identical to the first protocol's on six compared episodes and which keeps squeezing a cube a learner has already lifted.
