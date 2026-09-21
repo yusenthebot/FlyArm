@@ -116,3 +116,31 @@ The one lesion-validated skill is the proprioception-only fly leg on seed 2: edg
 
 B1a pick and place with 3 seeds (72 held-out episodes per controller): lift 58/72 for the complete MaleCNS, 27/72 for the shuffled CNS and 33/72 for the GRU, consistent in every seed (paired episodes 36 wins, 5 losses against the shuffle, exact p = 4e-7; seed-level n = 3).
 Stable placement: 14/72, 10/72 and 4/72.
+
+## Protocol v2: fixing the ruler (2026-09-21)
+
+The overnight protocol could not tell controllers apart, so the protocol was diagnosed on the cheap controllers (MLP, GRU) before any new fly run.
+The sweep is `scripts/kitchen_protocol_sweep.py`; its 5-seed results are in `runs/protocol-sweep/results.json` and on the milestone page.
+
+**The task is learnable from these 19 demonstrations.**
+A demonstration tracker (`flyarm.benchmarks.kitchen_expert`) returns the action of the nearest demonstrated state (robot and object joint positions) plus a proportional joint correction.
+With gain 0.5 it scores 100 on clean episodes, under 10x observation noise and from 0.1 rad joint offsets; without the correction it scores 87.5.
+It is a teacher and a reference, never a controller under test.
+
+**Loss and action chunks.**
+With MSE and single-step actions, a first 3-seed screen gave the MLP 8.3 and the GRU 0.
+An L1 loss alone raised the MLP to 30; 10-step action chunks with ACT's temporal ensemble raised the GRU from 10 (L1, single step) to 25.
+
+**Checkpoint selection was the hidden failure.**
+Within one training run, neighbouring epochs swing between 0 and 2 or more completed tasks, and the lowest validation loss on the two held-out demonstrations does not predict closed-loop success.
+Training for 300 instead of 100 epochs made it worse (MLP seed 0: 65 to 0).
+Protocol v2 keeps the checkpoint that completes the most tasks on 5 held-out validation episodes, whose environment seeds are disjoint from the 40 test episodes.
+
+**What did not help.**
+DAgger with the tracker as teacher lowered the MLP from 67.5 to between 0 and 36 over four iterations: learner rollouts that fail dwell far from the demonstrations, where the nearest-neighbour labels are discontinuous.
+DART (the tracker acting with action noise 0.1, 200 episodes) gave 53, 7.5 and 50 with validation-loss selection, so it was not adopted; both remain available in the configuration.
+Training on kitchen-partial (603 demonstrations) for 5 epochs gave 0, 0, 0, 15 and 25.
+
+**Protocol v2**, identical for every controller: position-only features, 10-step action chunks with temporal ensembling, L1 loss, 100 epochs, closed-loop checkpoint selection every 5 epochs.
+The fly decoder is still one linear map from the 68 left front-leg motor neurons, now to 90 outputs (10 steps x 9 joints).
+ACT (transformer encoder-decoder with a CVAE, 7.4 M parameters, z = 0 at test) runs as a labelled reference for what the data supports; it is not a fly model and not parameter-matched.
