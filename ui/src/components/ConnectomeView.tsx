@@ -2,7 +2,7 @@ import { Line, OrbitControls } from "@react-three/drei";
 import { Canvas } from "@react-three/fiber";
 import { useMemo } from "react";
 
-import type { GraphNode, GraphPayload } from "../types";
+import type { GraphNode, SubgraphPayload } from "../types";
 
 const ROLE_COLOR = {
   input: "#f4dd43",
@@ -47,8 +47,8 @@ function GraphScene({
   selectedId,
   onSelect,
 }: {
-  graph: GraphPayload;
-  hidden: number[];
+  graph: SubgraphPayload;
+  hidden: Float32Array;
   selectedId: number | null;
   onSelect: (id: number) => void;
 }) {
@@ -99,8 +99,8 @@ export function ConnectomeView({
   selectedId,
   onSelect,
 }: {
-  graph: GraphPayload;
-  hidden: number[];
+  graph: SubgraphPayload;
+  hidden: Float32Array;
   selectedId: number | null;
   onSelect: (id: number) => void;
 }) {

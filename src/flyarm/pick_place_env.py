@@ -15,6 +15,19 @@ import mujoco
 import numpy as np
 
 
+def physical_stage(info: dict[str, Any]) -> str:
+    """Furthest physically verified outcome, independent of the teacher state machine."""
+    if bool(info["is_success"]):
+        return "placed"
+    if bool(info["ever_lifted"]):
+        return "lifted"
+    if bool(info["ever_grasped"]):
+        return "grasped"
+    if bool(info["contact_left"]) or bool(info["contact_right"]):
+        return "contact"
+    return "free"
+
+
 class PandaPickPlaceEnv(gym.Env[np.ndarray, np.ndarray]):
     """A tabletop 4-cm-cube pick-and-place task with real Panda contacts.
 

@@ -31,6 +31,31 @@ def _whole_brain(args: argparse.Namespace) -> None:
         report = go_no_go(args.pack)
         save_json(args.output, report)
         print(json.dumps({"go": report["go"], **report["checks"]}, indent=2))
+    elif args.brain_command == "record":
+        from flyarm.whole_brain.experiment import load_trained_policy, record_rollouts
+
+        task, policy = load_trained_policy(args.run, args.kind, args.seed, args.pack, args.model)
+        try:
+            seeds = task.seeds("test", args.episodes)
+            path = args.run / f"{args.kind}-{args.seed}" / "rollout.mp4"
+            record_rollouts(task, policy, seeds, path)
+        finally:
+            task.close()
+        print(path)
+    elif args.brain_command == "serve":
+        from flyarm.whole_brain.live import serve_whole_brain
+
+        serve_whole_brain(
+            args.run,
+            args.pack,
+            args.annotations,
+            args.model,
+            args.ui,
+            host=args.host,
+            port=args.port,
+            seed=args.seed,
+            episode=args.episode,
+        )
     elif args.brain_command == "run":
         from flyarm.config import WholeBrainConfig
         from flyarm.whole_brain.experiment import run_whole_brain_experiment
@@ -84,6 +109,31 @@ def main() -> None:
         "--model", type=Path, default=Path("assets/menagerie/franka_emika_panda/scene.xml")
     )
     brain_run.add_argument("--output", type=Path, required=True)
+    record = brain_sub.add_parser("record", help="Record MP4 rollouts of a saved checkpoint")
+    record.add_argument("--run", type=Path, required=True)
+    record.add_argument("--kind", choices=["connectome", "shuffled", "gru"], default="connectome")
+    record.add_argument("--seed", type=int, default=0)
+    record.add_argument("--episodes", type=int, default=3)
+    record.add_argument("--pack", type=Path, default=Path(DEFAULT_PACK))
+    record.add_argument(
+        "--model", type=Path, default=Path("assets/menagerie/franka_emika_panda/scene.xml")
+    )
+    brain_serve = brain_sub.add_parser("serve", help="Live UI driven by a B1a checkpoint")
+    brain_serve.add_argument("--run", type=Path, required=True)
+    brain_serve.add_argument("--seed", type=int, default=0, help="training seed of the checkpoint")
+    brain_serve.add_argument("--episode", type=int, default=60000, help="episode seed shown")
+    brain_serve.add_argument("--pack", type=Path, default=Path(DEFAULT_PACK))
+    brain_serve.add_argument(
+        "--annotations",
+        type=Path,
+        default=Path("data/raw/body-annotations-male-cns-v1.0-minconf-0.5.feather"),
+    )
+    brain_serve.add_argument(
+        "--model", type=Path, default=Path("assets/menagerie/franka_emika_panda/scene.xml")
+    )
+    brain_serve.add_argument("--ui", type=Path, default=Path("ui/dist"))
+    brain_serve.add_argument("--host", default="127.0.0.1")
+    brain_serve.add_argument("--port", type=int, default=8769)
     serve = sub.add_parser("serve", help="Launch the real-time causal simulator and 3D UI")
     serve.add_argument("--run", type=Path, required=True)
     serve.add_argument("--graph", type=Path, default=Path("data/graphs/malecns-256-v1.npz"))

@@ -51,6 +51,19 @@ cd ui && npm ci && npm run build && cd ..
 uv run flyarm serve --run runs/pick-place
 ```
 
+### B1a: complete MaleCNS as the controller (Apple Silicon, MLX)
+
+The whole annotated connectome (166,700 neurons / 10.5M edges) replaces the 256-node
+subgraph; tasks, teachers and evaluation are unchanged. See [B1a](docs/WHOLE_BRAIN.md).
+
+```bash
+uv run flyarm whole-brain compile                       # memory-mapped CSR pack, ~6 s
+uv run flyarm whole-brain check --output runs/whole-brain-check.json   # go/no-go
+uv run flyarm whole-brain run --config configs/whole-brain-reach.json --output runs/wb-reach
+uv run flyarm whole-brain run --config configs/whole-brain-pick-place.json --output runs/wb-pick
+uv run flyarm whole-brain record --run runs/wb-pick --kind connectome --seed 0
+```
+
 `fetch` is explicit: importing the package does not access the network. Sources are
 generation-pinned, hash-checked and gitignored. `prepare` can explore other graph
 sizes, but `run` intentionally accepts only the canonical 256-node MVP graph;
@@ -100,13 +113,15 @@ robot assets and runs physics tests; the full 1.1 GB connectome experiment is lo
 - `pick_place_env.py`: physical grasp/lift/place/release task and same-API teacher.
 - `interfaces.py` / `pick_place_models.py`: graph-bound disjoint neural I/O and controls.
 - `live.py` / `ui/`: real-time MuJoCo server and interactive 3D research console.
+- `whole_brain/`: B1a pack compiler, MLX/Metal rate backend, annotation interface,
+  full-graph shuffle, MLX policies and trainer, go/no-go checks and experiment runner.
 - `configs/`: bounded smoke and initial comparison settings.
 - [架构图绘制 Prompt](docs/ARCHITECTURE_PROMPT.zh.md): ready to give another agent.
 - [Third-party attribution](THIRD_PARTY.md): what is reused versus method-only references.
 
 We do not reinvent robot meshes/physics, autodiff, GRUs or the environment API.
-FlyGM / FLYNN / Shiu are method references; full-brain MLX and Stable-Baselines3 are
-future options, not claimed integrations. Fly-body locomotion assets are not needed
+FlyGM / FLYNN / Shiu are method references; Stable-Baselines3 and a spiking (LIF) full-brain
+backend, for which drosophila-brain-mlx is the reuse candidate, are future options. Fly-body locomotion assets are not needed
 for an arm task. Source data retains CC BY 4.0; Panda assets retain Apache 2.0;
 FlyArm's own code is MIT.
 

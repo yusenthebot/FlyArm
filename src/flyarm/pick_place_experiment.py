@@ -20,7 +20,7 @@ from flyarm.experiment import save_json
 from flyarm.graph import Graph, shuffle_graph
 from flyarm.interfaces import NeuralInterface, canonical_interface
 from flyarm.models import ActionController
-from flyarm.pick_place_env import PandaPickPlaceEnv
+from flyarm.pick_place_env import PandaPickPlaceEnv, physical_stage
 from flyarm.pick_place_models import PickPlaceController, PickPlacePolicy
 
 STAGES = {
@@ -291,7 +291,10 @@ def evaluate(
                 "goal_xy_error_m": float(info["goal_xy_error"]),
                 "object_height_m": float(info["object_height"]),
                 "object_speed_mps": float(info["object_speed"]),
-                "final_stage": str(info["stage"]),
+                # The teacher state machine only advances when the teacher acts, so a
+                # learned policy is described by its physical outcome instead.
+                "final_physical_stage": physical_stage(info),
+                "final_teacher_stage": str(info["stage"]) if mode == "teacher" else None,
                 "action_delta_mean": float(np.mean(action_changes)),
                 "inference_ms_median": (float(np.median(timings) * 1000) if timings else None),
             }

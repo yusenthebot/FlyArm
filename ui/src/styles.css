@@ -212,3 +212,9 @@ footer { display: flex; align-items: center; justify-content: space-between; col
 }
 
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+.partner-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 2px 10px 6px; }
+.partners h3 { margin: 0 0 3px; color: #667f8f; font: 600 8px/1.4 "IBM Plex Mono", monospace; letter-spacing: 0.04em; text-transform: uppercase; }
+.partners ol { margin: 0; padding: 0; list-style: none; }
+.partners li { display: flex; justify-content: space-between; gap: 6px; padding: 1px 0; border-bottom: 1px solid #edf2f5; font: 9px/1.45 "IBM Plex Mono", monospace; }
+.partners li span { overflow: hidden; color: #1d3444; text-overflow: ellipsis; white-space: nowrap; }
+.partners li b { color: #667f8f; font-weight: 500; }

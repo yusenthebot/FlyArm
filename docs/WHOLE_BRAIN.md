@@ -152,3 +152,37 @@ Reading, by the preregistered rules:
 
 Reach therefore shows that the complete connectome can carry closed-loop control, and nothing more.
 Median policy call: 4.2 ms for either full graph versus 0.38 ms for the GRU, excluding IK and physics.
+
+## Pick-and-place result (`runs/whole-brain-pick-place-001`)
+
+`configs/whole-brain-pick-place.json`: 96 teacher episodes, 16 validation, 24 held-out test episodes (60000-series, identical to `pick-place-observable-001`), stage-balanced behavior cloning for 20 epochs (2 decoder-only), then two DAgger rounds of 24 policy-visited episodes and 10 epochs each.
+One training seed; the run took 3,795 s.
+Teacher 24/24, zero action 0/24.
+
+| Policy | Trainable params | Grasp | Lift | Stable place |
+|---|---:|---:|---:|---:|
+| Full MaleCNS | 78,240 | 24/24 | 18/24 | 5/24 |
+| Full degree-preserving shuffle | 78,240 | 22/24 | 10/24 | 3/24 |
+| GRU (hidden 143) | 78,368 | 7/24 | 7/24 | 1/24 |
+| 256-node MaleCNS baseline (for reference) | 1,050 | 6/24 | 0/24 | 0/24 |
+
+Post-training checks of the full-MaleCNS checkpoint:
+
+| Ablation | Grasp | Lift | Stable place |
+|---|---:|---:|---:|
+| Edges off | 0/24 | 0/24 | 0/24 |
+| Direct ascending-to-output synapses only | 15/24 | 7/24 | 2/24 |
+| State reset every control step | 12/24 | 0/24 | 0/24 |
+
+Reading, by the preregistered rules:
+
+- **Graph-mediated control: not established.** Stable placement is 21%, far below the 70% bar, even though every grasp and most lifts succeed.
+- **Unlike reach, the policy uses more than the direct synapses:** with only the 38,772 direct I/O edges it loses a third of its grasps and most lifts.
+- **Temporal state matters:** clearing the neural state every step removes every lift.
+- **Topology advantage: not supported.** The measured graph is ahead of the shuffle on every metric (5 vs 3 places, 18 vs 10 lifts), but with one seed and 24 episodes the difference is not significant.
+
+Failure analysis of the 19 unsuccessful measured-graph episodes: all of them grasp, and the cube is then released 3 to 30 cm from the goal.
+Transport and release accuracy, not grasping, is the bottleneck.
+This is the first learned controller in the project that places the cube in more than one held-out episode.
+
+The live UI (`flyarm whole-brain serve`) replays this checkpoint in real time and reproduces the held-out result step for step (episode 60000 placed at step 247, 1.5 cm goal error).

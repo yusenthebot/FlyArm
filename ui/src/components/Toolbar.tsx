@@ -1,12 +1,15 @@
 import type { CausalMode } from "../types";
 
-const MODES: { value: CausalMode; label: string }[] = [
-  { value: "connectome", label: "MaleCNS" },
-  { value: "shuffled", label: "Shuffled" },
-  { value: "edges_off", label: "Edges off" },
-];
+const LABELS: Record<CausalMode, string> = {
+  connectome: "MaleCNS",
+  shuffled: "Shuffled",
+  edges_off: "Edges off",
+  direct_only: "Direct I/O only",
+};
 
 export function Toolbar({
+  title,
+  modes,
   running,
   connected,
   mode,
@@ -16,6 +19,8 @@ export function Toolbar({
   onStep,
   onMode,
 }: {
+  title: string;
+  modes: CausalMode[];
   running: boolean;
   connected: boolean;
   mode: CausalMode;
@@ -29,7 +34,7 @@ export function Toolbar({
     <header className="toolbar">
       <div className="brand">
         <h1>FlyArm</h1>
-        <p>MaleCNS v1.0 · 256 measured neurons · 4,678 synaptic edges</p>
+        <p>MaleCNS v1.0 · {title}</p>
       </div>
       <div className="transport" aria-label="Simulation controls">
         <button onClick={onReset}>↻ <span>Reset</span></button>
@@ -39,13 +44,9 @@ export function Toolbar({
       </div>
       <fieldset className="mode-switch">
         <legend>Causal mode</legend>
-        {MODES.map((item) => (
-          <button
-            key={item.value}
-            aria-pressed={mode === item.value}
-            onClick={() => onMode(item.value)}
-          >
-            {item.label}
+        {modes.map((value) => (
+          <button key={value} aria-pressed={mode === value} onClick={() => onMode(value)}>
+            {LABELS[value]}
           </button>
         ))}
       </fieldset>

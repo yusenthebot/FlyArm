@@ -19,8 +19,9 @@ import platform
 import time
 from importlib.metadata import version
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
+import imageio.v2 as imageio
 import mlx.core as mx
 import numpy as np
 
@@ -105,6 +106,82 @@ class Task:
 
     def close(self) -> None:
         self.env.close()
+
+
+def _scalars(info: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key: (bool(value) if isinstance(value, (bool, np.bool_)) else float(value))
+        for key, value in info.items()
+        if isinstance(value, (bool, int, float, np.bool_, np.floating, np.integer))
+    }
+
+
+def record_rollouts(task: Task, policy: SequencePolicy, seeds: list[int], output: Path) -> None:
+    """Real MuJoCo frames plus a same-frame trace; output-neuron activity goes to an NPZ."""
+    if output.exists():
+        raise FileExistsError(output)
+    controller = MlxController(policy)
+    trace: list[dict[str, Any]] = []
+    activity: list[np.ndarray] = []
+    with cast(Any, imageio.get_writer(output, fps=20, codec="libx264", quality=7)) as writer:
+        for seed in seeds:
+            observation, info = task.env.reset(seed=seed)
+            controller.reset()
+            writer.append_data(task.env.render())
+            for step in range(task.env.horizon):
+                action = controller.act(observation)
+                observation, _, terminated, truncated, info = task.env.step(action)
+                outputs = controller.output_activity()
+                if outputs is not None:
+                    activity.append(outputs.astype(np.float16))
+                trace.append(
+                    {
+                        "seed": seed,
+                        "step": step,
+                        "action": action.tolist(),
+                        "output_rms": (
+                            float(np.sqrt(np.mean(outputs**2))) if outputs is not None else None
+                        ),
+                        **_scalars(info),
+                    }
+                )
+                writer.append_data(task.env.render())
+                if terminated or truncated:
+                    break
+    save_json(
+        output.with_suffix(".json"),
+        {"kind": policy.kind, "fps": 20, "seeds": seeds, "trajectory": trace},
+    )
+    if activity:
+        np.savez_compressed(output.with_name(output.stem + "-outputs.npz"), outputs=activity)
+
+
+def load_trained_policy(
+    run_root: Path, kind: str, seed: int, pack_root: Path, model_path: Path
+) -> tuple[Task, Any]:
+    """Rebuild a saved checkpoint over its exact frozen graph (shuffles are regenerated)."""
+    config = WholeBrainConfig.model_validate_json((run_root / "config.json").read_text())
+    verify_arm(model_path.resolve().parent.parent)
+    task = Task(config, model_path)
+    pack = ConnectomePack.load(pack_root)
+    pack.validate_b1a_provenance()
+    interface = NeuralInterface.load(run_root / "interface.json")
+    dynamics = {"connectome": RateDynamics(pack, interface)}
+    if kind == "shuffled":
+        shuffled = shuffle_pack(pack, seed + 17000)
+        recorded = json.loads((run_root / f"shuffled-{seed}.json").read_text())
+        if shuffled.fingerprint() != recorded["fingerprint"]:
+            raise ValueError("Regenerated shuffle differs from the one used in training")
+        rebound = NeuralInterface.bind(
+            shuffled, interface.input_body_ids, interface.output_body_ids, label=interface.label
+        )
+        dynamics["shuffled"] = RateDynamics(shuffled, rebound)
+    budget = BrainPolicy(
+        "connectome", dynamics["connectome"], obs_dim=task.obs_dim, action_dim=task.action_dim
+    ).trainable_parameter_count()
+    policy = _build(kind, seed, task, config, dynamics, budget)
+    policy.load(run_root / f"{kind}-{seed}" / "policy.safetensors")
+    return task, policy
 
 
 def _summary(evaluation: dict[str, Any]) -> dict[str, float]:
@@ -232,7 +309,12 @@ def _train(
     return curves, phases, dagger_sets
 
 
-def _provenance(pack: ConnectomePack, interface: NeuralInterface, config: WholeBrainConfig):
+def _provenance(
+    pack: ConnectomePack,
+    interface: NeuralInterface,
+    config: WholeBrainConfig,
+    model_path: Path,
+) -> dict[str, Any]:
     package = Path(__file__).resolve().parent.parent
     return {
         "pack_root": str(pack.root),
@@ -248,6 +330,7 @@ def _provenance(pack: ConnectomePack, interface: NeuralInterface, config: WholeB
         "versions": {name: version(name) for name in ["mlx", "mujoco", "numpy", "gymnasium"]},
         "device": str(mx.default_device()),
         "menagerie_revision": MENAGERIE_SHA,
+        "model": str(model_path),
         "dynamics": (
             f"h <- 0.5 h + 0.5 tanh(I + 0.8 W h), {config.neural_steps} neural steps per "
             "20 Hz control step, state kept across steps and cleared at episode reset"
@@ -298,7 +381,7 @@ def _run(
     interface.save(output / "interface.json")
     save_json(output / "interface_report.json", interface_report(pack, interface))
     save_json(output / "config.json", config.model_dump())
-    save_json(output / "provenance.json", _provenance(pack, interface, config))
+    save_json(output / "provenance.json", _provenance(pack, interface, config, model_path))
     task = Task(config, model_path)
     try:
         test_seeds = task.seeds("test", config.test_episodes)
