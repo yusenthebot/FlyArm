@@ -19,7 +19,7 @@ from flyarm.assets import MENAGERIE_SHA, digest_file, verify_arm
 from flyarm.config import ExperimentConfig
 from flyarm.env import PandaReachEnv
 from flyarm.graph import Graph, shuffle_graph
-from flyarm.models import Controller, Policy
+from flyarm.models import ActionController, Controller, Policy
 
 
 def save_json(path: Path, value: dict | list) -> None:
@@ -145,12 +145,12 @@ def train(
 
 def evaluate(
     env: PandaReachEnv,
-    policy: Policy | None,
+    policy: Policy | ActionController | None,
     seeds: list[int],
     mode: str = "learned",
     noise_std: float = 0.0,
 ) -> dict:
-    controller = Controller(policy) if policy is not None else None
+    controller = Controller(policy) if isinstance(policy, Policy) else policy
     episodes = []
     for seed in seeds:
         obs, info = env.reset(seed=seed)

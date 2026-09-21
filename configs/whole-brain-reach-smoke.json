@@ -1,0 +1,12 @@
+{
+  "task": "reach",
+  "train_episodes": 8,
+  "val_episodes": 4,
+  "test_episodes": 4,
+  "horizon": 100,
+  "epochs": 2,
+  "decoder_warmup_epochs": 1,
+  "seeds": [0],
+  "policies": ["connectome", "shuffled", "gru"],
+  "max_seconds": 900
+}

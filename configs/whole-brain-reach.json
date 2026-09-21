@@ -1,0 +1,17 @@
+{
+  "task": "reach",
+  "train_episodes": 96,
+  "val_episodes": 16,
+  "test_episodes": 24,
+  "horizon": 100,
+  "epochs": 20,
+  "decoder_warmup_epochs": 2,
+  "batch_size": 8,
+  "bptt_steps": 8,
+  "learning_rate": 0.002,
+  "neural_steps": 3,
+  "noise_std_m": 0.01,
+  "seeds": [0, 1, 2],
+  "policies": ["connectome", "shuffled", "gru"],
+  "max_seconds": 7200
+}

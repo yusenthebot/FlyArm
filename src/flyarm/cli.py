@@ -31,6 +31,13 @@ def _whole_brain(args: argparse.Namespace) -> None:
         report = go_no_go(args.pack)
         save_json(args.output, report)
         print(json.dumps({"go": report["go"], **report["checks"]}, indent=2))
+    elif args.brain_command == "run":
+        from flyarm.config import WholeBrainConfig
+        from flyarm.whole_brain.experiment import run_whole_brain_experiment
+
+        config = WholeBrainConfig.model_validate_json(args.config.read_text())
+        result = run_whole_brain_experiment(args.pack, args.model, args.output, config)
+        print(json.dumps(result["evidence"], indent=2))
 
 
 def main() -> None:
@@ -70,6 +77,13 @@ def main() -> None:
     check = brain_sub.add_parser("check", help="Go/no-go: load, determinism, bypass, speed")
     check.add_argument("--pack", type=Path, default=Path(DEFAULT_PACK))
     check.add_argument("--output", type=Path, required=True)
+    brain_run = brain_sub.add_parser("run", help="Train and evaluate B1a controllers")
+    brain_run.add_argument("--config", type=Path, default=Path("configs/whole-brain-reach.json"))
+    brain_run.add_argument("--pack", type=Path, default=Path(DEFAULT_PACK))
+    brain_run.add_argument(
+        "--model", type=Path, default=Path("assets/menagerie/franka_emika_panda/scene.xml")
+    )
+    brain_run.add_argument("--output", type=Path, required=True)
     serve = sub.add_parser("serve", help="Launch the real-time causal simulator and 3D UI")
     serve.add_argument("--run", type=Path, required=True)
     serve.add_argument("--graph", type=Path, default=Path("data/graphs/malecns-256-v1.npz"))
