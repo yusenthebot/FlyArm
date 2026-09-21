@@ -14,6 +14,8 @@ mx = pytest.importorskip("mlx.core")
 if not mx.metal.is_available():
     pytest.skip("MLX Metal device unavailable (e.g. CI VM)", allow_module_level=True)
 
+from mlx.utils import tree_flatten  # noqa: E402
+
 from flyarm.whole_brain.backend_mlx import RateDynamics  # noqa: E402
 from flyarm.whole_brain.experiment import evidence  # noqa: E402
 from flyarm.whole_brain.policy import (  # noqa: E402
@@ -210,3 +212,33 @@ def test_channel_encoders_write_only_their_own_input_block(pack) -> None:
     assert np.array_equal(np.asarray(deprived.decoder.weight), np.asarray(policy.decoder.weight))
     with pytest.raises(ValueError, match="cover every"):
         BrainPolicy("x", dynamics, obs_dim=5, action_dim=2, channels=[(0, 5, 3)])
+
+
+def test_standardized_readout_removes_the_common_mode_and_old_checkpoints_load(
+    pack, tmp_path
+) -> None:
+    interface = interface_for(pack)
+    dynamics = RateDynamics(pack, interface)
+    policy = BrainPolicy("connectome", dynamics, obs_dim=4, action_dim=2, seed=1)
+    rng = np.random.default_rng(0)
+    obs = rng.standard_normal((3, 10, 4)).astype(np.float32)
+    mask = np.ones((3, 10), np.float32)
+    info = policy.calibrate_readout(obs, mask, center=True)
+    assert info["centered"]
+    state = policy.initial_state(3)
+    features = []
+    for step in range(10):
+        current = policy.encode(policy.normalize(mx.array(obs[:, step])))
+        state, pooled = dynamics.advance(state, current, policy.neural_steps)
+        features.append(np.asarray(policy.readout(pooled)))
+    features = np.concatenate(features)
+    active = np.asarray(policy.readout_scale) < 1e11
+    assert np.allclose(features.mean(0)[active], 0.0, atol=1e-3)
+    # A checkpoint written before readout_offset existed loads with a zero offset.
+    old = BrainPolicy("connectome", dynamics, obs_dim=4, action_dim=2, seed=1)
+    weights = dict(tree_flatten(old.parameters()))
+    weights.pop("readout_offset")
+    mx.save_safetensors(str(tmp_path / "old.safetensors"), weights)
+    fresh = BrainPolicy("connectome", dynamics, obs_dim=4, action_dim=2, seed=3)
+    fresh.load(tmp_path / "old.safetensors")
+    assert np.array_equal(np.asarray(fresh.readout_offset), np.zeros(dynamics.output_count))
