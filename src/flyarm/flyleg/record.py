@@ -11,7 +11,7 @@ import numpy as np
 from flyarm.benchmarks import kitchen
 from flyarm.config import FlyLegConfig
 from flyarm.experiment import save_json
-from flyarm.flyleg.experiment import make_policy
+from flyarm.flyleg.experiment import leg_dynamics, make_policy
 from flyarm.flyleg.interface import front_leg_interface, leg_channels
 from flyarm.interfaces import NeuralInterface
 from flyarm.video import annotate, tile, write_video
@@ -48,7 +48,7 @@ def load_flyleg_policy(
     if NeuralInterface.load(run_root / "interface.json") != leg.interface:
         raise ValueError("Saved interface differs from the one regenerated from annotations")
     channels = leg_channels(leg)
-    measured = RateDynamics(pack, leg.interface)
+    measured = leg_dynamics(config, pack, leg.interface)
     dynamics: RateDynamics | None = measured
     if kind == "flyleg_shuffled":
         graph_pack = shuffle_pack(pack, seed + 17000)
@@ -61,7 +61,7 @@ def load_flyleg_policy(
             leg.interface.output_body_ids,
             label=leg.interface.label,
         )
-        dynamics = RateDynamics(graph_pack, interface)
+        dynamics = leg_dynamics(config, graph_pack, interface)
     fly_budget = make_policy(
         "flyleg", config, 0, dynamics=measured, channels=channels, fly_budget=0
     ).trainable_parameter_count()
@@ -76,6 +76,7 @@ def _lesions(
     run_root: Path, seed: int, pack_root: Path, annotations: Path
 ) -> list[tuple[str, str, SequencePolicy]]:
     """Causal variants of the trained measured-CNS policy, most informative first."""
+    config = FlyLegConfig.model_validate_json((run_root / "config.json").read_text())
     policy = load_flyleg_policy(run_root, "flyleg", seed, pack_root, annotations)
     if not isinstance(policy, BrainPolicy) or policy.channels is None:
         return []
@@ -101,7 +102,7 @@ def _lesions(
         (
             "edges_off",
             "Lesion: every connectome edge removed",
-            policy.with_dynamics("edges_off", RateDynamics(pack, interface, edges=False)),
+            policy.with_dynamics("edges_off", leg_dynamics(config, pack, interface, edges=False)),
         )
     )
     return variants

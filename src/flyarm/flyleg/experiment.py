@@ -106,6 +106,13 @@ def _evaluate_raw(
     return {**result, "environment_overrides": variant}
 
 
+def leg_dynamics(
+    config: FlyLegConfig, pack: ConnectomePack, interface: NeuralInterface, **options: Any
+) -> RateDynamics:
+    """The connectome dynamics of a run, in the rate regime its config names."""
+    return RateDynamics(pack, interface, recurrent_gain=config.recurrent_gain, **options)
+
+
 def make_policy(
     kind: str,
     config: FlyLegConfig,
@@ -471,7 +478,7 @@ def _run(pack_root: Path, annotations: Path, output: Path, config: FlyLegConfig)
             raise ValueError("init_from must share the action chunk, senses and split")
 
     channels = leg_channels(leg)
-    measured = RateDynamics(pack, leg.interface)
+    measured = leg_dynamics(config, pack, leg.interface)
     fly_budget = make_policy(
         "flyleg", config, 0, dynamics=measured, channels=channels, fly_budget=0
     ).trainable_parameter_count()
@@ -486,7 +493,7 @@ def _run(pack_root: Path, annotations: Path, output: Path, config: FlyLegConfig)
                 leg.interface.output_body_ids,
                 label=leg.interface.label,
             )
-            dynamics["flyleg_shuffled"] = RateDynamics(shuffled, rebound)
+            dynamics["flyleg_shuffled"] = leg_dynamics(config, shuffled, rebound)
             save_json(
                 output / f"shuffled-{seed}.json",
                 {
@@ -533,12 +540,15 @@ def _run(pack_root: Path, annotations: Path, output: Path, config: FlyLegConfig)
             if isinstance(policy, BrainPolicy) and kind == "flyleg":
                 lesions: dict[str, SequencePolicy] = {
                     "edges_off": policy.with_dynamics(
-                        "edges_off", RateDynamics(pack, leg.interface, edges=False)
+                        "edges_off", leg_dynamics(config, pack, leg.interface, edges=False)
                     ),
                     "direct_only": policy.with_dynamics(
                         "direct_only",
-                        RateDynamics(
-                            pack, leg.interface, weights=direct_only_weights(pack, leg.interface)
+                        leg_dynamics(
+                            config,
+                            pack,
+                            leg.interface,
+                            weights=direct_only_weights(pack, leg.interface),
                         ),
                     ),
                     "deafferented_leg": policy.silence_channel("deafferented_leg", 0),
