@@ -100,7 +100,7 @@ class BrainPolicy(_Normalized):
     decoder at unit scale; it rescales the declared outputs only and adds no pathway.
     """
 
-    frozen_keys = ("obs_mean", "obs_scale", "readout_scale")
+    frozen_keys = ("obs_mean", "obs_scale", "readout_offset", "readout_scale")
 
     def __init__(
         self,
@@ -132,33 +132,57 @@ class BrainPolicy(_Normalized):
                 raise ValueError("Channel observation slices must lie inside the observation")
             self.encoders = [nn.Linear(stop - start, size) for start, stop, size in self.channels]
         self.decoder = nn.Linear(dynamics.output_count, self.output_dim)
+        self.readout_offset = mx.zeros((dynamics.output_count,))
         self.readout_scale = mx.ones((dynamics.output_count,))
         self._freeze_buffers()
 
     def calibrate_readout(
-        self, obs: np.ndarray, mask: np.ndarray, *, floor_fraction: float = 0.01
+        self,
+        obs: np.ndarray,
+        mask: np.ndarray,
+        *,
+        floor_fraction: float = 0.01,
+        center: bool = False,
     ) -> dict[str, float]:
-        """Run training episodes through the current policy; scale outputs to unit RMS."""
+        """Run training episodes through the current policy and normalize the outputs.
+
+        Scale-only (default): divide each output by its RMS activity. With ``center`` the
+        outputs are standardized instead: their mean activity is subtracted first, which
+        removes a common mode that saturates the decoder when it reads many correlated
+        neurons (for example all descending neurons).
+        """
         state = self.initial_state(obs.shape[0])
-        total = np.zeros(self.dynamics.output_count)
+        first = np.zeros(self.dynamics.output_count)
+        second = np.zeros(self.dynamics.output_count)
         count = 0.0
         for step in range(obs.shape[1]):
             current = self.encode(self.normalize(mx.array(obs[:, step])))
             state, pooled = self.dynamics.advance(state, current, self.neural_steps)
             mx.eval(state, pooled)
             weights = mask[:, step][:, None]
-            total += (np.asarray(pooled, dtype=np.float64) ** 2 * weights).sum(0)
+            activity = np.asarray(pooled, dtype=np.float64)
+            first += (activity * weights).sum(0)
+            second += (activity**2 * weights).sum(0)
             count += float(weights.sum())
-        rms = np.sqrt(total / max(count, 1.0))
-        floor = max(float(np.median(rms)) * floor_fraction, 1e-12)
-        self.readout_scale = mx.array((1.0 / np.maximum(rms, floor)).astype(np.float32))
+        mean = first / max(count, 1.0)
+        raw = second / max(count, 1.0)
+        spread = np.sqrt(np.maximum(raw - mean**2, 0.0)) if center else np.sqrt(raw)
+        floor = max(float(np.median(spread)) * floor_fraction, 1e-12)
+        offset = mean if center else np.zeros_like(mean)
+        self.readout_offset = mx.array(offset.astype(np.float32))
+        self.readout_scale = mx.array((1.0 / np.maximum(spread, floor)).astype(np.float32))
         self._freeze_buffers()
         return {
-            "median_rms": float(np.median(rms)),
-            "min_rms": float(rms.min()),
-            "max_rms": float(rms.max()),
-            "floored_outputs": int(np.sum(rms < floor)),
+            "centered": center,
+            "median_spread": float(np.median(spread)),
+            "min_spread": float(spread.min()),
+            "max_spread": float(spread.max()),
+            "floored_outputs": int(np.sum(spread < floor)),
         }
+
+    def readout(self, pooled: mx.array) -> mx.array:
+        """The decoder's input: output activity after the frozen normalization."""
+        return (pooled - self.readout_offset) * self.readout_scale
 
     def encode(self, x: mx.array) -> mx.array:
         if self.channels is None:
@@ -182,7 +206,7 @@ class BrainPolicy(_Normalized):
     def step(self, obs: mx.array, state: mx.array) -> tuple[mx.array, mx.array]:
         current = self.encode(self.normalize(obs))
         state, pooled = self.dynamics.advance(state, current, self.neural_steps)
-        return mx.tanh(self.decoder(pooled * self.readout_scale)), state
+        return mx.tanh(self.decoder(self.readout(pooled))), state
 
     def with_dynamics(self, kind: str, dynamics: RateDynamics) -> BrainPolicy:
         """Same learned adapters over another frozen graph (post-training ablations)."""

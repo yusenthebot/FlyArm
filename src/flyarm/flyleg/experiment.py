@@ -285,7 +285,9 @@ def _train(
     elif isinstance(policy, BrainPolicy):
         samples = train["obs"][train["mask"].astype(bool)]
         policy.set_normalization(samples.mean(0), np.maximum(samples.std(0), 0.05))
-        calibration = policy.calibrate_readout(train["obs"], train["mask"])
+        calibration = policy.calibrate_readout(
+            train["obs"], train["mask"], center=config.readout_calibration == "standardize"
+        )
     env = kitchen.recover_env(config.split)
     selection_seeds = list(range(SELECTION_SEED, SELECTION_SEED + config.selection_episodes))
 

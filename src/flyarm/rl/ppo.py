@@ -88,7 +88,7 @@ class BrainRollout:
         self.state, pooled = self.policy.dynamics.advance(
             self.state, current, self.policy.neural_steps
         )
-        features = pooled * self.policy.readout_scale
+        features = self.policy.readout(pooled)
         mx.eval(self.state, features)
         return features
 

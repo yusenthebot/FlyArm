@@ -13,7 +13,7 @@ Numbers marked exploratory come from scratch probes that were later superseded b
 | Control is graph-mediated: removing every edge removes the skill | supported (pick-place, kitchen seed 0) | E3, E11 |
 | The skill needs the connectome's own state across control steps | supported (pick-place, kitchen seed 0) | E3, E11 |
 | Measured wiring beats a degree-preserving shuffle | open: strong in seeds 0 to 2, reversed in seed 3, replication running | E3, E21 |
-| The fly controller solves more than one kitchen task | not yet: one task (microwave) | E4, E11 |
+| The fly controller solves more than one kitchen task | not yet: one task (microwave); not fixed by longer memory (E20) or tracker DAgger (E19); readout ablation running | E4, E11, E19, E20, E22 |
 | RL on the frozen connectome improves a skill | supported for lifting (18/24 to 24/24), not for placing | E12 |
 | RL on the frozen connectome generalizes to unseen physics | partly: lifting generalizes to heavier cubes; placement gains on heavy cubes are partly physical; shuffle control running | E17 |
 | The rate model holds information for seconds | only near critical recurrent gain (0.99); about 0.2 s at the default 0.8 | E15, E16 |
@@ -133,9 +133,11 @@ Reading: negative; further training on tracker-labelled states destroys the frag
 Implementation flaw found: each round kept its own best checkpoint and the last round's was used; the experiment now keeps the best over all phases, including the starting checkpoint (commit after 7f9734a).
 Decision: the tracker-teacher DAgger line is closed.
 
-### E20. Near-critical gain on the kitchen (runs/flyleg-kitchen-gain099-dev-001, commit b37c927, running)
+### E20. Near-critical gain on the kitchen (runs/flyleg-kitchen-gain099-dev-001, commit b37c927)
 Question: does the connectome's longer memory at gain 0.99 let the fly controller go beyond the first kitchen task?
 Method: E11 protocol with recurrent gain 0.99, fly only, seed 0, 20 test episodes.
+Result: 25 (microwave in every episode, no other task); best validation score during training 1 task, as at gain 0.8; final training L1 0.106, as at gain 0.8.
+Reading: negative; memory is not what stops the fly controller after the first task.
 
 ### E21. Pick-and-place topology replication (runs/whole-brain-pick-place-003, -004, running)
 Method: seeds 3 to 5 with two independent shuffles each (replicate r uses shuffle seed seed + 17000 + 1000 r), then a second shuffle for seeds 0 to 2.
@@ -153,10 +155,12 @@ Partial: seed 3 connectome lift 9, place 5; its first shuffle lift 15, place 11 
 - Local dashboard of every run, curve, log and rollout (flyarm dashboard, port 8780).
 - Control-network figure (docs/figures/control_network-figure.png), QA-gated.
 
-### E22. Readout ablation on the kitchen (runs/flyleg-kitchen-descending-dev-001, running)
+### E22. Readout ablation on the kitchen
 Question: is the fly controller underfitting because it reads only 68 motor neurons?
 Evidence for the question: after behavior cloning the fly's training L1 is 0.106, against 0.068 for the GRU, 0.075 for the MLP and 0.043 for ACT (E11), and neither longer memory (E20) nor corrective data (E19) helped.
-Method: E11 protocol with the decoder reading the 68 left front-leg motor neurons plus the brain's 1,314 descending neurons (readout "leg_motor+descending"), fly only, seed 0, 20 test episodes; inputs unchanged.
+First attempt (runs/flyleg-kitchen-descending-dev-001, stopped): reading the 68 motor neurons plus all 1,314 descending neurons with scale-only calibration, training L1 stayed near 0.9 from epoch 1: the 1,382 unit-RMS outputs share a strong common mode and saturate the tanh decoder.
+Fix (commit after 5a9f2d9): an optional standardized calibration that subtracts each output's mean activity before dividing by its standard deviation, still a frozen per-neuron affine map.
+Design: two runs that differ only in the readout, both standardized, fly only, seed 0, 20 test episodes: runs/flyleg-kitchen-leg-std-dev-001 (68 motor neurons) and runs/flyleg-kitchen-descending-std-dev-001 (68 motor plus 1,314 descending neurons).
 
 ### E23. Stateful-teacher labels in B1a DAgger (found by the multi-task agent, quantified here)
 Finding: the scripted pick-and-place teacher keeps its own stage machine, so while labelling learner-driven DAgger states it can still be in "approach" or "descend" after the learner has already grasped and lifted the cube, and it then labels those states "open the gripper".
@@ -180,3 +184,8 @@ The connectome and shuffle runs (12 to 24 h) wait for the GPU.
 
 ### Dexterous hand (branch feat/dexterous-hand)
 LEAP hand, four fly legs as fingers; privileged PPO teacher 64/64 rotation episodes without drops; distilled GRU 60/64; the fly runs (about 6 to 7 h) wait for the GPU.
+
+### E24. B1a pick-and-place protocol v2 (configs/whole-brain-pick-place-v2a.json and -v2b.json, queued)
+Change from the first protocol: the stage-resynchronized teacher (teacher "resync", commit 5a9f2d9), whose demonstrations are bit-identical to the first protocol's on six compared episodes and which keeps squeezing a cube a learner has already lifted.
+Design: seeds 0 to 5, each training the connectome, two independent degree-preserving shuffles and a parameter-matched GRU on identical data; lesions as before; statistics per E3 (seed-level sign-flip and episode-level binomial).
+It starts after run 003 finishes (scripts/pick_place_v2.sh); run 004 (a second shuffle for the first protocol's seeds 0 to 2) was cancelled because v2 supersedes it.
