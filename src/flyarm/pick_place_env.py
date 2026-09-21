@@ -28,6 +28,68 @@ def physical_stage(info: dict[str, Any]) -> str:
     return "free"
 
 
+CUBE_HALF = 0.02
+
+
+def build_pick_place_spec(model_path: Path) -> mujoco.MjSpec:
+    """The Menagerie Panda scene plus the FlyArm pads, cube, goal marker and EE site."""
+    spec = mujoco.MjSpec.from_file(str(model_path))
+    hand = spec.body("hand")
+    if hand is None:
+        raise ValueError("expected Menagerie Panda body named 'hand'")
+    # This coincides with the physical finger pads.  The reach-only task's
+    # site at 10 cm is below the Panda fingers and would let a controller
+    # appear to grasp while the real pads were still 4 cm above the cube.
+    hand.add_site(name="flyarm_pick_ee", pos=[0.0, 0.0, 0.06], size=[0.008])
+    # The Menagerie fingertips are intentionally tiny.  These are explicit
+    # high-friction rubber jaw pads, rigidly part of each finger (not an
+    # object constraint), so a 4-cm cube can be side-pinched above a table.
+    # They make the simulated end effector a practical parallel gripper
+    # while preserving ordinary MuJoCo contact, friction, and gravity.
+    for name in ("left_finger", "right_finger"):
+        finger = spec.body(name)
+        if finger is None:
+            raise ValueError(f"expected Menagerie Panda body named {name}")
+        finger.add_geom(
+            name=f"flyarm_{name}_grip_pad",
+            type=mujoco.mjtGeom.mjGEOM_BOX,
+            pos=[0.0, 0.0, 0.045],
+            size=[0.018, 0.006, 0.010],
+            friction=[4.0, 0.08, 0.003],
+            rgba=[0.12, 0.12, 0.12, 1.0],
+        )
+
+    cube = spec.worldbody.add_body(name="flyarm_cube", pos=[0.45, 0.0, 0.10])
+    cube.add_freejoint(name="flyarm_cube_free")
+    cube.add_geom(
+        name="flyarm_cube_geom",
+        type=mujoco.mjtGeom.mjGEOM_BOX,
+        size=[CUBE_HALF] * 3,
+        mass=0.025,
+        friction=[4.0, 0.08, 0.003],
+        rgba=[0.06, 0.42, 0.95, 1.0],
+    )
+    goal = spec.worldbody.add_body(name="flyarm_goal", mocap=True)
+    goal.add_geom(
+        name="flyarm_goal_marker",
+        type=mujoco.mjtGeom.mjGEOM_CYLINDER,
+        size=[0.032, 0.001, 0.0],
+        rgba=[0.95, 0.15, 0.12, 0.65],
+        contype=0,
+        conaffinity=0,
+    )
+    return spec
+
+
+def compile_pick_place_model(spec: mujoco.MjSpec) -> mujoco.MjModel:
+    model = spec.compile()
+    model.opt.timestep = 0.002
+    # More solver iterations help the light cube resist a squeeze without a
+    # nonphysical attachment or equality constraint.
+    model.opt.iterations = 100
+    return model
+
+
 class PandaPickPlaceEnv(gym.Env[np.ndarray, np.ndarray]):
     """A tabletop 4-cm-cube pick-and-place task with real Panda contacts.
 
@@ -39,7 +101,7 @@ class PandaPickPlaceEnv(gym.Env[np.ndarray, np.ndarray]):
     metadata: dict[str, Any] = {"render_modes": ["rgb_array"], "render_fps": 20}
     observation_dim = 37
     _HOME = np.array([0.0, -0.45, 0.0, -2.2, 0.0, 1.75, 0.75])
-    _CUBE_HALF = 0.02
+    _CUBE_HALF = CUBE_HALF
     _SETTLED_HEIGHT = _CUBE_HALF
     _LIFT_HEIGHT = _SETTLED_HEIGHT + 0.06
 
@@ -55,56 +117,8 @@ class PandaPickPlaceEnv(gym.Env[np.ndarray, np.ndarray]):
             raise FileNotFoundError(self.model_path)
         self.horizon, self.render_mode = horizon, render_mode
 
-        spec = mujoco.MjSpec.from_file(str(self.model_path))
-        hand = spec.body("hand")
-        if hand is None:
-            raise ValueError("expected Menagerie Panda body named 'hand'")
-        # This coincides with the physical finger pads.  The reach-only task's
-        # site at 10 cm is below the Panda fingers and would let a controller
-        # appear to grasp while the real pads were still 4 cm above the cube.
-        hand.add_site(name="flyarm_pick_ee", pos=[0.0, 0.0, 0.06], size=[0.008])
-        # The Menagerie fingertips are intentionally tiny.  These are explicit
-        # high-friction rubber jaw pads, rigidly part of each finger (not an
-        # object constraint), so a 4-cm cube can be side-pinched above a table.
-        # They make the simulated end effector a practical parallel gripper
-        # while preserving ordinary MuJoCo contact, friction, and gravity.
-        for name in ("left_finger", "right_finger"):
-            finger = spec.body(name)
-            if finger is None:
-                raise ValueError(f"expected Menagerie Panda body named {name}")
-            finger.add_geom(
-                name=f"flyarm_{name}_grip_pad",
-                type=mujoco.mjtGeom.mjGEOM_BOX,
-                pos=[0.0, 0.0, 0.045],
-                size=[0.018, 0.006, 0.010],
-                friction=[4.0, 0.08, 0.003],
-                rgba=[0.12, 0.12, 0.12, 1.0],
-            )
-
-        cube = spec.worldbody.add_body(name="flyarm_cube", pos=[0.45, 0.0, 0.10])
-        cube.add_freejoint(name="flyarm_cube_free")
-        cube.add_geom(
-            name="flyarm_cube_geom",
-            type=mujoco.mjtGeom.mjGEOM_BOX,
-            size=[self._CUBE_HALF] * 3,
-            mass=0.025,
-            friction=[4.0, 0.08, 0.003],
-            rgba=[0.06, 0.42, 0.95, 1.0],
-        )
-        goal = spec.worldbody.add_body(name="flyarm_goal", mocap=True)
-        goal.add_geom(
-            name="flyarm_goal_marker",
-            type=mujoco.mjtGeom.mjGEOM_CYLINDER,
-            size=[0.032, 0.001, 0.0],
-            rgba=[0.95, 0.15, 0.12, 0.65],
-            contype=0,
-            conaffinity=0,
-        )
-        self.model = spec.compile()
-        self.model.opt.timestep = 0.002
-        # More solver iterations help the light cube resist a squeeze without a
-        # nonphysical attachment or equality constraint.
-        self.model.opt.iterations = 100
+        spec = build_pick_place_spec(self.model_path)
+        self.model = compile_pick_place_model(spec)
         self.data = mujoco.MjData(self.model)
 
         self._joint_ids = np.array(

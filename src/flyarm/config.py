@@ -208,3 +208,31 @@ class FlyLegConfig(BaseModel):
         if self.dagger_iterations and any(not 0 <= seed < 10 for seed in self.seeds):
             raise ValueError("DAgger needs training seeds in [0, 10) to keep env seeds disjoint")
         return self
+
+
+class PPOConfig(BaseModel):
+    """PPO fine-tuning of the motor decoder of a trained B1a pick-and-place checkpoint."""
+
+    model_config = ConfigDict(extra="forbid")
+    base_run: str = "runs/whole-brain-pick-place-001"
+    base_kind: Literal["connectome", "shuffled", "gru"] = "connectome"
+    base_seed: int = Field(default=0, ge=0, le=999)
+    num_envs: int = Field(default=128, ge=1, le=4096)
+    rollout_steps: int = Field(default=64, ge=8, le=1024)
+    iterations: int = Field(default=600, ge=1, le=100_000)
+    epochs: int = Field(default=4, ge=1, le=50)
+    minibatch: int = Field(default=2048, ge=32, le=1_000_000)
+    gamma: float = Field(default=0.99, gt=0, le=1)
+    lam: float = Field(default=0.95, ge=0, le=1)
+    clip: float = Field(default=0.2, gt=0, le=1)
+    decoder_lr: float = Field(default=3e-4, gt=0, le=0.1)
+    critic_lr: float = Field(default=1e-3, gt=0, le=0.1)
+    value_coef: float = Field(default=0.5, ge=0)
+    entropy_coef: float = Field(default=0.0, ge=0)
+    max_grad_norm: float = Field(default=0.5, gt=0)
+    log_std: float = Field(default=-1.2, ge=-5, le=1)
+    critic_warmup: int = Field(default=5, ge=0)
+    eval_every: int = Field(default=20, ge=1)
+    eval_episodes: int = Field(default=24, ge=1, le=256)
+    horizon: int = Field(default=400, ge=20, le=2000)
+    seed: int = Field(default=0, ge=0, le=999)

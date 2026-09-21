@@ -1,0 +1,373 @@
+"""PPO fine-tuning of the motor interface of a trained connectome controller (MLX).
+
+The controller stays the FlyArm policy: frozen linear encoder, frozen complete connectome,
+linear decoder. PPO trains only the decoder (motor neurons -> action mean) and a per-action
+exploration scale, so no gradient passes through the brain and the connectome is never
+changed. The critic reads privileged simulator state and exists only during training; the
+exploration noise is training-only too, and evaluation runs the deterministic mean action.
+"""
+
+from __future__ import annotations
+
+import json
+import time
+from pathlib import Path
+from typing import Any, cast
+
+import mlx.core as mx
+import mlx.nn as nn
+import mlx.optimizers as optim
+import numpy as np
+from mlx.utils import tree_flatten
+
+from flyarm.config import PPOConfig
+from flyarm.rl.batched_pick_place import ACTION_DIM, OBS_DIM, BatchedPickPlace
+from flyarm.whole_brain.policy import BrainPolicy
+
+TRAIN_SEED = 1_000_000  # environment seeds for PPO rollouts, disjoint from every B1a split
+
+
+class MotorHead(nn.Module):
+    """The trainable part: the decoder over motor-neuron activity plus exploration scale."""
+
+    def __init__(self, decoder: nn.Linear, log_std: float) -> None:
+        super().__init__()
+        self.decoder = decoder
+        self.log_std = mx.full((ACTION_DIM,), log_std)
+
+    def mean(self, features: mx.array) -> mx.array:
+        return mx.tanh(self.decoder(features))
+
+
+class Critic(nn.Module):
+    def __init__(self, hidden: int = 256) -> None:
+        super().__init__()
+        self.layers = [nn.Linear(OBS_DIM + 1, hidden), nn.Linear(hidden, hidden)]
+        self.value = nn.Linear(hidden, 1)
+
+    def __call__(self, x: mx.array) -> mx.array:
+        for layer in self.layers:
+            x = nn.tanh(layer(x))
+        return self.value(x)[..., 0]
+
+
+def gaussian_log_prob(actions: mx.array, mean: mx.array, log_std: mx.array) -> mx.array:
+    variance = mx.exp(2 * log_std)
+    return (-((actions - mean) ** 2) / (2 * variance) - log_std - 0.5 * np.log(2 * np.pi)).sum(-1)
+
+
+def gae(
+    rewards: np.ndarray,
+    values: np.ndarray,
+    dones: np.ndarray,
+    last_value: np.ndarray,
+    gamma: float,
+    lam: float,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Generalized advantage estimation over [T, N] arrays; dones end the episode after t."""
+    advantages = np.zeros_like(rewards)
+    carry = np.zeros_like(last_value)
+    for t in reversed(range(len(rewards))):
+        following = last_value if t == len(rewards) - 1 else values[t + 1]
+        alive = 1.0 - dones[t]
+        delta = rewards[t] + gamma * following * alive - values[t]
+        carry = delta + gamma * lam * alive * carry
+        advantages[t] = carry
+    return advantages, advantages + values
+
+
+class BrainRollout:
+    """Frozen encoder + connectome for a batch of environments; returns motor features."""
+
+    def __init__(self, policy: BrainPolicy, num_envs: int) -> None:
+        self.policy = policy
+        self.state = policy.initial_state(num_envs)
+
+    def features(self, obs: np.ndarray) -> mx.array:
+        current = self.policy.encode(self.policy.normalize(mx.array(obs)))
+        self.state, pooled = self.policy.dynamics.advance(
+            self.state, current, self.policy.neural_steps
+        )
+        features = pooled * self.policy.readout_scale
+        mx.eval(self.state, features)
+        return features
+
+    def reset(self, done: np.ndarray) -> None:
+        if done.any():
+            self.state = self.state * mx.array((~done).astype(np.float32))[None, :]
+
+
+class RunningNorm:
+    """Exponential running mean and scale of the critic input (training only)."""
+
+    def __init__(self, momentum: float = 0.99) -> None:
+        self.momentum = momentum
+        self.mean: np.ndarray | None = None
+        self.scale: np.ndarray | None = None
+
+    def update(self, samples: np.ndarray) -> None:
+        mean, scale = samples.mean(0), samples.std(0)
+        if self.mean is None or self.scale is None:
+            self.mean, self.scale = mean, scale
+        else:
+            self.mean = self.momentum * self.mean + (1 - self.momentum) * mean
+            self.scale = self.momentum * self.scale + (1 - self.momentum) * scale
+        self.scale = np.maximum(self.scale, 1e-3)
+
+    def __call__(self, states: np.ndarray) -> mx.array:
+        if self.mean is None or self.scale is None:
+            raise RuntimeError("RunningNorm used before update")
+        return mx.array((states - self.mean) / self.scale)
+
+
+def _critic_input(obs: np.ndarray, steps: np.ndarray, horizon: int) -> np.ndarray:
+    return np.concatenate((obs, (steps / horizon)[:, None]), axis=1).astype(np.float32)
+
+
+def evaluate(
+    policy: BrainPolicy, head: MotorHead, model_path: Path, seeds: list[int], horizon: int
+) -> dict[str, Any]:
+    """Deterministic mean actions on fixed seeds; the benchmark's own success rule."""
+    env = BatchedPickPlace(model_path, len(seeds), horizon=horizon)
+    obs = env.reset(seeds=np.array(seeds))
+    brain = BrainRollout(policy, len(seeds))
+    active = np.ones(len(seeds), dtype=bool)
+    success = np.zeros(len(seeds), dtype=bool)
+    grasped = np.zeros(len(seeds), dtype=bool)
+    lifted = np.zeros(len(seeds), dtype=bool)
+    for _ in range(horizon):
+        action = np.asarray(head.mean(brain.features(obs)), dtype=np.float64)
+        result = env.step(action, auto_reset=False)
+        grasped |= active & env.ever_grasped
+        lifted |= active & result.lifted
+        success |= active & result.success
+        active &= ~(result.success | result.truncated)
+        obs = result.obs
+        if not active.any():
+            break
+    return {
+        "seeds": seeds,
+        "success_rate": float(success.mean()),
+        "grasp_rate": float(grasped.mean()),
+        "lift_rate": float(lifted.mean()),
+        "successes": int(success.sum()),
+        "lifts": int(lifted.sum()),
+        "grasps": int(grasped.sum()),
+    }
+
+
+def train_ppo(
+    policy: BrainPolicy,
+    model_path: Path,
+    output: Path,
+    settings: PPOConfig,
+    eval_seeds: list[int],
+) -> dict[str, Any]:
+    """Fine-tune ``policy``'s decoder in place with PPO; returns curves and evaluations."""
+    output.mkdir(parents=True, exist_ok=True)
+    mx.random.seed(settings.seed)
+    generator = np.random.default_rng(settings.seed)
+    head = MotorHead(policy.decoder, settings.log_std)
+    critic = Critic()
+    head_optimizer = optim.Adam(learning_rate=settings.decoder_lr)
+    critic_optimizer = optim.Adam(learning_rate=settings.critic_lr)
+    env = BatchedPickPlace(
+        model_path,
+        settings.num_envs,
+        horizon=settings.horizon,
+        first_seed=TRAIN_SEED + 100_000 * settings.seed,
+    )
+    obs = env.reset()
+    brain = BrainRollout(policy, settings.num_envs)
+    n, horizon = settings.num_envs, settings.rollout_steps
+    critic_norm = RunningNorm()
+
+    def losses(
+        head: MotorHead,
+        critic: Critic,
+        feats: mx.array,
+        states: mx.array,
+        actions: mx.array,
+        old_log_prob: mx.array,
+        advantages: mx.array,
+        returns: mx.array,
+        train_policy: bool,
+    ) -> tuple[mx.array, tuple[mx.array, mx.array, mx.array]]:
+        log_prob = gaussian_log_prob(actions, head.mean(feats), head.log_std)
+        ratio = mx.exp(log_prob - old_log_prob)
+        clipped = mx.clip(ratio, 1 - settings.clip, 1 + settings.clip)
+        policy_loss = -mx.minimum(ratio * advantages, clipped * advantages).mean()
+        value_loss = ((critic(states) - returns) ** 2).mean()
+        entropy = (head.log_std + 0.5 * np.log(2 * np.pi * np.e)).sum()
+        total = settings.value_coef * value_loss - settings.entropy_coef * entropy
+        if train_policy:
+            total = total + policy_loss
+        return total, (policy_loss, value_loss, ratio)
+
+    class Pair(nn.Module):
+        def __init__(self) -> None:
+            super().__init__()
+            self.head, self.critic = head, critic
+
+    pair = Pair()
+    grad_fn = nn.value_and_grad(pair, lambda p, *args: losses(p.head, p.critic, *args))
+
+    curves: list[dict[str, Any]] = []
+    evaluations: list[dict[str, Any]] = []
+    started = time.monotonic()
+    env_steps = 0
+    best: dict[str, Any] = {"success_rate": -1.0}
+    for iteration in range(settings.iterations):
+        feats_buf = np.zeros((horizon, n, policy.dynamics.output_count), np.float32)
+        critic_buf = np.zeros((horizon, n, OBS_DIM + 1), np.float32)
+        action_buf = np.zeros((horizon, n, ACTION_DIM), np.float32)
+        logp_buf = np.zeros((horizon, n), np.float32)
+        reward_buf = np.zeros((horizon, n), np.float32)
+        done_buf = np.zeros((horizon, n), np.float32)
+        finished = successes = lifts = 0
+        rollout_start = time.monotonic()
+        for t in range(horizon):
+            feats = brain.features(obs)
+            mean = head.mean(feats)
+            std = mx.exp(head.log_std)
+            actions = mx.clip(mean + std * mx.random.normal(mean.shape), -1.0, 1.0)
+            log_prob = gaussian_log_prob(actions, mean, head.log_std)
+            mx.eval(actions, log_prob)
+            feats_buf[t] = np.asarray(feats)
+            critic_buf[t] = _critic_input(obs, env.steps, settings.horizon)
+            action_buf[t] = np.asarray(actions)
+            logp_buf[t] = np.asarray(log_prob)
+            result = env.step(action_buf[t].astype(np.float64))
+            done = result.terminated | result.truncated
+            reward_buf[t], done_buf[t] = result.reward, done
+            finished += int(done.sum())
+            successes += int(result.terminated.sum())
+            lifts += int((done & result.lifted).sum())
+            brain.reset(done)
+            obs = result.obs
+        env_steps += n * horizon
+        rollout_seconds = time.monotonic() - rollout_start
+
+        flat_states = critic_buf.reshape(-1, OBS_DIM + 1)
+        critic_norm.update(flat_states)
+        normalized = critic_norm
+
+        values = np.asarray(critic(normalized(flat_states))).reshape(horizon, n)
+        last_value = np.asarray(critic(normalized(_critic_input(obs, env.steps, settings.horizon))))
+        advantages, returns = gae(
+            reward_buf, values, done_buf, last_value, settings.gamma, settings.lam
+        )
+        samples = horizon * n
+        data = {
+            "feats": mx.array(feats_buf.reshape(samples, -1)),
+            "states": normalized(flat_states),
+            "actions": mx.array(action_buf.reshape(samples, ACTION_DIM)),
+            "logp": mx.array(logp_buf.reshape(samples)),
+            "adv": mx.array(
+                ((advantages - advantages.mean()) / (advantages.std() + 1e-8)).reshape(samples)
+            ),
+            "ret": mx.array(returns.reshape(samples)),
+        }
+        train_policy = iteration >= settings.critic_warmup
+        stats: list[tuple[float, float, float]] = []
+        for _ in range(settings.epochs):
+            order = generator.permutation(samples)
+            for start in range(0, samples, settings.minibatch):
+                rows = mx.array(order[start : start + settings.minibatch])
+                (_, (policy_loss, value_loss, ratio)), grads = grad_fn(
+                    pair,
+                    data["feats"][rows],
+                    data["states"][rows],
+                    data["actions"][rows],
+                    data["logp"][rows],
+                    data["adv"][rows],
+                    data["ret"][rows],
+                    train_policy,
+                )
+                grads, _ = optim.clip_grad_norm(grads, settings.max_grad_norm)
+                critic_optimizer.update(critic, grads["critic"])
+                if train_policy:
+                    head_optimizer.update(head, grads["head"])
+                mx.eval(head.parameters(), critic.parameters(), policy_loss, value_loss)
+                stats.append(
+                    (float(policy_loss), float(value_loss), float(mx.abs(ratio - 1).mean()))
+                )
+        curve = {
+            "iteration": iteration + 1,
+            "env_steps": env_steps,
+            "mean_reward": float(reward_buf.mean()),
+            "episodes": finished,
+            "success_rate": successes / finished if finished else None,
+            "lift_rate": lifts / finished if finished else None,
+            "policy_loss": float(np.mean([s[0] for s in stats])),
+            "value_loss": float(np.mean([s[1] for s in stats])),
+            "ratio_deviation": float(np.mean([s[2] for s in stats])),
+            "action_std": np.exp(np.asarray(head.log_std)).round(4).tolist(),
+            "policy_trained": train_policy,
+            "steps_per_second": n * horizon / rollout_seconds,
+            "elapsed_seconds": time.monotonic() - started,
+        }
+        curves.append(curve)
+        print(
+            f"it {iteration + 1:4d} steps {env_steps:9d} reward {curve['mean_reward']:.3f} "
+            f"episodes {finished:3d} success {successes:3d} lift {lifts:3d} "
+            f"vloss {curve['value_loss']:.3f} sps {curve['steps_per_second']:.0f}",
+            flush=True,
+        )
+        if (iteration + 1) % settings.eval_every == 0 or iteration + 1 == settings.iterations:
+            scored = evaluate(policy, head, model_path, eval_seeds, settings.horizon)
+            scored.update(iteration=iteration + 1, env_steps=env_steps)
+            evaluations.append(scored)
+            print(
+                f"  eval: place {scored['successes']}/{len(eval_seeds)} "
+                f"lift {scored['lifts']} grasp {scored['grasps']}",
+                flush=True,
+            )
+            policy.save(output / f"policy-{iteration + 1:04d}.safetensors")
+            if scored["success_rate"] > best["success_rate"]:
+                best = scored
+        (output / "curves.json").write_text(json.dumps(curves, indent=1))
+        (output / "evaluations.json").write_text(json.dumps(evaluations, indent=1))
+    return {"curves": curves, "evaluations": evaluations, "best": best}
+
+
+def trainable_count(module: nn.Module) -> int:
+    leaves = cast(list[tuple[str, mx.array]], tree_flatten(module.trainable_parameters()))
+    return sum(value.size for _, value in leaves)
+
+
+def run_ppo(config: PPOConfig, pack_root: Path, model_path: Path, output: Path) -> dict[str, Any]:
+    """Load the base checkpoint, score it, fine-tune its decoder with PPO, save everything."""
+    from flyarm.experiment import save_json
+    from flyarm.whole_brain.experiment import load_trained_policy
+
+    if output.exists():
+        raise FileExistsError(f"Run directory already exists; choose a new output: {output}")
+    task, policy = load_trained_policy(
+        Path(config.base_run), config.base_kind, config.base_seed, pack_root, model_path
+    )
+    eval_seeds = task.seeds("test", config.eval_episodes)
+    task.close()
+    if not isinstance(policy, BrainPolicy):
+        raise ValueError("PPO fine-tuning is defined for brain policies (connectome, shuffled)")
+    output.mkdir(parents=True)
+    save_json(output / "config.json", config.model_dump())
+    head = MotorHead(policy.decoder, config.log_std)
+    before = evaluate(policy, head, model_path, eval_seeds, config.horizon)
+    print(f"base checkpoint: place {before['successes']} lift {before['lifts']}", flush=True)
+    results: dict[str, Any] = {
+        "status": "running",
+        "base": before,
+        "trainable_parameters": trainable_count(head),
+        "claim": "PPO tunes only the linear motor decoder; encoder and connectome frozen",
+    }
+    save_json(output / "results.json", results)
+    try:
+        run = train_ppo(policy, model_path, output, config, eval_seeds)
+    except (Exception, KeyboardInterrupt) as error:
+        results.update(status="failed", error=f"{type(error).__name__}: {error}")
+        save_json(output / "results.json", results)
+        raise
+    results.update(status="complete", best=run["best"], final=run["evaluations"][-1])
+    save_json(output / "results.json", results)
+    return results
