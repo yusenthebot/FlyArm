@@ -186,3 +186,11 @@ Transport and release accuracy, not grasping, is the bottleneck.
 This is the first learned controller in the project that places the cube in more than one held-out episode.
 
 The live UI (`flyarm whole-brain serve`) replays this checkpoint in real time and reproduces the held-out result step for step (episode 60000 placed at step 247, 1.5 cm goal error).
+
+## Memory timescale of the rate model (2026-09-21)
+
+Two copies of the pick-place controller that differ only in the goal inputs for 10 control steps, then receive identical inputs, converge by about a factor of five per control step.
+The largest state difference falls from 2.0 to 1e-3 within 5 control steps (0.25 s) and to 1e-5 within 10 (0.5 s).
+With alpha = 0.5 and row-normalized weights at gain 0.8 the dynamics are contractive, so the connectome carries information for roughly 0.1 to 0.2 s.
+That is enough for the short-term state the pick-and-place skill needs (resetting the state every step removes every lift), but not for a goal that must be remembered for seconds, and a trained decoder cannot add memory the dynamics do not hold.
+Working memory would need a different neuron model, for example near-critical recurrent gain or slower time constants, which is a separate question about the wiring.
