@@ -24,6 +24,8 @@ ROWS = [
     ("vnc_motor", None, "fl", None, "L"),  # motor
     ("vnc_motor", None, "fl", None, "R"),
     ("vnc_motor", None, "hl", None, "L"),
+    ("descending_neuron", None, None, None, "L"),  # descending (optional readout)
+    ("descending_neuron", None, None, None, "R"),  # descending (optional readout)
 ]
 
 
@@ -62,3 +64,20 @@ def test_front_leg_rule_selects_left_proprioceptors_head_sensors_and_leg_motor(
     report = front_leg_report(pack, leg, annotations)
     assert report["proprioceptors"]["count"] == 2
     assert report["motor_neurons"]["count"] == 1
+
+
+def test_descending_readout_appends_every_descending_neuron_after_the_motor_neurons(
+    tmp_path: Path,
+) -> None:
+    graph = make_random_graph(n=40, edges=300)
+    pack = ConnectomePack.from_graph(graph)
+    annotations = tmp_path / "annotations.feather"
+    write_annotations(annotations, pack.body_ids)
+    ids = pack.body_ids
+    plain = front_leg_interface(pack, annotations)
+    wide = front_leg_interface(pack, annotations, include_descending=True)
+    assert plain.descending.size == 0
+    assert plain.interface.output_body_ids.tolist() == ids[[7]].tolist()
+    assert wide.descending.tolist() == ids[[10, 11]].tolist()
+    assert wide.interface.output_body_ids.tolist() == ids[[7, 10, 11]].tolist()
+    assert wide.interface.input_body_ids.tolist() == plain.interface.input_body_ids.tolist()

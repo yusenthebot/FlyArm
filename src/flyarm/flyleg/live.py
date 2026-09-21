@@ -294,7 +294,12 @@ def serve_flyleg(
     pack.validate_b1a_provenance()
     config = json.loads((run_root / "config.json").read_text())
     include_head = config.get("sensory_channels", "proprioception+head") == "proprioception+head"
-    leg = front_leg_interface(pack, annotations, include_head=include_head)
+    leg = front_leg_interface(
+        pack,
+        annotations,
+        include_head=include_head,
+        include_descending=config.get("readout", "leg_motor") == "leg_motor+descending",
+    )
     gain = float(config.get("recurrent_gain", 0.8))
     policy = load_flyleg_policy(run_root, "flyleg", seed, pack_root, annotations)
     if not isinstance(policy, BrainPolicy):
@@ -333,7 +338,9 @@ def serve_flyleg(
         modes,
         input_groups=[(leg.proprioceptors, "front-leg proprioceptor")]
         + ([(leg.exteroceptors, "head sensory")] if include_head else []),
-        output_label="front-leg motor neuron",
+        output_label="front-leg motor or descending neuron"
+        if leg.descending.size
+        else "front-leg motor neuron",
         place_afferents=True,
         task="kitchen",
     )
