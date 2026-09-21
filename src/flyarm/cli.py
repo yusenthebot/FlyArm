@@ -163,6 +163,9 @@ def main() -> None:
     leg_record.add_argument("--output", type=Path, required=True)
     report = sub.add_parser("report", help="Aggregate completed runs into a Markdown report")
     report.add_argument("--output", type=Path, required=True)
+    board = sub.add_parser("dashboard", help="Local run history, curves, logs and rollouts")
+    board.add_argument("--host", default="127.0.0.1")
+    board.add_argument("--port", type=int, default=8780)
     rl = sub.add_parser("rl", help="Reinforcement learning with batched MuJoCo (mjbatch)")
     rl_sub = rl.add_subparsers(dest="rl_command", required=True)
     ppo = rl_sub.add_parser("ppo", help="PPO fine-tuning of a pick-place checkpoint's decoder")
@@ -217,6 +220,10 @@ def main() -> None:
         print(f"Complete: {args.output}; {len(result['models'])} trained models")
     elif args.command == "whole-brain":
         _whole_brain(args)
+    elif args.command == "dashboard":
+        from flyarm.dashboard.server import serve_dashboard
+
+        serve_dashboard(Path.cwd(), args.host, args.port)
     elif args.command == "rl":
         from flyarm.config import PPOConfig
         from flyarm.rl.ppo import run_ppo
