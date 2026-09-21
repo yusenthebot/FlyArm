@@ -6,7 +6,7 @@ export PYTHONPATH=src
 until grep -q '"status": "\(complete\|failed\)"' runs/ppo-pick-place-001/results.json 2>/dev/null; do
   sleep 60
 done
-for name in randomized memory; do
+for name in randomized randomized-shuffled; do
   output=runs/ppo-pick-place-$name-001
   [ -e "$output" ] && continue
   echo "[$(date '+%F %T')] start $output"
