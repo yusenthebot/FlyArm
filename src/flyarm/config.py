@@ -156,6 +156,9 @@ class FlyLegConfig(BaseModel):
     bptt_steps: int = Field(default=8, ge=1, le=100)
     learning_rate: float = Field(default=0.001, gt=0, le=0.05)
     neural_steps: int = Field(default=3, ge=1, le=8)
+    # Rate-model regime (weights unchanged): h <- 0.5 h + 0.5 tanh(I + g W h). Near 1 the
+    # connectome keeps information for seconds instead of about 0.2 s.
+    recurrent_gain: float = Field(default=0.8, ge=0, lt=1)
     # ACT-style output: every controller predicts the next action_chunk actions at each step,
     # executed through a fixed temporal ensemble. 1 is ordinary single-step control.
     action_chunk: int = Field(default=1, ge=1, le=50)

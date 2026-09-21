@@ -295,17 +295,23 @@ def serve_flyleg(
     config = json.loads((run_root / "config.json").read_text())
     include_head = config.get("sensory_channels", "proprioception+head") == "proprioception+head"
     leg = front_leg_interface(pack, annotations, include_head=include_head)
+    gain = float(config.get("recurrent_gain", 0.8))
     policy = load_flyleg_policy(run_root, "flyleg", seed, pack_root, annotations)
     if not isinstance(policy, BrainPolicy):
         raise ValueError("Expected a front-leg brain checkpoint")
     variants: dict[CausalMode, BrainPolicy] = {
         "connectome": policy,
         "edges_off": policy.with_dynamics(
-            "edges_off", RateDynamics(pack, leg.interface, edges=False)
+            "edges_off", RateDynamics(pack, leg.interface, recurrent_gain=gain, edges=False)
         ),
         "direct_only": policy.with_dynamics(
             "direct_only",
-            RateDynamics(pack, leg.interface, weights=direct_only_weights(pack, leg.interface)),
+            RateDynamics(
+                pack,
+                leg.interface,
+                recurrent_gain=gain,
+                weights=direct_only_weights(pack, leg.interface),
+            ),
         ),
         "deafferented": policy.silence_channel("deafferented", 0),
     }
