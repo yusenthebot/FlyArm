@@ -143,6 +143,9 @@ export interface RuntimeState {
   completed?: string[];
   task_distance?: Record<string, number>;
   score?: number;
+  /** Chunked controllers: newest predicted chunk, [k][9] joint velocities, control_dt apart. */
+  plan?: number[][] | null;
+  control_dt?: number;
   hidden?: number[];
   evidence: EvidenceSummary;
 }

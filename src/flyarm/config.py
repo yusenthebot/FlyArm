@@ -106,9 +106,12 @@ class WholeBrainConfig(BaseModel):
     policies: list[WholeBrainPolicyKind] = Field(
         default_factory=default_whole_brain_policies, min_length=1
     )
+    # Independent degree-preserving shuffles trained per seed; replicate r uses shuffle seed
+    # seed + 17000 + 1000 r, so replicate 0 is the shuffle of every earlier run.
+    shuffle_replicates: list[int] = Field(default_factory=lambda: [0], min_length=1, max_length=5)
     max_seconds: int = Field(default=7200, ge=60, le=172800)
 
-    @field_validator("seeds", "policies")
+    @field_validator("seeds", "policies", "shuffle_replicates")
     @classmethod
     def unique_entries(cls, values: list) -> list:
         if len(set(values)) != len(values):
@@ -119,6 +122,10 @@ class WholeBrainConfig(BaseModel):
 
     @model_validator(mode="after")
     def warmup_leaves_joint_epochs(self) -> WholeBrainConfig:
+        if self.shuffle_replicates != [0] and (
+            max(self.seeds) >= 1000 or max(self.shuffle_replicates) >= 10
+        ):
+            raise ValueError("shuffle replicates need seeds < 1000 and replicates < 10")
         if self.decoder_warmup_epochs >= self.epochs:
             raise ValueError("decoder_warmup_epochs must leave at least one joint epoch")
         if self.task == "pick-place" and self.horizon < 200:
@@ -128,7 +135,7 @@ class WholeBrainConfig(BaseModel):
         return self
 
 
-FlyLegPolicyKind = Literal["flyleg", "flyleg_shuffled", "mlp", "gru"]
+FlyLegPolicyKind = Literal["flyleg", "flyleg_shuffled", "mlp", "gru", "act"]
 
 
 def default_flyleg_policies() -> list[FlyLegPolicyKind]:
@@ -149,6 +156,15 @@ class FlyLegConfig(BaseModel):
     bptt_steps: int = Field(default=8, ge=1, le=100)
     learning_rate: float = Field(default=0.001, gt=0, le=0.05)
     neural_steps: int = Field(default=3, ge=1, le=8)
+    # ACT-style output: every controller predicts the next action_chunk actions at each step,
+    # executed through a fixed temporal ensemble. 1 is ordinary single-step control.
+    action_chunk: int = Field(default=1, ge=1, le=50)
+    loss: Literal["mse", "l1"] = "mse"
+    # "act" is the ACT reference (transformer + CVAE); it is not a fly model.
+    act_steps: int = Field(default=20000, ge=100, le=500000)
+    act_batch_size: int = Field(default=64, ge=8, le=1024)
+    act_learning_rate: float = Field(default=1e-4, gt=0, le=0.01)
+    act_kl_weight: float = Field(default=10.0, ge=0, le=100)
     eval_episodes: int = Field(default=50, ge=2, le=500)
     ood_joint_offsets: list[float] = Field(default_factory=lambda: [0.05, 0.1], max_length=6)
     seeds: list[int] = Field(default_factory=lambda: [0, 1, 2], min_length=1, max_length=10)

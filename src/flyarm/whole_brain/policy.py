@@ -7,6 +7,7 @@ which is a plain attribute rather than a module parameter, so no optimizer can s
 
 from __future__ import annotations
 
+from collections import deque
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, cast
@@ -18,17 +19,34 @@ from mlx.utils import tree_flatten
 
 from flyarm.whole_brain.backend_mlx import RateDynamics
 
+# ACT's temporal-ensembling constant: w_i = exp(-m * i), i = 0 for the oldest prediction.
+ENSEMBLE_DECAY = 0.01
+
 
 class _Normalized(nn.Module):
+    """Observation normalization plus the action-chunk layout shared by every policy.
+
+    A policy with ``chunk`` k emits, at every control step, the next k actions flattened to
+    ``[batch, k * action_dim]`` (ACT-style action chunking); k = 1 is ordinary control.
+    """
+
     #: Buffers saved with the checkpoint but never trained.
     frozen_keys: tuple[str, ...] = ("obs_mean", "obs_scale")
 
-    def __init__(self, obs_dim: int) -> None:
+    def __init__(self, obs_dim: int, action_dim: int, chunk: int) -> None:
         super().__init__()
+        if action_dim < 1 or chunk < 1:
+            raise ValueError("action_dim and chunk must be positive")
         self.obs_dim = obs_dim
+        self.action_dim = action_dim
+        self.chunk = chunk
         self.obs_mean = mx.zeros((obs_dim,))
         self.obs_scale = mx.ones((obs_dim,))
         self._freeze_buffers()
+
+    @property
+    def output_dim(self) -> int:
+        return self.action_dim * self.chunk
 
     def _freeze_buffers(self) -> None:
         present = [key for key in self.frozen_keys if key in self]
@@ -94,13 +112,13 @@ class BrainPolicy(_Normalized):
         neural_steps: int = 3,
         seed: int = 0,
         channels: Sequence[Channel] | None = None,
+        chunk: int = 1,
     ) -> None:
-        super().__init__(obs_dim)
-        if neural_steps < 1 or action_dim < 1:
-            raise ValueError("neural_steps and action_dim must be positive")
+        super().__init__(obs_dim, action_dim, chunk)
+        if neural_steps < 1:
+            raise ValueError("neural_steps must be positive")
         self.kind = kind
         self.seed = seed
-        self.action_dim = action_dim
         self.neural_steps = neural_steps
         self.dynamics = dynamics
         self.channels = tuple(channels) if channels is not None else None
@@ -113,7 +131,7 @@ class BrainPolicy(_Normalized):
             if any(not 0 <= start < stop <= obs_dim for start, stop, _ in self.channels):
                 raise ValueError("Channel observation slices must lie inside the observation")
             self.encoders = [nn.Linear(stop - start, size) for start, stop, size in self.channels]
-        self.decoder = nn.Linear(dynamics.output_count, action_dim)
+        self.decoder = nn.Linear(dynamics.output_count, self.output_dim)
         self.readout_scale = mx.ones((dynamics.output_count,))
         self._freeze_buffers()
 
@@ -184,6 +202,7 @@ class BrainPolicy(_Normalized):
             neural_steps=self.neural_steps,
             seed=self.seed,
             channels=self.channels,
+            chunk=self.chunk,
         )
         clone.update(self.parameters())
         clone._freeze_buffers()
@@ -200,11 +219,14 @@ class BrainPolicy(_Normalized):
         return clone
 
 
-def gru_hidden_for_budget(obs_dim: int, action_dim: int, budget: int) -> int:
-    """Hidden width whose MLX GRU + linear readout is closest to ``budget`` parameters."""
+def gru_hidden_for_budget(obs_dim: int, output_dim: int, budget: int) -> int:
+    """Hidden width whose MLX GRU + linear readout is closest to ``budget`` parameters.
+
+    ``output_dim`` is the readout width: action_dim times the action chunk.
+    """
 
     def count(hidden: int) -> int:
-        return 3 * hidden * (obs_dim + hidden + 1) + hidden + (hidden + 1) * action_dim
+        return 3 * hidden * (obs_dim + hidden + 1) + hidden + (hidden + 1) * output_dim
 
     return min(range(1, 2048), key=lambda hidden: abs(count(hidden) - budget))
 
@@ -215,13 +237,14 @@ class GRUPolicy(_Normalized):
     def input_modules(self) -> list[nn.Module]:
         return [self.cell]
 
-    def __init__(self, *, obs_dim: int, action_dim: int, hidden: int, seed: int = 0) -> None:
-        super().__init__(obs_dim)
-        self.action_dim = action_dim
+    def __init__(
+        self, *, obs_dim: int, action_dim: int, hidden: int, seed: int = 0, chunk: int = 1
+    ) -> None:
+        super().__init__(obs_dim, action_dim, chunk)
         self.hidden = hidden
         mx.random.seed(seed)
         self.cell = nn.GRU(obs_dim, hidden)
-        self.readout = nn.Linear(hidden, action_dim)
+        self.readout = nn.Linear(hidden, self.output_dim)
 
     @property
     def state_size(self) -> int:
@@ -240,15 +263,16 @@ class MLPPolicy(_Normalized):
 
     kind = "mlp"
 
-    def __init__(self, *, obs_dim: int, action_dim: int, hidden: int = 256, seed: int = 0) -> None:
-        super().__init__(obs_dim)
-        self.action_dim = action_dim
+    def __init__(
+        self, *, obs_dim: int, action_dim: int, hidden: int = 256, seed: int = 0, chunk: int = 1
+    ) -> None:
+        super().__init__(obs_dim, action_dim, chunk)
         self.hidden = hidden
         mx.random.seed(seed)
         self.layers = [
             nn.Linear(obs_dim, hidden),
             nn.Linear(hidden, hidden),
-            nn.Linear(hidden, action_dim),
+            nn.Linear(hidden, self.output_dim),
         ]
 
     @property
@@ -268,24 +292,154 @@ class MLPPolicy(_Normalized):
         return [self.layers[0]]
 
 
-SequencePolicy = BrainPolicy | GRUPolicy | MLPPolicy
+Slice = tuple[int, int]  # (first observation index, stop index)
+
+
+class ACTPolicy(_Normalized):
+    """ACT (Zhao et al., 2023) on state observations: a reference controller, not a fly model.
+
+    Training adds a CVAE encoder (a transformer over [CLS, joint state, demonstrated chunk])
+    whose latent z explains which demonstrated mode the chunk follows. The policy itself is a
+    transformer encoder over [z, one token per observation slice] and a transformer decoder
+    whose ``chunk`` learned queries emit the action chunk. At test time z = 0, as in ACT. It
+    conditions on the current observation only (no recurrent state).
+    """
+
+    kind = "act"
+
+    def __init__(
+        self,
+        *,
+        obs_dim: int,
+        action_dim: int,
+        chunk: int,
+        token_slices: Sequence[Slice],
+        dims: int = 256,
+        heads: int = 8,
+        mlp_dims: int = 1024,
+        encoder_layers: int = 4,
+        decoder_layers: int = 1,
+        latent_dim: int = 32,
+        dropout: float = 0.1,
+        seed: int = 0,
+    ) -> None:
+        super().__init__(obs_dim, action_dim, chunk)
+        slices = tuple((int(start), int(stop)) for start, stop in token_slices)
+        if not slices or any(not 0 <= start < stop <= obs_dim for start, stop in slices):
+            raise ValueError("ACT token slices must be non-empty ranges inside the observation")
+        mx.random.seed(seed)
+        self.token_slices = slices
+        self.latent_dim = latent_dim
+        joint_start, joint_stop = slices[0]
+
+        def embedding(rows: int) -> mx.array:
+            return 0.02 * mx.random.normal((rows, dims))
+
+        self.posterior_cls = embedding(1)
+        self.posterior_joints = nn.Linear(joint_stop - joint_start, dims)
+        self.posterior_actions = nn.Linear(action_dim, dims)
+        self.posterior_positions = embedding(chunk + 2)
+        self.posterior_encoder = nn.TransformerEncoder(
+            encoder_layers, dims, heads, mlp_dims, dropout
+        )
+        self.posterior_head = nn.Linear(dims, 2 * latent_dim)
+        self.latent_in = nn.Linear(latent_dim, dims)
+        self.tokens_in = [nn.Linear(stop - start, dims) for start, stop in slices]
+        self.token_positions = embedding(len(slices) + 1)
+        self.encoder = nn.TransformerEncoder(encoder_layers, dims, heads, mlp_dims, dropout)
+        self.queries = embedding(chunk)
+        self.decoder = nn.TransformerDecoder(decoder_layers, dims, heads, mlp_dims, dropout)
+        self.head = nn.Linear(dims, action_dim)
+        self.eval()
+
+    @property
+    def state_size(self) -> int:
+        return 0
+
+    def initial_state(self, batch: int) -> mx.array:
+        return mx.zeros((batch, 1))
+
+    def input_modules(self) -> list[nn.Module]:
+        return list(self.tokens_in)
+
+    def posterior(
+        self, x: mx.array, chunk_actions: mx.array, valid: mx.array
+    ) -> tuple[mx.array, mx.array]:
+        """CVAE encoder: (mu, logvar) of z from normalized obs and the [B, chunk, A] targets."""
+        batch = x.shape[0]
+        start, stop = self.token_slices[0]
+        tokens = mx.concatenate(
+            [
+                mx.broadcast_to(self.posterior_cls[None], (batch, 1, self.posterior_cls.shape[1])),
+                self.posterior_joints(x[:, start:stop])[:, None],
+                self.posterior_actions(chunk_actions),
+            ],
+            axis=1,
+        )
+        keep = mx.concatenate([mx.ones((batch, 2), dtype=mx.bool_), valid.astype(mx.bool_)], 1)
+        encoded = self.posterior_encoder(tokens + self.posterior_positions, keep[:, None, None])
+        mu, logvar = mx.split(self.posterior_head(encoded[:, 0]), 2, axis=-1)
+        return mu, logvar
+
+    def decode(self, x: mx.array, z: mx.array) -> mx.array:
+        """Normalized obs and latent -> flattened action chunk in [-1, 1]."""
+        tokens = [self.latent_in(z)] + [
+            embed(x[:, start:stop])
+            for embed, (start, stop) in zip(self.tokens_in, self.token_slices, strict=True)
+        ]
+        memory = self.encoder(mx.stack(tokens, axis=1) + self.token_positions, None)
+        queries = mx.broadcast_to(self.queries[None], (x.shape[0], *self.queries.shape))
+        decoded = self.decoder(queries, memory, None, None)
+        return mx.tanh(self.head(decoded)).reshape(x.shape[0], self.output_dim)
+
+    def step(self, obs: mx.array, state: mx.array) -> tuple[mx.array, mx.array]:
+        x = self.normalize(obs)
+        return self.decode(x, mx.zeros((x.shape[0], self.latent_dim))), state
+
+
+SequencePolicy = BrainPolicy | GRUPolicy | MLPPolicy | ACTPolicy
 
 
 class MlxController:
-    """Single-episode closed-loop inference; only the action returns to the host."""
+    """Single-episode closed-loop inference; only the action returns to the host.
 
-    def __init__(self, policy: SequencePolicy) -> None:
+    With an action chunk k > 1 the executed action is ACT's temporal ensemble: the average of
+    the (up to k) predictions made for this step by the last k chunks, oldest weighted
+    highest. It is a fixed, parameter-free output filter; for k = 1 it is the prediction.
+    """
+
+    def __init__(self, policy: SequencePolicy, *, ensemble_decay: float = ENSEMBLE_DECAY) -> None:
+        if ensemble_decay < 0:
+            raise ValueError("ensemble_decay must be nonnegative")
         self.policy = policy
+        self.ensemble_decay = ensemble_decay
         self.state = policy.initial_state(1)
+        self._plans: deque[np.ndarray] = deque(maxlen=policy.chunk)
+
+    @property
+    def plan(self) -> np.ndarray | None:
+        """The latest predicted chunk, shaped [chunk, action_dim]."""
+        return self._plans[-1] if self._plans else None
 
     def reset(self) -> None:
+        self.reset_state()
+        self._plans.clear()
+
+    def reset_state(self) -> None:
+        """Clear the recurrent state only; queued chunk predictions are kept."""
         self.state = self.policy.initial_state(1)
 
     def act(self, observation: np.ndarray) -> np.ndarray:
         obs = mx.array(np.asarray(observation, dtype=np.float32)[None])
-        action, self.state = self.policy.step(obs, self.state)
-        mx.eval(action, self.state)
-        return np.asarray(action[0], dtype=np.float32)
+        output, self.state = self.policy.step(obs, self.state)
+        mx.eval(output, self.state)
+        plan = np.asarray(output[0], dtype=np.float32)
+        self._plans.append(plan.reshape(self.policy.chunk, self.policy.action_dim))
+        # _plans[i] was predicted len - 1 - i steps ago, so its row for now is len - 1 - i.
+        count = len(self._plans)
+        rows = np.stack([chunk[count - 1 - i] for i, chunk in enumerate(self._plans)])
+        weights = np.exp(-self.ensemble_decay * np.arange(count, dtype=np.float32))
+        return (weights @ rows / weights.sum()).astype(np.float32)
 
     def output_activity(self) -> Any:
         """Current state of the declared output neurons (brain policies only)."""

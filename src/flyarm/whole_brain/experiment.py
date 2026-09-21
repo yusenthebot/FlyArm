@@ -56,7 +56,11 @@ SPLITS = {
 
 
 class ResetEveryStep:
-    """Controller wrapper that clears neural state before each action."""
+    """Controller wrapper that clears neural state before each action.
+
+    Only the recurrent state is cleared; a chunked controller keeps its fixed output
+    ensemble, so the lesion removes the brain's memory and nothing else.
+    """
 
     def __init__(self, controller: MlxController) -> None:
         self.controller = controller
@@ -65,7 +69,7 @@ class ResetEveryStep:
         self.controller.reset()
 
     def act(self, observation: np.ndarray) -> np.ndarray:
-        self.controller.reset()
+        self.controller.reset_state()
         return self.controller.act(observation)
 
 
@@ -183,8 +187,23 @@ def record_rollouts(
         np.savez_compressed(output.with_name(output.stem + "-outputs.npz"), outputs=activity)
 
 
+def shuffle_seed(seed: int, replicate: int) -> int:
+    return seed + 17000 + 1000 * replicate
+
+
+def run_name(kind: str, seed: int, replicate: int = 0) -> str:
+    """Checkpoint directory name; replicate 0 keeps the name used before replicates existed."""
+    return f"{kind}-{seed}" if replicate == 0 else f"{kind}-{seed}-r{replicate}"
+
+
 def load_trained_policy(
-    run_root: Path, kind: str, seed: int, pack_root: Path, model_path: Path
+    run_root: Path,
+    kind: str,
+    seed: int,
+    pack_root: Path,
+    model_path: Path,
+    *,
+    replicate: int = 0,
 ) -> tuple[Task, Any]:
     """Rebuild a saved checkpoint over its exact frozen graph (shuffles are regenerated)."""
     config = WholeBrainConfig.model_validate_json((run_root / "config.json").read_text())
@@ -195,8 +214,10 @@ def load_trained_policy(
     interface = NeuralInterface.load(run_root / "interface.json")
     dynamics = {"connectome": RateDynamics(pack, interface)}
     if kind == "shuffled":
-        shuffled = shuffle_pack(pack, seed + 17000)
-        recorded = json.loads((run_root / f"shuffled-{seed}.json").read_text())
+        shuffled = shuffle_pack(pack, shuffle_seed(seed, replicate))
+        recorded = json.loads(
+            (run_root / f"{run_name('shuffled', seed, replicate)}.json").read_text()
+        )
         if shuffled.fingerprint() != recorded["fingerprint"]:
             raise ValueError("Regenerated shuffle differs from the one used in training")
         rebound = NeuralInterface.bind(
@@ -207,7 +228,7 @@ def load_trained_policy(
         "connectome", dynamics["connectome"], obs_dim=task.obs_dim, action_dim=task.action_dim
     ).trainable_parameter_count()
     policy = _build(kind, seed, task, config, dynamics, budget)
-    policy.load(run_root / f"{kind}-{seed}" / "policy.safetensors")
+    policy.load(run_root / run_name(kind, seed, replicate) / "policy.safetensors")
     return task, policy
 
 
@@ -445,27 +466,38 @@ def _run(
             "connectome", measured, obs_dim=task.obs_dim, action_dim=task.action_dim
         ).trainable_parameter_count()
         for seed in config.seeds:
-            dynamics = {"connectome": measured}
-            if "shuffled" in config.policies:
-                shuffled = shuffle_pack(pack, seed + 17000)
-                shuffled_interface = NeuralInterface.bind(
-                    shuffled,
-                    interface.input_body_ids,
-                    interface.output_body_ids,
-                    label=interface.label,
-                )
-                dynamics["shuffled"] = RateDynamics(shuffled, shuffled_interface)
-                save_json(
-                    output / f"shuffled-{seed}.json",
-                    {
-                        "fingerprint": shuffled.fingerprint(),
-                        **{k: v for k, v in shuffled.manifest.items() if k != "sources"},
-                        "interface_fingerprint": shuffled_interface.fingerprint,
-                    },
-                )
-            for kind in config.policies:
-                print(f"{config.task} {kind} seed={seed}", flush=True)
-                run = output / f"{kind}-{seed}"
+            jobs: list[tuple[str, int, dict[str, RateDynamics]]] = []
+            for policy_kind in config.policies:
+                if policy_kind != "shuffled":
+                    jobs.append((policy_kind, 0, {"connectome": measured}))
+                    continue
+                for replicate in config.shuffle_replicates:
+                    shuffled = shuffle_pack(pack, shuffle_seed(seed, replicate))
+                    shuffled_interface = NeuralInterface.bind(
+                        shuffled,
+                        interface.input_body_ids,
+                        interface.output_body_ids,
+                        label=interface.label,
+                    )
+                    save_json(
+                        output / f"{run_name('shuffled', seed, replicate)}.json",
+                        {
+                            "fingerprint": shuffled.fingerprint(),
+                            **{k: v for k, v in shuffled.manifest.items() if k != "sources"},
+                            "interface_fingerprint": shuffled_interface.fingerprint,
+                            "shuffle_seed": shuffle_seed(seed, replicate),
+                        },
+                    )
+                    jobs.append(
+                        (
+                            policy_kind,
+                            replicate,
+                            {"shuffled": RateDynamics(shuffled, shuffled_interface)},
+                        )
+                    )
+            for kind, replicate, dynamics in jobs:
+                print(f"{config.task} {kind} seed={seed} replicate={replicate}", flush=True)
+                run = output / run_name(kind, seed, replicate)
                 run.mkdir()
                 policy = _build(kind, seed, task, config, dynamics, brain_budget)
                 curves, phases, dagger_sets = _train(
@@ -476,6 +508,7 @@ def _run(
                 item: dict[str, Any] = {
                     "kind": kind,
                     "seed": seed,
+                    "shuffle_replicate": replicate if kind == "shuffled" else None,
                     "trainable_parameters": policy.trainable_parameter_count(),
                     "state_size": policy.state_size,
                     "training_phases": phases,
