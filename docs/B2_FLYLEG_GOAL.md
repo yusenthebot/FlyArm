@@ -109,6 +109,7 @@ FrankaKitchen-complete, 3 training seeds x 40 episodes, D4RL normalized score:
 | Fly CNS, leg proprioceptors only | 7.3 ± 12.1 | seed 2: slide cabinet in 34/40 episodes |
 | Shuffled CNS, proprioceptors only | 0.0 | |
 
+FrankaKitchen-mixed (1 seed, 15 epochs): all four controllers scored 0.
 No controller learned the benchmark under this behavior-cloning budget, so the benchmark does not yet discriminate between them.
 A constant action (the edges-off lesion) scored 25 on one seed by flipping the light switch, so single-task completions are only meaningful with lesions.
 The one lesion-validated skill is the proprioception-only fly leg on seed 2: edges off, direct synapses only, deafferentation and state reset each reduce its 34/40 slide-cabinet openings to 0, and the matched shuffle scores 0.

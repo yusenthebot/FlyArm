@@ -222,6 +222,11 @@ def build(site: Path) -> Path:
             video(site, "kitchen-complete-mlp-seed2.mp4", "MLP behavior cloning, seed 2."),
             video(
                 site,
+                "kitchen-mixed-comparison-seed0-episode0.mp4",
+                "Kitchen mixed, same episode for the four controllers (all score 0).",
+            ),
+            video(
+                site,
                 "kitchen-complete-lesions-seed0-episode0.mp4",
                 "Fly with head senses, seed 0: intact, head senses removed, leg deafferented, "
                 "edges off.",
