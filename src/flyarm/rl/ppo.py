@@ -20,8 +20,8 @@ import mlx.optimizers as optim
 import numpy as np
 from mlx.utils import tree_flatten
 
-from flyarm.config import PPOConfig
-from flyarm.rl.batched_pick_place import ACTION_DIM, OBS_DIM, BatchedPickPlace
+from flyarm.config import PPOConfig, TaskVariantConfig
+from flyarm.rl.batched_pick_place import ACTION_DIM, OBS_DIM, BatchedPickPlace, TaskVariant
 from flyarm.whole_brain.policy import BrainPolicy
 
 TRAIN_SEED = 1_000_000  # environment seeds for PPO rollouts, disjoint from every B1a split
@@ -124,11 +124,20 @@ def _critic_input(obs: np.ndarray, steps: np.ndarray, horizon: int) -> np.ndarra
     return np.concatenate((obs, (steps / horizon)[:, None]), axis=1).astype(np.float32)
 
 
+def task_variant(config: TaskVariantConfig) -> TaskVariant:
+    return TaskVariant(**config.model_dump())
+
+
 def evaluate(
-    policy: BrainPolicy, head: MotorHead, model_path: Path, seeds: list[int], horizon: int
+    policy: BrainPolicy,
+    head: MotorHead,
+    model_path: Path,
+    seeds: list[int],
+    horizon: int,
+    variant: TaskVariant | None = None,
 ) -> dict[str, Any]:
     """Deterministic mean actions on fixed seeds; the benchmark's own success rule."""
-    env = BatchedPickPlace(model_path, len(seeds), horizon=horizon)
+    env = BatchedPickPlace(model_path, len(seeds), horizon=horizon, variant=variant)
     obs = env.reset(seeds=np.array(seeds))
     brain = BrainRollout(policy, len(seeds))
     active = np.ones(len(seeds), dtype=bool)
@@ -176,8 +185,10 @@ def train_ppo(
         settings.num_envs,
         horizon=settings.horizon,
         first_seed=TRAIN_SEED + 100_000 * settings.seed,
+        variant=task_variant(settings.train_variant),
     )
     obs = env.reset()
+    privileged = env.observation(privileged=True)
     brain = BrainRollout(policy, settings.num_envs)
     n, horizon = settings.num_envs, settings.rollout_steps
     critic_norm = RunningNorm()
@@ -234,7 +245,7 @@ def train_ppo(
             log_prob = gaussian_log_prob(actions, mean, head.log_std)
             mx.eval(actions, log_prob)
             feats_buf[t] = np.asarray(feats)
-            critic_buf[t] = _critic_input(obs, env.steps, settings.horizon)
+            critic_buf[t] = _critic_input(privileged, env.steps, settings.horizon)
             action_buf[t] = np.asarray(actions)
             logp_buf[t] = np.asarray(log_prob)
             result = env.step(action_buf[t].astype(np.float64))
@@ -245,6 +256,7 @@ def train_ppo(
             lifts += int((done & result.lifted).sum())
             brain.reset(done)
             obs = result.obs
+            privileged = env.observation(privileged=True)
         env_steps += n * horizon
         rollout_seconds = time.monotonic() - rollout_start
 
@@ -253,7 +265,9 @@ def train_ppo(
         normalized = critic_norm
 
         values = np.asarray(critic(normalized(flat_states))).reshape(horizon, n)
-        last_value = np.asarray(critic(normalized(_critic_input(obs, env.steps, settings.horizon))))
+        last_value = np.asarray(
+            critic(normalized(_critic_input(privileged, env.steps, settings.horizon)))
+        )
         advantages, returns = gae(
             reward_buf, values, done_buf, last_value, settings.gamma, settings.lam
         )
@@ -315,17 +329,25 @@ def train_ppo(
             flush=True,
         )
         if (iteration + 1) % settings.eval_every == 0 or iteration + 1 == settings.iterations:
-            scored = evaluate(policy, head, model_path, eval_seeds, settings.horizon)
-            scored.update(iteration=iteration + 1, env_steps=env_steps)
-            evaluations.append(scored)
+            scored = {
+                name: evaluate(
+                    policy, head, model_path, eval_seeds, settings.horizon, task_variant(variant)
+                )
+                for name, variant in settings.eval_variants.items()
+            }
+            entry = {"iteration": iteration + 1, "env_steps": env_steps, "variants": scored}
+            evaluations.append(entry)
             print(
-                f"  eval: place {scored['successes']}/{len(eval_seeds)} "
-                f"lift {scored['lifts']} grasp {scored['grasps']}",
+                "  eval: "
+                + "; ".join(
+                    f"{name} place {r['successes']}/{len(eval_seeds)} lift {r['lifts']}"
+                    for name, r in scored.items()
+                ),
                 flush=True,
             )
             policy.save(output / f"policy-{iteration + 1:04d}.safetensors")
-            if scored["success_rate"] > best["success_rate"]:
-                best = scored
+            if scored[settings.best_on]["success_rate"] > best.get("success_rate", -1.0):
+                best = {**scored[settings.best_on], "iteration": iteration + 1}
         (output / "curves.json").write_text(json.dumps(curves, indent=1))
         (output / "evaluations.json").write_text(json.dumps(evaluations, indent=1))
     return {"curves": curves, "evaluations": evaluations, "best": best}
@@ -353,8 +375,15 @@ def run_ppo(config: PPOConfig, pack_root: Path, model_path: Path, output: Path) 
     output.mkdir(parents=True)
     save_json(output / "config.json", config.model_dump())
     head = MotorHead(policy.decoder, config.log_std)
-    before = evaluate(policy, head, model_path, eval_seeds, config.horizon)
-    print(f"base checkpoint: place {before['successes']} lift {before['lifts']}", flush=True)
+    before = {
+        name: evaluate(policy, head, model_path, eval_seeds, config.horizon, task_variant(v))
+        for name, v in config.eval_variants.items()
+    }
+    print(
+        "base checkpoint: "
+        + "; ".join(f"{n} place {r['successes']} lift {r['lifts']}" for n, r in before.items()),
+        flush=True,
+    )
     results: dict[str, Any] = {
         "status": "running",
         "base": before,

@@ -81,3 +81,38 @@ def test_auto_reset_draws_fresh_seeds_and_clears_episode_flags() -> None:
     assert result.truncated.all() and not result.terminated.any()
     assert batched.episode_seed.tolist() == [103, 104, 105]
     assert (batched.steps == 0).all() and not batched.ever_lifted.any()
+
+
+def test_memory_variant_blanks_the_goal_for_the_controller_only() -> None:
+    from flyarm.rl.batched_pick_place import GOAL_FIELDS, BatchedPickPlace, TaskVariant
+
+    env = BatchedPickPlace(Path(MODEL), 2, variant=TaskVariant(goal_visible_steps=2))
+    first = env.reset(seeds=np.array([5, 6]))
+    assert np.abs(first[:, GOAL_FIELDS]).sum() > 0  # visible at the start
+    for _ in range(2):
+        result = env.step(np.zeros((2, 4)))
+    assert np.all(result.obs[:, GOAL_FIELDS] == 0.0)
+    privileged = env.observation(privileged=True)
+    assert np.allclose(privileged[:, 20:23], env.goal)
+    other = [i for i in range(37) if i not in set(GOAL_FIELDS)]
+    assert np.array_equal(result.obs[:, other], privileged[:, other])
+
+
+def test_physics_variant_is_seeded_bounded_and_leaves_the_nominal_task_alone() -> None:
+    from flyarm.rl.batched_pick_place import BASE_FRICTION, BatchedPickPlace, TaskVariant
+
+    variant = TaskVariant(mass_scale=(2.0, 8.0), friction_scale=(0.2, 0.5))
+    env = BatchedPickPlace(Path(MODEL), 3, variant=variant)
+    env.reset(seeds=np.array([7, 8, 9]))
+    cube, geom = env._cube_body, env._cube_geom
+    assert np.all((env.mass_scale >= 2.0) & (env.mass_scale <= 8.0))
+    assert np.allclose(env.body_mass[:, cube], 0.025 * env.mass_scale)
+    assert np.allclose(env.geom_friction[:, geom, 0], BASE_FRICTION * env.friction_scale)
+    assert np.allclose(env.geom_friction[:, env._pads[0], 0], BASE_FRICTION * env.friction_scale)
+    again = BatchedPickPlace(Path(MODEL), 3, variant=variant)
+    again.reset(seeds=np.array([7, 8, 9]))
+    assert np.array_equal(again.mass_scale, env.mass_scale)
+    # Randomization uses its own stream: the cube and goal start where the nominal task does.
+    nominal = BatchedPickPlace(Path(MODEL), 3)
+    nominal.reset(seeds=np.array([7, 8, 9]))
+    assert np.allclose(nominal.goal, env.goal) and np.allclose(nominal.cube(), env.cube())

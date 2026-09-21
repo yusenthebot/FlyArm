@@ -6,6 +6,11 @@ the contact-list scan, and the IK Jacobian of the end-effector site is built fro
 hinge's world axis and anchor, which equals mj_jacSite for this all-hinge arm. A reset with
 seed s draws the same random numbers in the same order as PandaPickPlaceEnv.reset(seed=s),
 so both start from the same state.
+
+TaskVariant makes the task harder without changing its observation or action layout:
+per-episode cube mass and grip friction (drawn from a separate stream, so the nominal task
+keeps its draws), a wider goal range, and a memory condition in which the goal fields of the
+observation are blanked after the first steps while the critic still sees them.
 """
 
 from __future__ import annotations
@@ -29,6 +34,31 @@ ACTION_DIM = 4
 SUBSTEPS = 25
 STEP_METERS = 0.014
 LIFT_HEIGHT = CUBE_HALF + 0.06
+GOAL_FIELDS = np.r_[20:23, 26:29]  # goal and goal - cube inside the 37-D observation
+BASE_FRICTION = 4.0
+
+
+@dataclass(frozen=True)
+class TaskVariant:
+    """Per-episode task conditions; the defaults are exactly the B1a pick-and-place task."""
+
+    mass_scale: tuple[float, float] = (1.0, 1.0)  # log-uniform factor on the 25 g cube
+    friction_scale: tuple[float, float] = (1.0, 1.0)  # log-uniform factor, cube and finger pads
+    goal_reach: float = 0.11  # goal xy offset half-width around the initial end effector
+    goal_visible_steps: int | None = None  # memory task: goal blanked after this many steps
+
+    def __post_init__(self) -> None:
+        for low, high in (self.mass_scale, self.friction_scale):
+            if not 0 < low <= high:
+                raise ValueError("scale ranges must satisfy 0 < low <= high")
+        if not 0.05 <= self.goal_reach <= 0.3:
+            raise ValueError("goal_reach must be in [0.05, 0.3] m")
+        if self.goal_visible_steps is not None and self.goal_visible_steps < 1:
+            raise ValueError("goal_visible_steps must be positive")
+
+    @property
+    def randomizes_physics(self) -> bool:
+        return self.mass_scale != (1.0, 1.0) or self.friction_scale != (1.0, 1.0)
 
 
 @dataclass(frozen=True)
@@ -52,6 +82,7 @@ class BatchedPickPlace:
         horizon: int = 400,
         first_seed: int = 0,
         num_threads: int = 0,
+        variant: TaskVariant | None = None,
     ) -> None:
         if num_envs < 1 or horizon < 20:
             raise ValueError("num_envs must be positive and horizon at least 20")
@@ -68,6 +99,7 @@ class BatchedPickPlace:
             )
         self.model = model = compile_pick_place_model(spec)
         self.num_envs, self.horizon = num_envs, horizon
+        self.variant = variant or TaskVariant()
         self.batch = Batch(model, num_envs, num_threads)
         joints = [model.joint(f"joint{i}") for i in range(1, 8)]
         self._jnt = np.array([joint.id for joint in joints])
@@ -101,6 +133,16 @@ class BatchedPickPlace:
         self.site_xpos, self.site_xmat = b.bind("site_xpos"), b.bind("site_xmat")
         self.xanchor, self.xaxis = b.bind("xanchor"), b.bind("xaxis")
         self.sensordata = b.bind("sensordata")
+        self._cube_geom = model.geom("flyarm_cube_geom").id
+        self._pads = np.array(
+            [model.geom(f"flyarm_{side}_finger_grip_pad").id for side in ("left", "right")]
+        )
+        if self.variant.randomizes_physics:
+            self.body_mass = b.expand("body_mass")
+            self.body_inertia = b.expand("body_inertia")
+            self.geom_friction = b.expand("geom_friction")
+        self.mass_scale = np.ones(num_envs)
+        self.friction_scale = np.ones(num_envs)
 
         n = num_envs
         self.goal = np.zeros((n, 3))
@@ -128,7 +170,15 @@ class BatchedPickPlace:
     def gripper_opening(self) -> np.ndarray:
         return np.clip(self.qpos[:, self._finger_qadr] / 0.04, 0.0, 1.0)
 
-    def observation(self) -> np.ndarray:
+    def observation(self, *, privileged: bool = False) -> np.ndarray:
+        """The controller's 37-D observation; ``privileged`` never blanks the goal (critic)."""
+        obs = self._full_observation()
+        hidden = self.variant.goal_visible_steps
+        if hidden is not None and not privileged:
+            obs[np.ix_(self.steps >= hidden, GOAL_FIELDS)] = 0.0
+        return obs
+
+    def _full_observation(self) -> np.ndarray:
         ee, cube = self.ee(), self.cube()
         left, right = self.contacts()
         cube_velocity = self.qvel[:, self._cube_dadr : self._cube_dadr + 3]
@@ -167,7 +217,8 @@ class BatchedPickPlace:
         initial = self.site_xpos[ids, self._ee_site].copy()
         for k, (row, generator) in enumerate(zip(ids, generators, strict=True)):
             object_xy = initial[k, :2] + generator.uniform([-0.055, -0.055], [0.055, 0.055])
-            goal_xy = initial[k, :2] + generator.uniform([-0.11, -0.11], [0.11, 0.11])
+            reach = self.variant.goal_reach
+            goal_xy = initial[k, :2] + generator.uniform([-reach, -reach], [reach, reach])
             if np.linalg.norm(goal_xy - object_xy) < 0.07:
                 goal_xy = object_xy + np.array([0.10, 0.0])
             self.goal[row] = [goal_xy[0], goal_xy[1], 0.002]
@@ -184,7 +235,26 @@ class BatchedPickPlace:
             flags[ids] = False
         self.steps[ids] = self.stable[ids] = 0
         self.episode_seed[ids] = seeds
+        if self.variant.randomizes_physics:
+            self._randomize_physics(ids, seeds)
         return self.observation()
+
+    def _randomize_physics(self, ids: np.ndarray, seeds: np.ndarray) -> None:
+        """Cube mass (inertia scaled with it) and grip friction, from a stream of their own."""
+        model, variant = self.model, self.variant
+        for row, seed in zip(ids, seeds, strict=True):
+            generator = np.random.default_rng([int(seed), 1])
+            mass, friction = (
+                float(np.exp(generator.uniform(np.log(low), np.log(high))))
+                for low, high in (variant.mass_scale, variant.friction_scale)
+            )
+            self.mass_scale[row], self.friction_scale[row] = mass, friction
+            self.body_mass[row, self._cube_body] = model.body_mass[self._cube_body] * mass
+            self.body_inertia[row, self._cube_body] = model.body_inertia[self._cube_body] * mass
+            for geom in (self._cube_geom, *self._pads):
+                self.geom_friction[row, geom, 0] = BASE_FRICTION * friction
+        self.batch.set_const(ids)
+        self.batch.forward(ids)
 
     # Step ----------------------------------------------------------------------------------
     def _ik_commands(self, displacement: np.ndarray) -> np.ndarray:
