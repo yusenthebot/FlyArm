@@ -11,7 +11,7 @@ import numpy as np
 from flyarm.benchmarks import kitchen
 from flyarm.config import FlyLegConfig
 from flyarm.experiment import save_json
-from flyarm.flyleg.interface import front_leg_interface
+from flyarm.flyleg.interface import front_leg_interface, leg_channels
 from flyarm.interfaces import NeuralInterface
 from flyarm.video import annotate, tile, write_video
 from flyarm.whole_brain.backend_mlx import RateDynamics
@@ -40,13 +40,12 @@ def load_flyleg_policy(
     config = FlyLegConfig.model_validate_json((run_root / "config.json").read_text())
     pack = ConnectomePack.load(pack_root)
     pack.validate_b1a_provenance()
-    leg = front_leg_interface(pack, annotations)
+    leg = front_leg_interface(
+        pack, annotations, include_head=config.sensory_channels == "proprioception+head"
+    )
     if NeuralInterface.load(run_root / "interface.json") != leg.interface:
         raise ValueError("Saved interface differs from the one regenerated from annotations")
-    channels = [
-        (kitchen.PROPRIOCEPTION.start, kitchen.PROPRIOCEPTION.stop, len(leg.proprioceptors)),
-        (kitchen.EXTEROCEPTION.start, kitchen.EXTEROCEPTION.stop, len(leg.exteroceptors)),
-    ]
+    channels = leg_channels(leg)
     dims = {"obs_dim": kitchen.FEATURE_DIM, "action_dim": kitchen.ACTION_DIM}
     policy: SequencePolicy
     if kind == "mlp":

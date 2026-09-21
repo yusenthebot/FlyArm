@@ -41,13 +41,21 @@ def _mean_sd(values: list[float]) -> str:
     return f"{np.mean(values):.1f} ± {np.std(values, ddof=1):.1f}"
 
 
+def _channels(run: Path) -> str:
+    config = json.loads((run / "config.json").read_text())
+    if config.get("sensory_channels") == "proprioception":
+        return "fly wired through leg proprioceptors only"
+    return "fly wired through leg proprioceptors + head senses"
+
+
 def kitchen_section(run: Path) -> list[str]:
     results = _load(run)
     if results is None:
         return [f"_{run}: not found_", ""]
     split = results["split"]
     lines = [
-        f"### FrankaKitchen `{split}` (`{run.name}`, status: {results['status']})",
+        f"### FrankaKitchen `{split}`, {_channels(run)} (`{run.name}`, "
+        f"status: {results['status']})",
         "",
         f"D4RL normalized score (25 per completed target task, 0-100); mean ± sd over training "
         f"seeds; published BC reference {results['published_bc_reference']} (original D4RL v0).",
@@ -181,7 +189,11 @@ def build_report(root: Path) -> str:
         "## B2: the Franka arm as the fly's left front leg (D4RL FrankaKitchen)",
         "",
     ]
-    for name in ("flyleg-kitchen-complete-001", "flyleg-kitchen-mixed-001"):
+    for name in (
+        "flyleg-kitchen-complete-001",
+        "flyleg-kitchen-complete-proprio-001",
+        "flyleg-kitchen-mixed-001",
+    ):
         lines += kitchen_section(runs / name)
     lines += ["## B1a: complete MaleCNS controller, FlyArm Panda tasks", ""]
     lines += brain_section(

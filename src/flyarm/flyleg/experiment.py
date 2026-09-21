@@ -30,7 +30,7 @@ from flyarm.assets import digest_file
 from flyarm.benchmarks import kitchen
 from flyarm.config import FlyLegConfig
 from flyarm.experiment import save_json
-from flyarm.flyleg.interface import front_leg_interface, front_leg_report
+from flyarm.flyleg.interface import front_leg_interface, front_leg_report, leg_channels
 from flyarm.interfaces import NeuralInterface
 from flyarm.whole_brain.backend_mlx import RateDynamics
 from flyarm.whole_brain.compiler import ConnectomePack
@@ -110,7 +110,9 @@ def run_flyleg_experiment(
 def _run(pack_root: Path, annotations: Path, output: Path, config: FlyLegConfig) -> dict[str, Any]:
     pack = ConnectomePack.load(pack_root)
     pack.validate_b1a_provenance()
-    leg = front_leg_interface(pack, annotations)
+    leg = front_leg_interface(
+        pack, annotations, include_head=config.sensory_channels == "proprioception+head"
+    )
     data = kitchen.load(config.split)
     output.mkdir(parents=True)
     started = time.monotonic()
@@ -168,10 +170,7 @@ def _run(pack_root: Path, annotations: Path, output: Path, config: FlyLegConfig)
     }
     save_json(output / "results.json", results)
 
-    channels = [
-        (kitchen.PROPRIOCEPTION.start, kitchen.PROPRIOCEPTION.stop, len(leg.proprioceptors)),
-        (kitchen.EXTEROCEPTION.start, kitchen.EXTEROCEPTION.stop, len(leg.exteroceptors)),
-    ]
+    channels = leg_channels(leg)
     measured = RateDynamics(pack, leg.interface)
     budget_policy = BrainPolicy(
         "flyleg",
@@ -279,8 +278,11 @@ def _run(pack_root: Path, annotations: Path, output: Path, config: FlyLegConfig)
                         ),
                     ),
                     "deafferented_leg": policy.silence_channel("deafferented_leg", 0),
-                    "head_sensory_deprived": policy.silence_channel("head_sensory_deprived", 1),
                 }
+                if len(channels) > 1:
+                    lesions["head_sensory_deprived"] = policy.silence_channel(
+                        "head_sensory_deprived", 1
+                    )
                 item["lesions"] = {
                     name: _evaluate(config, MlxController(lesioned), seeds)
                     for name, lesioned in lesions.items()
