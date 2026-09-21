@@ -1,0 +1,209 @@
+{
+  "go": true,
+  "checks": {
+    "pack_loaded_with_pinned_provenance": true,
+    "single_step_deterministic": true,
+    "no_input_output_bypass": true,
+    "numerically_stable_400_steps": true,
+    "memory_under_8_gib": true,
+    "control_step_meets_20_hz": true,
+    "input_reaches_outputs": true
+  },
+  "pack": {
+    "root": "data/whole_brain/malecns-v1.0-c3",
+    "fingerprint": "7aa88acd850bd908317d205edfaf53bbb65e17438d98112cca8722a521c172e6",
+    "nodes": 166700,
+    "edges": 10520377,
+    "synapses_kept": 104351893,
+    "load_seconds": 0.05479770799865946
+  },
+  "interface": {
+    "interface_fingerprint": "821bcd0dbd67f1d186d7ec3220d444b458c1cccf17521e8a16888cc86b226d4e",
+    "inputs": {
+      "count": 1846,
+      "superclass_counts": {
+        "ascending_neuron": 1846
+      },
+      "distinct_types": 567,
+      "top_types": {
+        "AN10B045": 28,
+        "AN10B047": 16,
+        "AN08B018": 14,
+        "ANXXX027": 14,
+        "AN10B037": 14,
+        "AN10B046": 13,
+        "AN19A018": 12,
+        "AN10B039": 12,
+        "AN09A005": 11,
+        "AN10B053": 11,
+        "AN07B089": 11,
+        "AN10B035": 11
+      },
+      "zero_sign": 41
+    },
+    "outputs": {
+      "count": 2022,
+      "superclass_counts": {
+        "descending_neuron": 1314,
+        "vnc_motor": 708
+      },
+      "distinct_types": 622,
+      "top_types": {
+        "Acc. ti flexor MN": 47,
+        "Ti flexor MN": 37,
+        "Tr flexor MN": 35,
+        "DNg08": 23,
+        "Sternal posterior rotator MN": 22,
+        "Acc. tr flexor MN": 22,
+        "ltm MN": 21,
+        "Fe reductor MN": 20,
+        "DNpe008": 19,
+        "DNg106": 16,
+        "DNg07": 16,
+        "DNge091": 14
+      },
+      "zero_sign": 428
+    },
+    "direct_input_to_output_edges": 38772,
+    "output_reachability": 0.9995054401582592,
+    "output_hops_from_inputs": {
+      "1": 1901,
+      "2": 118,
+      "3": 2,
+      "unreachable": 1
+    },
+    "input_hops_to_outputs": {
+      "1": 1784,
+      "2": 62,
+      "unreachable": 0
+    },
+    "whole_cns_hops_from_inputs": {
+      "0": 1846,
+      "1": 34650,
+      "2": 90270,
+      "3": 33723,
+      "4": 3881,
+      "5": 78,
+      "6": 4,
+      "unreachable": 2248
+    }
+  },
+  "dynamics": {
+    "update": "h <- 0.5 h + 0.5 tanh(I + 0.8 W h); W row-normalized, frozen",
+    "neural_steps_per_control_step": 3,
+    "weight_dtype": "float32",
+    "max_abs_state_after_400_steps": 0.9997628927230835
+  },
+  "performance": {
+    "control_step_ms_median": 4.008083982625976,
+    "control_step_ms_p95": 4.071783952531405,
+    "max_control_hz": 249.49577013224908,
+    "bptt_chunk_seconds_batch8_8steps": 0.07468762500987698,
+    "peak_gpu_gib": 1.5028917118906975,
+    "peak_rss_gib": 1.389007568359375
+  },
+  "propagation": {
+    "input": "constant N(0,1) current on every input neuron, 20 control steps",
+    "full": {
+      "output_rms_by_control_step": [
+        0.006907172501087189,
+        0.022476233541965485,
+        0.027694476768374443,
+        0.028944822028279305,
+        0.02921404130756855,
+        0.02926895022392273,
+        0.029280032962560654,
+        0.02928236499428749,
+        0.029282910749316216,
+        0.029283056035637856,
+        0.029283098876476288,
+        0.02928311377763748,
+        0.02928311750292778,
+        0.02928311750292778,
+        0.02928311750292778,
+        0.02928311564028263,
+        0.02928311564028263,
+        0.02928311564028263,
+        0.02928311564028263,
+        0.02928311564028263
+      ],
+      "active_fraction_by_control_step": [
+        0.9396636993076162,
+        0.9841740850642928,
+        0.9920870425321464,
+        0.990108803165183,
+        0.9910979228486647,
+        0.9906033630069239,
+        0.990108803165183,
+        0.9906033630069239,
+        0.9906033630069239,
+        0.9906033630069239,
+        0.9906033630069239,
+        0.9906033630069239,
+        0.9906033630069239,
+        0.9906033630069239,
+        0.9906033630069239,
+        0.9906033630069239,
+        0.9906033630069239,
+        0.9906033630069239,
+        0.9906033630069239,
+        0.9906033630069239
+      ]
+    },
+    "direct_input_to_output_edges_only": {
+      "output_rms_by_control_step": [
+        0.006870954297482967,
+        0.021872686222195625,
+        0.026360711082816124,
+        0.02724768966436386,
+        0.027399299666285515,
+        0.027423344552516937,
+        0.027426984161138535,
+        0.027427520602941513,
+        0.027427595108747482,
+        0.027427606284618378,
+        0.027427606284618378,
+        0.027427606284618378,
+        0.027427606284618378,
+        0.027427606284618378,
+        0.027427606284618378,
+        0.027427606284618378,
+        0.027427606284618378,
+        0.027427606284618378,
+        0.027427606284618378,
+        0.027427606284618378
+      ],
+      "active_fraction_by_control_step": [
+        0.907517309594461,
+        0.9312561819980217,
+        0.9332344213649851,
+        0.933728981206726,
+        0.933728981206726,
+        0.933728981206726,
+        0.933728981206726,
+        0.933728981206726,
+        0.933728981206726,
+        0.933728981206726,
+        0.933728981206726,
+        0.933728981206726,
+        0.933728981206726,
+        0.933728981206726,
+        0.933728981206726,
+        0.933728981206726,
+        0.933728981206726,
+        0.933728981206726,
+        0.933728981206726,
+        0.933728981206726
+      ]
+    },
+    "final_rms_beyond_direct_edges": 0.008122339844703674,
+    "episode_sensitivity_norm": 3.967407464981079
+  },
+  "host": {
+    "platform": "macOS-26.3.2-arm64-arm-64bit",
+    "python": "3.12.13",
+    "mlx": "0.32.2",
+    "device": "Device(gpu, 0)",
+    "cpu_count": 18
+  }
+}

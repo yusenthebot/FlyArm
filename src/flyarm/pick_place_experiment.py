@@ -19,6 +19,7 @@ from flyarm.config import PickPlaceConfig
 from flyarm.experiment import save_json
 from flyarm.graph import Graph, shuffle_graph
 from flyarm.interfaces import NeuralInterface, canonical_interface
+from flyarm.models import ActionController
 from flyarm.pick_place_env import PandaPickPlaceEnv
 from flyarm.pick_place_models import PickPlaceController, PickPlacePolicy
 
@@ -89,7 +90,7 @@ def collect_demonstrations(
 
 def collect_dagger_queries(
     env: PandaPickPlaceEnv,
-    policy: PickPlacePolicy,
+    policy: PickPlacePolicy | ActionController,
     seeds: list[int],
     path: Path,
 ) -> dict[str, np.ndarray]:
@@ -99,7 +100,7 @@ def collect_dagger_queries(
     actions = np.zeros((len(seeds), env.horizon, 4), dtype=np.float32)
     mask = np.zeros((len(seeds), env.horizon), dtype=np.float32)
     stages = np.full((len(seeds), env.horizon), -1, dtype=np.int16)
-    controller = PickPlaceController(policy)
+    controller = PickPlaceController(policy) if isinstance(policy, PickPlacePolicy) else policy
     for row, seed in enumerate(seeds):
         observation, _ = env.reset(seed=seed)
         controller.reset()
@@ -138,7 +139,8 @@ def concatenate_data(
     return {key: np.concatenate((first[key], second[key]), axis=0) for key in keys}
 
 
-def balanced_mask(data: dict[str, np.ndarray]) -> torch.Tensor:
+def stage_balanced_weights(data: dict[str, np.ndarray]) -> np.ndarray:
+    """Per-step loss weights that equalize the eight teacher phases (clipped to 0.4-4)."""
     mask = data["mask"]
     stages = data["stages"]
     valid_stages = stages[mask.astype(bool)]
@@ -147,7 +149,11 @@ def balanced_mask(data: dict[str, np.ndarray]) -> torch.Tensor:
     present = counts > 0
     weights[present] = counts[present].sum() / (present.sum() * counts[present])
     weights = np.clip(weights, 0.4, 4.0)
-    return torch.from_numpy(mask * weights[np.maximum(stages, 0)])
+    return mask * weights[np.maximum(stages, 0)]
+
+
+def balanced_mask(data: dict[str, np.ndarray]) -> torch.Tensor:
+    return torch.from_numpy(stage_balanced_weights(data))
 
 
 @torch.no_grad()
@@ -240,13 +246,13 @@ def train_policy(
 
 def evaluate(
     env: PandaPickPlaceEnv,
-    policy: PickPlacePolicy | None,
+    policy: PickPlacePolicy | ActionController | None,
     seeds: list[int],
     *,
     mode: str = "learned",
     reset_state_every_step: bool = False,
 ) -> dict[str, Any]:
-    controller = PickPlaceController(policy) if policy is not None else None
+    controller = PickPlaceController(policy) if isinstance(policy, PickPlacePolicy) else policy
     episodes: list[dict[str, Any]] = []
     for seed in seeds:
         observation, info = env.reset(seed=seed)

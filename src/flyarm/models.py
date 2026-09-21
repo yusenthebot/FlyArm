@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Protocol
+
 import numpy as np
 import torch
 from torch import nn
@@ -70,6 +72,14 @@ class Policy(nn.Module):
 
     def trainable_parameters(self) -> int:
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
+
+
+class ActionController(Protocol):
+    """Anything that can drive one closed-loop episode: reset() once, then act() per step."""
+
+    def reset(self) -> None: ...
+
+    def act(self, observation: np.ndarray) -> np.ndarray: ...
 
 
 class Controller:
