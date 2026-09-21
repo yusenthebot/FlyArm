@@ -3,8 +3,8 @@
 Rows are postsynaptic targets and columns are presynaptic sources, so one recurrent update
 reads ``drive[i] = sum_j W[i, j] h[j]`` straight off row ``i``. The recipe deliberately
 matches the 256-node MVP graph (annotated non-glia neurons, at least three contacts, no
-self loops, ACh +1 / GABA and glutamate -1 / other 0, incoming-strength normalization) so
-that B1a changes the graph scale and nothing else.
+self loops, ACh +1 / GABA and glutamate -1 / other 0, incoming-strength normalization), so
+the graph is the same measured object at a larger scale.
 """
 
 from __future__ import annotations

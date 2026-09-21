@@ -126,3 +126,53 @@ def test_interface_binding_is_graph_specific(pack) -> None:
         interface.resolve_indices(shuffled)
     rebound = NeuralInterface.bind(shuffled, interface.input_body_ids, interface.output_body_ids)
     assert np.array_equal(rebound.resolve_indices(shuffled)[0], interface.resolve_indices(pack)[0])
+
+
+def test_direct_only_weights_keep_exactly_the_input_to_output_edges(pack) -> None:
+    from flyarm.whole_brain.diagnostics import direct_only_weights
+
+    interface = interface_for(pack)
+    inputs, outputs = interface.resolve_indices(pack)
+    kept = direct_only_weights(pack, interface) != 0
+    rows = pack.rows()
+    expected = np.isin(pack.col_idx, inputs) & np.isin(rows, outputs)
+    expected &= pack.normalized_weights() != 0
+    assert np.array_equal(kept, expected)
+
+
+def test_checkpoint_round_trip_restores_adapters_and_normalization(pack, tmp_path) -> None:
+    dynamics = RateDynamics(pack, interface_for(pack))
+    policy = BrainPolicy("connectome", dynamics, obs_dim=4, action_dim=2, seed=3)
+    policy.set_normalization(np.arange(4, dtype=np.float32), np.full(4, 2.0, dtype=np.float32))
+    policy.save(tmp_path / "policy.safetensors")
+    restored = BrainPolicy("connectome", dynamics, obs_dim=4, action_dim=2, seed=99)
+    restored.load(tmp_path / "policy.safetensors")
+    obs = np.random.default_rng(1).standard_normal(4)
+    assert np.array_equal(MlxController(policy).act(obs), MlxController(restored).act(obs))
+    assert restored.trainable_parameter_count() == policy.trainable_parameter_count()
+    with pytest.raises(FileExistsError):
+        policy.save(tmp_path / "policy.safetensors")
+
+
+def test_ablation_clone_reuses_the_policy_seed(pack) -> None:
+    interface = interface_for(pack)
+    policy = BrainPolicy(
+        "connectome", RateDynamics(pack, interface), obs_dim=4, action_dim=2, seed=123
+    )
+    policy.with_dynamics("edges_off", RateDynamics(pack, interface, edges=False))
+    after_clone = np.asarray(mx.random.uniform(shape=(3,)))
+    BrainPolicy("connectome", RateDynamics(pack, interface), obs_dim=4, action_dim=2, seed=123)
+    after_fresh = np.asarray(mx.random.uniform(shape=(3,)))
+    # The clone's hidden re-initialization is tied to the run seed, never a constant.
+    assert np.array_equal(after_clone, after_fresh)
+
+
+def test_config_rejects_dagger_for_reach() -> None:
+    from pydantic import ValidationError
+
+    from flyarm.config import WholeBrainConfig
+
+    with pytest.raises(ValidationError, match="DAgger"):
+        WholeBrainConfig(task="reach", dagger_iterations=1)
+    with pytest.raises(ValidationError, match="warmup"):
+        WholeBrainConfig(task="reach", epochs=2, decoder_warmup_epochs=2)

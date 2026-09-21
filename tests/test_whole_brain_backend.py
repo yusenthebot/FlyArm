@@ -109,3 +109,32 @@ def test_step_rejects_currents_for_undeclared_neurons() -> None:
     backend.reset(2)
     with pytest.raises(ValueError, match="Input current"):
         backend.step(np.zeros((2, pack.nodes), dtype=np.float32), 3)
+
+
+def test_pooled_readout_is_the_window_mean_and_matches_last_state_for_one_step() -> None:
+    pack = ConnectomePack.from_graph(random_graph())
+    interface = interface_for(pack)
+    dynamics = RateDynamics(pack, interface)
+    outputs = interface.resolve_indices(pack)[1]
+    current = mx.array(np.random.default_rng(4).standard_normal((2, 6)).astype(np.float32))
+    state = dynamics.zeros(2)
+    window = []
+    for _ in range(3):
+        state, _ = dynamics.advance(state, current, 1)
+        window.append(np.asarray(state)[outputs].T)
+    _, pooled = dynamics.advance(dynamics.zeros(2), current, 3)
+    np.testing.assert_allclose(np.asarray(pooled), np.mean(window, axis=0), atol=1e-6)
+    last_state, single = dynamics.advance(dynamics.zeros(2), current, 1)
+    np.testing.assert_array_equal(np.asarray(single), np.asarray(last_state)[outputs].T)
+
+
+def test_float16_weights_stay_close_to_float32() -> None:
+    pack = ConnectomePack.from_graph(random_graph())
+    state = np.random.default_rng(5).standard_normal((pack.nodes, 3)).astype(np.float32)
+    exact = FrozenCSR(pack.row_ptr, pack.col_idx, pack.normalized_weights())
+    half = FrozenCSR(pack.row_ptr, pack.col_idx, pack.normalized_weights(), "float16")
+    np.testing.assert_allclose(
+        np.asarray(half.apply(mx.array(state))), np.asarray(exact.apply(mx.array(state))), atol=5e-3
+    )
+    with pytest.raises(ValueError, match="weight_dtype"):
+        FrozenCSR(pack.row_ptr, pack.col_idx, pack.normalized_weights(), "int8")

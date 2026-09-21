@@ -123,4 +123,6 @@ class WholeBrainConfig(BaseModel):
             raise ValueError("decoder_warmup_epochs must leave at least one joint epoch")
         if self.task == "pick-place" and self.horizon < 200:
             raise ValueError("pick-place needs a horizon of at least 200 control steps")
+        if self.task == "reach" and self.dagger_iterations:
+            raise ValueError("DAgger is defined for the pick-place teacher only")
         return self
