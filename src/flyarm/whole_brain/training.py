@@ -12,6 +12,7 @@ step; targets past the end of an episode are masked, as ACT masks its padding.
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from functools import partial
 from typing import Any, Literal
@@ -111,7 +112,18 @@ def train_sequence_policy(
     *,
     phase: str = "behavior_cloning",
     set_normalization: bool = True,
+    selector: Callable[[SequencePolicy], float] | None = None,
+    select_every: int = 1,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Returns learning curves and the selected checkpoint's summary.
+
+    Without ``selector`` the kept weights are those with the lowest validation loss. With it,
+    every ``select_every`` epochs (and at the last epoch) ``selector(policy)`` scores the
+    current weights, for example by closed-loop success on held-out validation episodes;
+    the highest score wins and validation loss breaks ties.
+    """
+    if select_every < 1:
+        raise ValueError("select_every must be positive")
     if set_normalization:
         samples = train_data["obs"][train_data["mask"].astype(bool)]
         policy.set_normalization(samples.mean(0), np.maximum(samples.std(0), 0.05))
@@ -123,7 +135,8 @@ def train_sequence_policy(
     episodes, horizon = train_data["obs"].shape[:2]
     generator = np.random.default_rng(seed)
     gradient_fn = nn.value_and_grad(policy, partial(_chunk_loss, loss=budget.loss))
-    best_loss, best_epoch = float("inf"), -1
+    best_key: tuple[float, float] = (float("inf"), float("inf"))
+    best_loss, best_epoch, best_score = float("inf"), -1, None
     best_parameters = policy.parameters()
     curves: list[dict[str, Any]] = []
     started = time.monotonic()
@@ -179,15 +192,25 @@ def train_sequence_policy(
             f"({curves[-1]['elapsed_seconds']:.0f}s)",
             flush=True,
         )
-        if validation_loss < best_loss:
-            best_loss, best_epoch = validation_loss, epoch + 1
-            best_parameters = policy.parameters()
+        score = None
+        if selector is not None:
+            if (epoch + 1) % select_every and epoch + 1 != budget.epochs:
+                continue
+            score = float(selector(policy))
+            curves[-1]["selection_score"] = score
+            print(f"    selection score {score:.3f}", flush=True)
+        key = (-score if score is not None else 0.0, validation_loss)
+        if key < best_key:
+            best_key, best_parameters = key, policy.parameters()
+            best_loss, best_epoch, best_score = validation_loss, epoch + 1, score
     _set_input_frozen(policy, False)
     policy.update(best_parameters)
     return curves, {
         "best_epoch": best_epoch,
         "loss": budget.loss,
         "best_validation_loss": best_loss,
+        "selection": "closed_loop_validation" if selector is not None else "validation_loss",
+        "selection_score": best_score,
         "training_seconds": time.monotonic() - started,
     }
 
@@ -244,17 +267,26 @@ def train_act_policy(
     validation_data: dict[str, np.ndarray],
     budget: ACTBudget,
     seed: int,
+    *,
+    phase: str = "act",
+    set_normalization: bool = True,
+    selector: Callable[[SequencePolicy], float] | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    """ACT's recipe: frame-level minibatches, L1 + beta * KL, AdamW, best-validation weights."""
-    samples = train_data["obs"][train_data["mask"].astype(bool)]
-    policy.set_normalization(samples.mean(0), np.maximum(samples.std(0), 0.05))
+    """ACT's recipe: frame-level minibatches, L1 + beta * KL, AdamW, best-validation weights.
+
+    ``selector`` works as in train_sequence_policy, scored at every validation point.
+    """
+    if set_normalization:
+        samples = train_data["obs"][train_data["mask"].astype(bool)]
+        policy.set_normalization(samples.mean(0), np.maximum(samples.std(0), 0.05))
     obs, targets, valid = _act_frames(train_data, policy.chunk)
     val_obs, val_targets, val_valid = _act_frames(validation_data, policy.chunk)
     generator = np.random.default_rng(seed)
     mx.random.seed(seed)
     optimizer = optim.AdamW(learning_rate=budget.learning_rate, weight_decay=budget.weight_decay)
     gradient_fn = nn.value_and_grad(policy, partial(_act_loss, kl_weight=budget.kl_weight))
-    best_loss, best_step = float("inf"), 0
+    best_key: tuple[float, float] = (float("inf"), float("inf"))
+    best_loss, best_step, best_score = float("inf"), 0, None
     best_parameters = policy.parameters()
     curves: list[dict[str, Any]] = []
     started = time.monotonic()
@@ -280,7 +312,7 @@ def train_act_policy(
         curves.append(
             {
                 "step": step,
-                "phase": "act",
+                "phase": phase,
                 "train_loss": float(train_l1),
                 "train_kl": float(train_kl),
                 "validation_loss": validation_loss,
@@ -288,18 +320,25 @@ def train_act_policy(
             }
         )
         print(
-            f"  act step {step}/{budget.steps} l1 train={train_l1:.5f} kl={train_kl:.3f} "
+            f"  {phase} step {step}/{budget.steps} l1 train={train_l1:.5f} kl={train_kl:.3f} "
             f"val={validation_loss:.5f} ({curves[-1]['elapsed_seconds']:.0f}s)",
             flush=True,
         )
-        if validation_loss < best_loss:
-            best_loss, best_step = validation_loss, step
-            best_parameters = policy.parameters()
+        score = float(selector(policy)) if selector is not None else None
+        if score is not None:
+            curves[-1]["selection_score"] = score
+            print(f"    selection score {score:.3f}", flush=True)
+        key = (-score if score is not None else 0.0, validation_loss)
+        if key < best_key:
+            best_key, best_parameters = key, policy.parameters()
+            best_loss, best_step, best_score = validation_loss, step, score
     policy.update(best_parameters)
     policy.eval()
     return curves, {
         "best_step": best_step,
         "loss": "l1",
         "best_validation_loss": best_loss,
+        "selection": "closed_loop_validation" if selector is not None else "validation_loss",
+        "selection_score": best_score,
         "training_seconds": time.monotonic() - started,
     }

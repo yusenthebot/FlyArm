@@ -166,3 +166,45 @@ def test_act_training_reduces_validation_l1_and_round_trips(tmp_path) -> None:
     restored.load(tmp_path / "act.safetensors")
     output, _ = restored.step(obs, restored.initial_state(len(obs)))
     assert np.allclose(np.asarray(output), np.asarray(first), atol=1e-6)
+
+
+def test_closed_loop_selector_keeps_the_best_scored_checkpoint() -> None:
+    data = _smooth_demos()
+    policy = MLPPolicy(obs_dim=2, action_dim=2, hidden=16, chunk=2, seed=3)
+    snapshots: list[np.ndarray] = []
+    scores = [0.0, 3.0, 1.0, 3.0, 2.0, 0.5]  # epochs 2 and 4 tie; validation loss decides
+
+    def selector(candidate: MLPPolicy) -> float:
+        snapshots.append(np.asarray(candidate.layers[0].weight))
+        return scores[len(snapshots) - 1]
+
+    budget = Budget(
+        epochs=6,
+        decoder_warmup_epochs=0,
+        batch_size=3,
+        bptt_steps=6,
+        learning_rate=0.01,
+        deadline=time.monotonic() + 120,
+    )
+    mask = data["mask"]
+    curves, summary = train_sequence_policy(
+        policy, data, mask, data, mask, budget, 0, selector=selector, select_every=1
+    )
+    tied = [1, 3]
+    winner = min(tied, key=lambda index: curves[index]["validation_loss"])
+    assert summary["selection"] == "closed_loop_validation" and summary["selection_score"] == 3.0
+    assert summary["best_epoch"] == winner + 1
+    assert np.array_equal(np.asarray(policy.layers[0].weight), snapshots[winner])
+    sparse: list[float] = []
+    train_sequence_policy(
+        MLPPolicy(obs_dim=2, action_dim=2, hidden=16, chunk=2),
+        data,
+        mask,
+        data,
+        mask,
+        budget,
+        0,
+        selector=lambda _: sparse.append(1.0) or 1.0,
+        select_every=4,
+    )
+    assert len(sparse) == 2  # epoch 4 and the final epoch
