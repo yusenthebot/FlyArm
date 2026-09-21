@@ -40,11 +40,24 @@ Lesions of the trained fly controller (same checkpoints, clean evaluation):
 
 Zero action: 0.0.
 
-### FrankaKitchen `mixed`, fly wired through leg proprioceptors + head senses (`flyleg-kitchen-mixed-001`, status: running)
+### FrankaKitchen `mixed`, fly wired through leg proprioceptors + head senses (`flyleg-kitchen-mixed-001`, status: complete)
 
 D4RL normalized score (25 per completed target task, 0-100); mean ± sd over training seeds; published BC reference 51.5 (original D4RL v0).
 
-_no completed models yet_
+| Controller | Params | Seeds | Clean | Per seed | microwave | kettle | bottom burner | light switch | robot_noise_x10 | object_noise_x10 | joint_offset_0.05rad | joint_offset_0.1rad |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Fly CNS as left front leg (MaleCNS) | 107,947 | 1 | 0.0 | 0.0 | 0% | 0% | 0% | 0% | 0.0 | 0.0 | 0.0 | 0.0 |
+| Shuffled CNS, same leg interface | 107,947 | 1 | 0.0 | 0.0 | 0% | 0% | 0% | 0% | 0.0 | 0.0 | 0.0 | 0.0 |
+| MLP BC (D4RL architecture) | 76,041 | 1 | 0.0 | 0.0 | 0% | 0% | 0% | 0% | 0.0 | 0.0 | 0.6 | 1.2 |
+| GRU, parameter-matched | 107,615 | 1 | 0.0 | 0.0 | 0% | 0% | 0% | 0% | 0.6 | 0.0 | 0.0 | 1.9 |
+
+Lesions of the trained fly controller (same checkpoints, clean evaluation):
+
+| Intact | edges_off | direct_only | deafferented_leg | head_sensory_deprived | state_reset_every_step |
+|---|---|---|---|---|---|
+| 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 |
+
+Zero action: 0.0.
 
 ## B1a: complete MaleCNS controller, FlyArm Panda tasks
 
