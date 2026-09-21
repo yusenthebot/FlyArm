@@ -199,11 +199,11 @@ def _train(
     dagger_sets: list[list[int]] = []
     aggregate = train
     for iteration in range(config.dagger_iterations):
+        if not isinstance(task.env, PandaPickPlaceEnv):
+            raise ValueError("DAgger is defined for the pick-place teacher only")
         seeds = task.seeds("dagger", config.dagger_episodes)
         seeds = [value + iteration * 1000 for value in seeds]
         dagger_sets.append(seeds)
-        if not isinstance(task.env, PandaPickPlaceEnv):
-            raise ValueError("DAgger is defined for the pick-place teacher only")
         queries = pick.collect_dagger_queries(
             task.env, MlxController(policy), seeds, run / f"dagger-{iteration + 1}.npz"
         )

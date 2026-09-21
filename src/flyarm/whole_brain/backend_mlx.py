@@ -5,9 +5,12 @@ One control period applies ``neural_steps`` updates of
     h <- (1 - alpha) h + alpha tanh(I + g W h)
 
 where ``I`` is nonzero only on declared input neurons and ``W`` is the normalized, signed,
-frozen connectome. Constants default to the 256-node MVP (alpha 0.5, g 0.8) so that the
-full-connectome run changes graph scale only. Because every row of ``W`` has absolute sum
-at most one, the update is a contraction for ``g < 1`` and cannot blow up numerically.
+frozen connectome. Constants default to the 256-node MVP (alpha 0.5, g 0.8). The one
+deliberate difference from that policy is the readout: B1a decodes the output neurons'
+activity averaged over the ``neural_steps`` updates of a control period (a pooled time
+window), whereas the subgraph policy read only the last update. With ``neural_steps=1``
+the two coincide. Because every row of ``W`` has absolute sum at most one, the update is a
+contraction for ``g < 1`` and cannot blow up numerically.
 
 The whole state stays in unified memory. ``W h`` is a Metal kernel over target-major CSR
 (one thread per target neuron and batch column, fixed summation order, so results are

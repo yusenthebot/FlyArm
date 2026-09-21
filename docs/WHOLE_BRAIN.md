@@ -1,9 +1,24 @@
 # B1a: whole-connectome rate controller
 
-B1a changes one variable relative to the 256-node baseline: the graph.
-The frozen 256-neuron MaleCNS subgraph is replaced by the complete annotated MaleCNS v1.0 connectome.
-Robot state input, action space, teachers, behavior cloning, DAgger, MuJoCo tasks, episode seeds and evaluation code are unchanged.
+B1a replaces the frozen 256-neuron MaleCNS subgraph with the complete annotated MaleCNS v1.0 connectome.
+Robot state input, action space, teachers, behavior cloning, DAgger, MuJoCo tasks, episode seeds, graph recipe, update rule and evaluation code are unchanged.
 Spiking (LIF) dynamics are a later step and are not part of B1a.
+
+Everything that differs from the 256-node pick-and-place baseline, stated explicitly:
+
+| | 256-node baseline | B1a |
+|---|---|---|
+| Graph | 256 neurons / 4,678 edges | 166,700 neurons / 10,520,377 edges |
+| Input neurons | 23 ascending | all 1,846 ascending |
+| Output neurons | 43 descending | all 1,314 descending + 708 VNC motor |
+| Trainable parameters (pick-and-place) | 1,050 | 78,240 |
+| Readout | output state after the last internal update | mean over the 3 internal updates (window pooling) |
+| Truncated BPTT window | 40 control steps | 8 control steps |
+| Epochs (BC / each DAgger round) | 30 / 15 | 20 / 10, first 2 BC epochs decoder-only |
+| Framework | PyTorch CPU | MLX on the Apple GPU |
+
+The interface and parameter changes follow from using the whole CNS; the readout and training-budget changes follow the B1a plan and the cost of backpropagating through 166,700 neurons.
+The GRU control is re-matched to the new parameter budget, so every model family sees the same data and budget.
 
 ## Structure
 

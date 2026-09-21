@@ -71,6 +71,7 @@ class BrainPolicy(_Normalized):
         if neural_steps < 1 or action_dim < 1:
             raise ValueError("neural_steps and action_dim must be positive")
         self.kind = kind
+        self.seed = seed
         self.action_dim = action_dim
         self.neural_steps = neural_steps
         self.dynamics = dynamics
@@ -106,6 +107,7 @@ class BrainPolicy(_Normalized):
             obs_dim=self.obs_dim,
             action_dim=self.action_dim,
             neural_steps=self.neural_steps,
+            seed=self.seed,
         )
         clone.update(self.parameters())
         clone.freeze(keys=["obs_mean", "obs_scale"], recurse=False)
