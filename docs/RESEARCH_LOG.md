@@ -181,6 +181,8 @@ Tasks: tower, sort and clear with four colour-coded cubes, 600 to 1,000 control 
 Design decision pending with the user: the observation includes a memoryless sub-task cue (the cube to handle now, recomputed from the scene every step), because without it no controller learned to pick the next cube in a pilot (MLP correct first pick 0/36, with the cue 27/36); a cue-silenced lesion keeps the brain's own sequencing testable.
 Early controls, seed 0, 36 test episodes per split (progress): GRU iid 0.25 (4/36 full), MLP 0.11 (1/36); both near 0 without the cue; tower about 0 for both.
 The connectome and shuffle runs (12 to 24 h) wait for the GPU.
+User decision (2026-09-21): keep the cue for the main run and add a no-cue control (config cue=false zeroes the 17 cue entries, same architecture, parameters, teacher and labels; commit 328222d on feat/long-horizon).
+Reading rule 8 on that branch: a controller sequences on its own if its no-cue iid progress is at least half its cued progress and its first pick is right in at least half of the episodes.
 
 ### Dexterous hand (branch feat/dexterous-hand)
 LEAP hand, four fly legs as fingers; privileged PPO teacher 64/64 rotation episodes without drops; distilled GRU 60/64; the fly runs (about 6 to 7 h) wait for the GPU.
