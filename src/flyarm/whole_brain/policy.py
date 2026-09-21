@@ -7,6 +7,7 @@ which is a plain attribute rather than a module parameter, so no optimizer can s
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, cast
 
@@ -19,12 +20,19 @@ from flyarm.whole_brain.backend_mlx import RateDynamics
 
 
 class _Normalized(nn.Module):
+    #: Buffers saved with the checkpoint but never trained.
+    frozen_keys: tuple[str, ...] = ("obs_mean", "obs_scale")
+
     def __init__(self, obs_dim: int) -> None:
         super().__init__()
         self.obs_dim = obs_dim
         self.obs_mean = mx.zeros((obs_dim,))
         self.obs_scale = mx.ones((obs_dim,))
-        self.freeze(keys=["obs_mean", "obs_scale"], recurse=False)
+        self._freeze_buffers()
+
+    def _freeze_buffers(self) -> None:
+        present = [key for key in self.frozen_keys if key in self]
+        self.freeze(keys=present, recurse=False)
 
     def set_normalization(self, mean: np.ndarray, scale: np.ndarray) -> None:
         if mean.shape != (self.obs_dim,) or scale.shape != (self.obs_dim,):
@@ -33,7 +41,7 @@ class _Normalized(nn.Module):
             raise ValueError("Normalization scale must be finite and positive")
         self.obs_mean = mx.array(mean, dtype=mx.float32)
         self.obs_scale = mx.array(scale, dtype=mx.float32)
-        self.freeze(keys=["obs_mean", "obs_scale"], recurse=False)
+        self._freeze_buffers()
 
     def normalize(self, obs: mx.array) -> mx.array:
         if obs.ndim != 2 or obs.shape[1] != self.obs_dim:
@@ -50,12 +58,31 @@ class _Normalized(nn.Module):
         self.save_weights(str(path))
 
     def load(self, path: Path) -> None:
-        self.load_weights(str(path), strict=True)
-        self.freeze(keys=["obs_mean", "obs_scale"], recurse=False)
+        weights = cast(dict[str, mx.array], mx.load(str(path)))
+        # Checkpoints written before a buffer existed keep that buffer's neutral default.
+        for key in self.frozen_keys:
+            if key not in weights and key in self:
+                weights[key] = self[key]
+        self.load_weights(list(weights.items()), strict=True)
+        self._freeze_buffers()
+
+
+Channel = tuple[int, int, int]  # (first observation index, stop index, input neurons)
 
 
 class BrainPolicy(_Normalized):
-    """obs -> encoder -> frozen connectome (ascending in, descending/motor out) -> action."""
+    """obs -> linear encoder(s) -> frozen connectome -> readout scale -> linear decoder -> action.
+
+    With ``channels``, each observation slice is written only into its own consecutive block
+    of input neurons (for example joint state into leg proprioceptors and scene state into
+    head sensory neurons); without it one encoder writes every observation into every input.
+
+    ``readout_scale`` is a frozen per-output-neuron gain (default 1). calibrate_readout() sets
+    it to the inverse RMS activity on training data, so weakly driven motor neurons reach the
+    decoder at unit scale; it rescales the declared outputs only and adds no pathway.
+    """
+
+    frozen_keys = ("obs_mean", "obs_scale", "readout_scale")
 
     def __init__(
         self,
@@ -66,6 +93,7 @@ class BrainPolicy(_Normalized):
         action_dim: int,
         neural_steps: int = 3,
         seed: int = 0,
+        channels: Sequence[Channel] | None = None,
     ) -> None:
         super().__init__(obs_dim)
         if neural_steps < 1 or action_dim < 1:
@@ -75,9 +103,56 @@ class BrainPolicy(_Normalized):
         self.action_dim = action_dim
         self.neural_steps = neural_steps
         self.dynamics = dynamics
+        self.channels = tuple(channels) if channels is not None else None
         mx.random.seed(seed)
-        self.encoder = nn.Linear(obs_dim, dynamics.input_count)
+        if self.channels is None:
+            self.encoder = nn.Linear(obs_dim, dynamics.input_count)
+        else:
+            if sum(size for _, _, size in self.channels) != dynamics.input_count:
+                raise ValueError("Channel input blocks must cover every declared input neuron")
+            if any(not 0 <= start < stop <= obs_dim for start, stop, _ in self.channels):
+                raise ValueError("Channel observation slices must lie inside the observation")
+            self.encoders = [nn.Linear(stop - start, size) for start, stop, size in self.channels]
         self.decoder = nn.Linear(dynamics.output_count, action_dim)
+        self.readout_scale = mx.ones((dynamics.output_count,))
+        self._freeze_buffers()
+
+    def calibrate_readout(
+        self, obs: np.ndarray, mask: np.ndarray, *, floor_fraction: float = 0.01
+    ) -> dict[str, float]:
+        """Run training episodes through the current policy; scale outputs to unit RMS."""
+        state = self.initial_state(obs.shape[0])
+        total = np.zeros(self.dynamics.output_count)
+        count = 0.0
+        for step in range(obs.shape[1]):
+            current = self.encode(self.normalize(mx.array(obs[:, step])))
+            state, pooled = self.dynamics.advance(state, current, self.neural_steps)
+            mx.eval(state, pooled)
+            weights = mask[:, step][:, None]
+            total += (np.asarray(pooled, dtype=np.float64) ** 2 * weights).sum(0)
+            count += float(weights.sum())
+        rms = np.sqrt(total / max(count, 1.0))
+        floor = max(float(np.median(rms)) * floor_fraction, 1e-12)
+        self.readout_scale = mx.array((1.0 / np.maximum(rms, floor)).astype(np.float32))
+        self._freeze_buffers()
+        return {
+            "median_rms": float(np.median(rms)),
+            "min_rms": float(rms.min()),
+            "max_rms": float(rms.max()),
+            "floored_outputs": int(np.sum(rms < floor)),
+        }
+
+    def encode(self, x: mx.array) -> mx.array:
+        if self.channels is None:
+            return self.encoder(x)
+        blocks = [
+            encoder(x[:, start:stop])
+            for encoder, (start, stop, _) in zip(self.encoders, self.channels, strict=True)
+        ]
+        return mx.concatenate(blocks, axis=1)
+
+    def input_modules(self) -> list[nn.Module]:
+        return [self.encoder] if self.channels is None else list(self.encoders)
 
     @property
     def state_size(self) -> int:
@@ -87,9 +162,9 @@ class BrainPolicy(_Normalized):
         return self.dynamics.zeros(batch)
 
     def step(self, obs: mx.array, state: mx.array) -> tuple[mx.array, mx.array]:
-        current = self.encoder(self.normalize(obs))
+        current = self.encode(self.normalize(obs))
         state, pooled = self.dynamics.advance(state, current, self.neural_steps)
-        return mx.tanh(self.decoder(pooled)), state
+        return mx.tanh(self.decoder(pooled * self.readout_scale)), state
 
     def with_dynamics(self, kind: str, dynamics: RateDynamics) -> BrainPolicy:
         """Same learned adapters over another frozen graph (post-training ablations)."""
@@ -108,9 +183,20 @@ class BrainPolicy(_Normalized):
             action_dim=self.action_dim,
             neural_steps=self.neural_steps,
             seed=self.seed,
+            channels=self.channels,
         )
         clone.update(self.parameters())
-        clone.freeze(keys=["obs_mean", "obs_scale"], recurse=False)
+        clone._freeze_buffers()
+        return clone
+
+    def silence_channel(self, kind: str, channel: int) -> BrainPolicy:
+        """Lesion: the same trained policy with one sensory channel receiving no current."""
+        if self.channels is None or not 0 <= channel < len(self.channels):
+            raise ValueError("Policy has no such sensory channel")
+        clone = self.with_dynamics(kind, self.dynamics)
+        encoder = clone.encoders[channel]
+        encoder.weight = mx.zeros_like(encoder.weight)
+        encoder.bias = mx.zeros_like(encoder.bias)
         return clone
 
 
@@ -125,6 +211,9 @@ def gru_hidden_for_budget(obs_dim: int, action_dim: int, budget: int) -> int:
 
 class GRUPolicy(_Normalized):
     kind = "gru"
+
+    def input_modules(self) -> list[nn.Module]:
+        return [self.cell]
 
     def __init__(self, *, obs_dim: int, action_dim: int, hidden: int, seed: int = 0) -> None:
         super().__init__(obs_dim)
@@ -146,7 +235,40 @@ class GRUPolicy(_Normalized):
         return mx.tanh(self.readout(hidden)), hidden
 
 
-SequencePolicy = BrainPolicy | GRUPolicy
+class MLPPolicy(_Normalized):
+    """Memoryless behavior-cloning MLP (two ReLU layers), the standard D4RL BC architecture."""
+
+    kind = "mlp"
+
+    def __init__(self, *, obs_dim: int, action_dim: int, hidden: int = 256, seed: int = 0) -> None:
+        super().__init__(obs_dim)
+        self.action_dim = action_dim
+        self.hidden = hidden
+        mx.random.seed(seed)
+        self.layers = [
+            nn.Linear(obs_dim, hidden),
+            nn.Linear(hidden, hidden),
+            nn.Linear(hidden, action_dim),
+        ]
+
+    @property
+    def state_size(self) -> int:
+        return 0
+
+    def initial_state(self, batch: int) -> mx.array:
+        return mx.zeros((batch, 1))
+
+    def step(self, obs: mx.array, state: mx.array) -> tuple[mx.array, mx.array]:
+        x = self.normalize(obs)
+        x = nn.relu(self.layers[0](x))
+        x = nn.relu(self.layers[1](x))
+        return mx.tanh(self.layers[2](x)), state
+
+    def input_modules(self) -> list[nn.Module]:
+        return [self.layers[0]]
+
+
+SequencePolicy = BrainPolicy | GRUPolicy | MLPPolicy
 
 
 class MlxController:

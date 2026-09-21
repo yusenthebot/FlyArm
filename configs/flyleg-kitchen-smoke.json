@@ -1,0 +1,9 @@
+{
+  "split": "complete",
+  "epochs": 2,
+  "decoder_warmup_epochs": 1,
+  "eval_episodes": 2,
+  "ood_joint_offsets": [0.05],
+  "seeds": [0],
+  "max_seconds": 1800
+}
