@@ -5,6 +5,8 @@ const LABELS: Record<CausalMode, string> = {
   shuffled: "Shuffled",
   edges_off: "Edges off",
   direct_only: "Direct I/O only",
+  deafferented: "Deafferented leg",
+  head_deprived: "No head senses",
 };
 
 export function Toolbar({

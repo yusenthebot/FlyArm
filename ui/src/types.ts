@@ -1,4 +1,10 @@
-export type CausalMode = "connectome" | "shuffled" | "edges_off" | "direct_only";
+export type CausalMode =
+  | "connectome"
+  | "shuffled"
+  | "edges_off"
+  | "direct_only"
+  | "deafferented"
+  | "head_deprived";
 
 export interface GraphNode {
   id: number;
@@ -38,6 +44,9 @@ export interface SubgraphPayload extends PayloadCommon {
 /** Complete connectome: binary columns (base64) for every neuron with a measured soma. */
 export interface WholeBrainPayload extends PayloadCommon {
   format: "columnar-v1";
+  task?: "pick-place" | "kitchen";
+  role_labels?: Record<string, string>;
+  proxy_positioned_afferents?: number;
   neurons: number;
   drawn: number;
   undrawn_by_superclass: Record<string, number>;
@@ -58,9 +67,10 @@ interface RobotGeomBase {
   rgba: [number, number, number, number];
 }
 
+/** Primitive sizes are MuJoCo geom_size: box half-extents, radius, half-length. */
 export type RobotGeom =
   | (RobotGeomBase & { kind: "mesh"; positions: string; normals: string; index: string; index_width: 2 | 4 })
-  | (RobotGeomBase & { kind: "box"; size: [number, number, number] });
+  | (RobotGeomBase & { kind: "box" | "sphere" | "cylinder" | "capsule" | "plane"; size: [number, number, number] });
 
 /** Visible Panda geoms from the compiled Menagerie model, in body frames. */
 export interface RobotPayload {
@@ -128,6 +138,11 @@ export interface RuntimeState {
   hidden_q?: string;
   hidden_count?: number;
   hidden_floor?: number;
+  /** FrankaKitchen only. */
+  tasks?: string[];
+  completed?: string[];
+  task_distance?: Record<string, number>;
+  score?: number;
   hidden?: number[];
   evidence: EvidenceSummary;
 }

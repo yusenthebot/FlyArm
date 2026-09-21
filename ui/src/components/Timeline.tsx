@@ -17,7 +17,7 @@ function pathFor(samples: TimelineSample[], accessor: (sample: TimelineSample) =
     .join(" ");
 }
 
-export function Timeline({ samples }: { samples: TimelineSample[] }) {
+export function Timeline({ samples, kitchen = false }: { samples: TimelineSample[]; kitchen?: boolean }) {
   const visible = samples.slice(-240);
   const paths = useMemo(
     () => ({
@@ -25,16 +25,19 @@ export function Timeline({ samples }: { samples: TimelineSample[] }) {
       dy: pathFor(visible, (s) => s.action[1], -1, 1, 8, 42),
       dz: pathFor(visible, (s) => s.action[2], -1, 1, 8, 42),
       grip: pathFor(visible, (s) => s.action[3], -1, 1, 8, 42),
-      height: pathFor(visible, (s) => s.objectHeight, 0, 0.24, 62, 30),
+      height: pathFor(visible, (s) => s.objectHeight, 0, kitchen ? 1 : 0.24, 62, 30),
       error: pathFor(visible, (s) => s.goalError, 0, 0.3, 104, 28),
       activation: pathFor(visible, (s) => s.activation, 0, 1, 144, 28),
     }),
-    [visible],
+    [visible, kitchen],
   );
   return (
     <div className="timeline-wrap">
       <div className="timeline-labels" aria-hidden>
-        <span>Action</span><span>Object height</span><span>Goal error</span><span>Neural |mean|</span>
+        <span>{kitchen ? "Joints 1-4" : "Action"}</span>
+        <span>{kitchen ? "Tasks done" : "Object height"}</span>
+        <span>{kitchen ? "" : "Goal error"}</span>
+        <span>Neural |mean|</span>
       </div>
       <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} preserveAspectRatio="none" role="img" aria-label="Live synchronized simulation timeline">
         <defs>
@@ -57,7 +60,11 @@ export function Timeline({ samples }: { samples: TimelineSample[] }) {
         })}
       </svg>
       <div className="timeline-legend">
-        <span className="c-dx">dx</span><span className="c-dy">dy</span><span className="c-dz">dz</span><span className="c-grip">grip</span><span>contacts at baseline</span>
+        {kitchen ? (
+          <><span className="c-dx">j1</span><span className="c-dy">j2</span><span className="c-dz">j3</span><span className="c-grip">j4</span><span>joint velocity commands</span></>
+        ) : (
+          <><span className="c-dx">dx</span><span className="c-dy">dy</span><span className="c-dz">dz</span><span className="c-grip">grip</span><span>contacts at baseline</span></>
+        )}
       </div>
     </div>
   );

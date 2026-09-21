@@ -78,13 +78,22 @@ export function AuditPanel({
       </section>
       <section className="audit-section causal-section">
         <h2>CAUSAL TEST</h2>
-        <dl className="audit-grid compact">
-          <dt>Current mode</dt><dd>{state.mode}</dd>
-          <dt>Contact L / R</dt><dd>{Number(state.contact_left)} / {Number(state.contact_right)}</dd>
-          <dt>Grasp history</dt><dd>{state.ever_grasped ? "yes" : "no"}</dd>
-          <dt>Lift history</dt><dd>{state.ever_lifted ? "yes" : "no"}</dd>
-          <dt>Released success</dt><dd>{state.success ? "yes" : "no"}</dd>
-        </dl>
+        {state.tasks ? (
+          <dl className="audit-grid compact">
+            <dt>Current mode</dt><dd>{state.mode}</dd>
+            <dt>Tasks done</dt><dd>{(state.completed ?? []).length} / {state.tasks.length}</dd>
+            <dt>Episode score</dt><dd>{(state.score ?? 0).toFixed(0)}</dd>
+            <dt>Order</dt><dd>{(state.completed ?? []).join(" > ") || "none yet"}</dd>
+          </dl>
+        ) : (
+          <dl className="audit-grid compact">
+            <dt>Current mode</dt><dd>{state.mode}</dd>
+            <dt>Contact L / R</dt><dd>{Number(state.contact_left)} / {Number(state.contact_right)}</dd>
+            <dt>Grasp history</dt><dd>{state.ever_grasped ? "yes" : "no"}</dd>
+            <dt>Lift history</dt><dd>{state.ever_lifted ? "yes" : "no"}</dd>
+            <dt>Released success</dt><dd>{state.success ? "yes" : "no"}</dd>
+          </dl>
+        )}
         <div className={`evidence evidence-${evidence.graph_mediated}`}>
           <strong>Graph-mediated: {evidence.graph_mediated.replace("_", " ")}</strong>
           <span>

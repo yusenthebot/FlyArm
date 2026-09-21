@@ -8,9 +8,16 @@ import type { WholeBrainGeometry } from "./wholeBrainGeometry";
 
 const ROLE_RGB: [number, number, number][] = [
   [0.965, 0.416, 0.31], // internal, coral
-  [0.957, 0.867, 0.263], // input, yellow
+  [0.957, 0.867, 0.263], // input (or first input group), yellow
   [0.259, 0.875, 0.957], // output, cyan
+  [0.584, 0.463, 0.953], // second input group, violet
 ];
+const ROLE_HEX = ["#f66a4f", "#f4dd43", "#42dff4", "#9576f3"];
+const DEFAULT_LABELS: Record<string, string> = {
+  "1": "input · ascending",
+  "0": "internal",
+  "2": "output · descending + motor",
+};
 const IDLE: [number, number, number] = [0.78, 0.83, 0.86];
 // Rate states span four decades (inputs near 1, most internal neurons near 1e-3), so
 // brightness follows log10 |state| on a fixed 1e-4..1 scale, identical in every frame.
@@ -122,9 +129,11 @@ export function WholeBrainView({
   return (
     <div className="viewport connectome-viewport">
       <div className="legend" aria-label="Neuron role legend">
-        <span><i style={{ background: "#f4dd43" }} /> input · ascending</span>
-        <span><i style={{ background: "#f66a4f" }} /> internal</span>
-        <span><i style={{ background: "#42dff4" }} /> output · descending + motor</span>
+        {Object.entries(graph.role_labels ?? DEFAULT_LABELS)
+          .sort(([a], [b]) => (a === "0" ? 1 : b === "0" ? -1 : Number(a) - Number(b)))
+          .map(([role, label]) => (
+            <span key={role}><i style={{ background: ROLE_HEX[Number(role)] ?? "#999" }} /> {label}</span>
+          ))}
         <span><i style={{ background: "#c7d4db" }} /> brightness: log |state|, 1e-4 to 1</span>
       </div>
       <Canvas camera={{ position: [0, 0.1, 2.4], fov: 42 }} dpr={[1, 1.5]} raycaster={{ params: { Points: { threshold: 0.008 } } as THREE.Raycaster["params"] }}>
@@ -136,8 +145,11 @@ export function WholeBrainView({
       </Canvas>
       <div className="viewport-caption">
         <span>
-          {graph.drawn.toLocaleString()} of {graph.neurons.toLocaleString()} neurons at measured somata ·{" "}
-          {undrawn.toLocaleString()} without a soma location simulated, not drawn
+          {graph.drawn.toLocaleString()} of {graph.neurons.toLocaleString()} neurons drawn ·{" "}
+          {undrawn.toLocaleString()} without a location simulated, not drawn
+          {graph.proxy_positioned_afferents
+            ? ` · ${graph.proxy_positioned_afferents.toLocaleString()} sensory afferents (soma outside the CNS) placed at their partners' contact-weighted centroid`
+            : ""}
         </span>
         <span>Faint lines: {graph.context_edge_note}</span>
       </div>

@@ -158,6 +158,15 @@ def main() -> None:
     leg_record.add_argument("--output", type=Path, required=True)
     report = sub.add_parser("report", help="Aggregate completed runs into a Markdown report")
     report.add_argument("--output", type=Path, required=True)
+    leg_serve = leg_sub.add_parser("serve", help="Live kitchen UI driven by a B2 checkpoint")
+    leg_serve.add_argument("--run", type=Path, required=True)
+    leg_serve.add_argument("--seed", type=int, default=0)
+    leg_serve.add_argument("--episode", type=int, default=0)
+    leg_serve.add_argument("--pack", type=Path, default=Path(DEFAULT_PACK))
+    leg_serve.add_argument("--annotations", type=Path, default=Path(DEFAULT_ANNOTATIONS))
+    leg_serve.add_argument("--ui", type=Path, default=Path("ui/dist"))
+    leg_serve.add_argument("--host", default="127.0.0.1")
+    leg_serve.add_argument("--port", type=int, default=8770)
     serve = sub.add_parser("serve", help="Launch the real-time causal simulator and 3D UI")
     serve.add_argument("--run", type=Path, required=True)
     serve.add_argument("--graph", type=Path, default=Path("data/graphs/malecns-256-v1.npz"))
@@ -200,6 +209,19 @@ def main() -> None:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(build_report(Path.cwd()))
         print(args.output)
+    elif args.command == "flyleg" and args.leg_command == "serve":
+        from flyarm.flyleg.live import serve_flyleg
+
+        serve_flyleg(
+            args.run,
+            args.seed,
+            args.pack,
+            args.annotations,
+            args.ui,
+            host=args.host,
+            port=args.port,
+            episode=args.episode,
+        )
     elif args.command == "flyleg" and args.leg_command == "record":
         from flyarm.flyleg.record import record_kitchen
 

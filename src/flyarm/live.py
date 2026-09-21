@@ -28,7 +28,9 @@ from flyarm.interfaces import NeuralInterface, canonical_interface
 from flyarm.pick_place_env import PandaPickPlaceEnv, physical_stage
 from flyarm.pick_place_models import PickPlaceController, PickPlacePolicy
 
-CausalMode = Literal["connectome", "shuffled", "edges_off", "direct_only"]
+CausalMode = Literal[
+    "connectome", "shuffled", "edges_off", "direct_only", "deafferented", "head_deprived"
+]
 
 
 class ResetRequest(BaseModel):
@@ -92,33 +94,66 @@ def _robot_body_ids(model: mujoco.MjModel) -> list[int]:
 
 def robot_body_poses(model: mujoco.MjModel, data: mujoco.MjData) -> list[list[float]]:
     """Live world pose [x, y, z, qw, qx, qy, qz] of every Panda body, in ROBOT_BODIES order."""
-    ids = _robot_body_ids(model)
-    return np.round(np.hstack((data.xpos[ids], data.xquat[ids])), 6).tolist()
+    return body_poses(data, _robot_body_ids(model))
 
 
-def build_robot_payload(model: mujoco.MjModel) -> dict[str, Any]:
-    """Every visible Panda geom exactly as MuJoCo compiled it, in its body's frame.
+def body_poses(data: mujoco.MjData, body_ids: list[int]) -> list[list[float]]:
+    """Live world pose [x, y, z, qw, qx, qy, qz] of the given bodies, in order."""
+    return np.round(np.hstack((data.xpos[body_ids], data.xquat[body_ids])), 6).tolist()
 
-    Meshes come from the pinned Menagerie assets through the compiled model, so the UI
-    draws the same geometry MuJoCo simulates and renders (default visible groups 0-2),
-    including FlyArm's rigid finger pads. Vertices are deduplicated by (position, normal).
+
+def _geom_color(model: mujoco.MjModel, geom: int) -> list[float]:
+    """Material (or geom) RGBA; a textured material is tinted by its texture's mean color."""
+    material = int(model.geom_matid[geom])
+    if material < 0:
+        return np.round(model.geom_rgba[geom], 4).tolist()
+    rgba = model.mat_rgba[material].astype(np.float64).copy()
+    texture_ids = np.atleast_1d(model.mat_texid[material])
+    texture = next((int(t) for t in texture_ids if t >= 0), -1)
+    if texture >= 0:
+        start = int(model.tex_adr[texture])
+        size = int(
+            model.tex_width[texture] * model.tex_height[texture] * model.tex_nchannel[texture]
+        )
+        pixels = model.tex_data[start : start + size].reshape(-1, int(model.tex_nchannel[texture]))
+        rgba[:3] *= pixels[:, :3].mean(axis=0) / 255.0
+    return np.round(rgba, 4).tolist()
+
+
+def build_scene_payload(
+    model: mujoco.MjModel, body_ids: list[int], *, source: str
+) -> dict[str, Any]:
+    """Every visible geom of the given bodies exactly as MuJoCo compiled it, in body frames.
+
+    Meshes come through the compiled model from its pinned assets, so the UI draws the same
+    geometry MuJoCo simulates and renders (default visible groups 0-2). Mesh vertices are
+    deduplicated by (position, normal); primitives carry MuJoCo's own size parameters.
     """
-    body_index = {body: index for index, body in enumerate(_robot_body_ids(model))}
+    body_index = {body: index for index, body in enumerate(body_ids)}
     geoms: list[dict[str, Any]] = []
+    # Integer keys: MuJoCo >= 3.13 enums do not hash or compare equal to numpy integers.
+    primitives = {
+        int(mujoco.mjtGeom.mjGEOM_BOX): "box",
+        int(mujoco.mjtGeom.mjGEOM_SPHERE): "sphere",
+        int(mujoco.mjtGeom.mjGEOM_CYLINDER): "cylinder",
+        int(mujoco.mjtGeom.mjGEOM_CAPSULE): "capsule",
+        int(mujoco.mjtGeom.mjGEOM_PLANE): "plane",
+    }
     for geom in range(model.ngeom):
         body = int(model.geom_bodyid[geom])
         if body not in body_index or model.geom_group[geom] > 2:
             continue
-        material = int(model.geom_matid[geom])
-        rgba = model.mat_rgba[material] if material >= 0 else model.geom_rgba[geom]
+        rgba = _geom_color(model, geom)
+        if rgba[3] <= 0:
+            continue
         entry: dict[str, Any] = {
             "body": body_index[body],
             "pos": model.geom_pos[geom].tolist(),
             "quat": model.geom_quat[geom].tolist(),
-            "rgba": np.round(rgba, 4).tolist(),
+            "rgba": rgba,
         }
-        kind = model.geom_type[geom]
-        if kind == mujoco.mjtGeom.mjGEOM_MESH:
+        kind = int(model.geom_type[geom])
+        if kind == int(mujoco.mjtGeom.mjGEOM_MESH):
             mesh = int(model.geom_dataid[geom])
             v0 = model.mesh_vertadr[mesh]
             f0, fn = model.mesh_faceadr[mesh], model.mesh_facenum[mesh]
@@ -137,17 +172,28 @@ def build_robot_payload(model: mujoco.MjModel) -> dict[str, Any]:
                 index=_b64(index.reshape(-1), "<u2" if len(unique) < 65536 else "<u4"),
                 index_width=2 if len(unique) < 65536 else 4,
             )
-        elif kind == mujoco.mjtGeom.mjGEOM_BOX:
-            entry.update(kind="box", size=(2 * model.geom_size[geom]).tolist())
+        elif kind in primitives:
+            entry.update(kind=primitives[kind], size=model.geom_size[geom].tolist())
         else:
             continue
         geoms.append(entry)
+    names = [mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_BODY, body) or "" for body in body_ids]
     return {
-        "source": "Google DeepMind MuJoCo Menagerie franka_emika_panda (Apache-2.0)",
-        "bodies": list(ROBOT_BODIES),
+        "source": source,
+        "bodies": names,
         "geoms": geoms,
         "pose_layout": "x y z qw qx qy qz, MuJoCo world frame (z up)",
+        "size_convention": "MuJoCo geom_size: box half-extents, radius, half-length",
     }
+
+
+def build_robot_payload(model: mujoco.MjModel) -> dict[str, Any]:
+    """The pinned Menagerie Panda (plus FlyArm's rigid finger pads), body by body."""
+    return build_scene_payload(
+        model,
+        _robot_body_ids(model),
+        source="Google DeepMind MuJoCo Menagerie franka_emika_panda (Apache-2.0)",
+    )
 
 
 def build_graph_payload(
