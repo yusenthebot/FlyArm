@@ -17,7 +17,14 @@ from flyarm.interfaces import NeuralInterface
 from flyarm.video import annotate, tile, write_video
 from flyarm.whole_brain.backend_mlx import RateDynamics
 from flyarm.whole_brain.compiler import ConnectomePack
-from flyarm.whole_brain.policy import BrainPolicy, MlxController, SequencePolicy
+from flyarm.whole_brain.policy import (
+    ACTPolicy,
+    BrainPolicy,
+    GRUPolicy,
+    MLPPolicy,
+    MlxController,
+    SequencePolicy,
+)
 from flyarm.whole_brain.shuffle import shuffle_pack
 
 TITLES = {
@@ -101,9 +108,14 @@ def _lesions(
 
 
 def rollout_frames(
-    env: Any, policy: SequencePolicy, episode_seed: int, title: str
+    env: Any, policy: SequencePolicy | kitchen.Controller, episode_seed: int, title: str
 ) -> tuple[list[np.ndarray], list[str]]:
-    controller = kitchen.PositionFeatures(MlxController(policy))
+    """Annotated frames of one episode; a plain Controller reads the full observation."""
+    controller: kitchen.Controller = (
+        kitchen.PositionFeatures(MlxController(policy))
+        if isinstance(policy, (BrainPolicy, GRUPolicy, MLPPolicy, ACTPolicy))
+        else policy
+    )
     observation, _ = env.reset(seed=episode_seed)
     controller.reset()
     completed: list[str] = []
@@ -112,7 +124,7 @@ def rollout_frames(
     def frame(step: int) -> np.ndarray:
         done = ", ".join(completed) if completed else "none yet"
         detail = (
-            f"episode {episode_seed} · step {step}/280 · tasks {len(completed)}/{total}: {done}"
+            f"episode {episode_seed} · step {step}/280 · tasks {len(completed)}/{total}\n{done}"
         )
         return annotate(env.render(), title, detail, success=len(completed) == total)
 
@@ -179,3 +191,28 @@ def record_kitchen(
         env.close()
     save_json(output / f"kitchen-{config.split}-seed{seed}.json", manifest)
     return manifest
+
+
+def record_teacher(split: str, episodes: list[int], output: Path) -> dict[str, Any]:
+    """Rollouts of the demonstration tracker: what the benchmark's demonstrations support."""
+    from flyarm.benchmarks.kitchen_expert import DemonstrationTracker
+
+    tracker = DemonstrationTracker.from_data(kitchen.load(split))
+    env = (
+        kitchen._minari()
+        .load_dataset(kitchen.DATASETS[split])
+        .recover_environment(render_mode="rgb_array")
+    )
+    frames: list[np.ndarray] = []
+    completed: dict[int, list[str]] = {}
+    try:
+        for episode in episodes:
+            clip, done = rollout_frames(
+                env, tracker, episode, "Demonstration tracker (teacher, not a learned controller)"
+            )
+            frames += clip
+            completed[episode] = done
+    finally:
+        env.close()
+    write_video(output, frames, 12)
+    return {"split": split, "episodes": completed, "video": str(output)}
