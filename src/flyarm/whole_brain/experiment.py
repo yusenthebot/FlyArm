@@ -84,7 +84,9 @@ class Task:
             self.env = PandaReachEnv(model_path, horizon=config.horizon)
             self.obs_dim, self.action_dim = 20, 3
         else:
-            self.env = PandaPickPlaceEnv(model_path, horizon=config.horizon)
+            self.env = PandaPickPlaceEnv(
+                model_path, horizon=config.horizon, teacher_resync=config.teacher == "resync"
+            )
             self.obs_dim, self.action_dim = self.env.observation_dim, 4
 
     def seeds(self, split: str, count: int) -> list[int]:

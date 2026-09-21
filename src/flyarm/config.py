@@ -88,6 +88,10 @@ class WholeBrainConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
     task: Literal["reach", "pick-place"]
+    # "resync" (protocol v2) lets the pick-place teacher re-derive its stage in learner-reached
+    # states; "stateful" is the first protocol, whose DAgger labels could say "open the
+    # gripper" to a learner holding a lifted cube (research log E23).
+    teacher: Literal["stateful", "resync"] = "stateful"
     train_episodes: int = Field(default=96, ge=8, le=512)
     val_episodes: int = Field(default=16, ge=4, le=128)
     test_episodes: int = Field(default=24, ge=4, le=128)

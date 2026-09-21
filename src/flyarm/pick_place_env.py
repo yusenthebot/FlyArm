@@ -106,7 +106,12 @@ class PandaPickPlaceEnv(gym.Env[np.ndarray, np.ndarray]):
     _LIFT_HEIGHT = _SETTLED_HEIGHT + 0.06
 
     def __init__(
-        self, model_path: Path, horizon: int = 400, render_mode: str | None = None
+        self,
+        model_path: Path,
+        horizon: int = 400,
+        render_mode: str | None = None,
+        *,
+        teacher_resync: bool = False,
     ) -> None:
         if horizon < 20:
             raise ValueError("horizon must be at least 20")
@@ -116,6 +121,9 @@ class PandaPickPlaceEnv(gym.Env[np.ndarray, np.ndarray]):
         if not self.model_path.is_file():
             raise FileNotFoundError(self.model_path)
         self.horizon, self.render_mode = horizon, render_mode
+        # B1a protocol v2: the teacher re-derives its stage from the physical state in states
+        # its own trajectory never visits, so DAgger labels match learner-reached states.
+        self.teacher_resync = teacher_resync
 
         spec = build_pick_place_spec(self.model_path)
         self.model = compile_pick_place_model(spec)
@@ -412,6 +420,8 @@ class PandaPickPlaceEnv(gym.Env[np.ndarray, np.ndarray]):
         # the pads down to the floor makes opening fingers sweep the cube aside.
         drop = self.goal + np.array([0.0, 0.0, 0.080])
         retreat = self.goal + np.array([0.0, 0.0, 0.18])
+        if self.teacher_resync:
+            self._teacher_stage = self._resync_stage(cube, ee, left, right, grasp, hover)
         if self._teacher_stage == "approach" and np.linalg.norm(ee - hover) < 0.014:
             self._teacher_stage = "descend"
         elif self._teacher_stage == "descend" and np.linalg.norm(ee - grasp) < 0.010:
@@ -447,6 +457,38 @@ class PandaPickPlaceEnv(gym.Env[np.ndarray, np.ndarray]):
             # floor-contact softness before the lateral squeeze is engaged.
             xyz[2] = max(xyz[2], -0.25)
         return np.concatenate((xyz, [grip])).astype(np.float32)
+
+    def _resync_stage(
+        self,
+        cube: np.ndarray,
+        ee: np.ndarray,
+        left: bool,
+        right: bool,
+        grasp: np.ndarray,
+        hover: np.ndarray,
+    ) -> str:
+        """The stage for a state the learner reached by a path the teacher would not take.
+
+        None of these rules can fire on the teacher's own trajectory (its gripper is open
+        while approaching and descending, and it only retreats after a placement), so its
+        demonstrations are unchanged. Without them a learner that has grasped and lifted
+        the cube is labelled "open the gripper" (research log E23).
+        """
+        stage = self._teacher_stage
+        if stage in ("approach", "descend") and left and right:
+            return "close"  # already squeezing: keep squeezing, then lift and carry
+        aligned = float(np.linalg.norm(ee[:2] - cube[:2])) < 0.012
+        between = grasp[2] - 0.005 < ee[2] < hover[2] - 0.014
+        if stage == "approach" and aligned and between and self._gripper_opening() > 0.5:
+            return "descend"  # already above the cube and below the hover point
+        speed = float(np.linalg.norm(self.data.qvel[self._cube_dadr : self._cube_dadr + 3]))
+        on_target = (
+            float(np.linalg.norm(cube[:2] - self.goal[:2])) < 0.03
+            and cube[2] < self._SETTLED_HEIGHT + 0.012
+        )
+        if stage == "retreat" and not (left or right) and not on_target and speed < 0.02:
+            return "approach"  # released away from the goal: pick it up again
+        return stage
 
     def render(self) -> np.ndarray:
         if self._renderer is None:
