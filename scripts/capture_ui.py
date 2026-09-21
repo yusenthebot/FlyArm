@@ -90,7 +90,11 @@ def main() -> None:
             asyncio.run(_capture(args.url, args.output, args.clicks, args.seconds))
         finally:
             chrome.terminate()
-            chrome.wait(timeout=10)
+            try:
+                chrome.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                chrome.kill()
+                chrome.wait(timeout=10)
     print(args.output)
 
 

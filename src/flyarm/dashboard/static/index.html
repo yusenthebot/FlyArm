@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FlyArm Runs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+  :root {
+    --bg: #f3f6f7; --surface: #ffffff; --surface-2: #f8fbfc; --ink: #14232e; --muted: #5e7380;
+    --rule: #d9e3e8; --soft: #e9f0f3; --accent: #0b7a86; --running: #b07a0c; --good: #1c8554;
+    --bad: #b3432d; --stalled: #8a5a9e; --line-1: #0b7a86; --line-2: #c25b3a; --line-3: #6d5bc2;
+    --line-4: #3d8c40; --line-5: #b07a0c;
+    --sans: "IBM Plex Sans", -apple-system, "Helvetica Neue", Arial, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e1418; --surface: #151e24; --surface-2: #121a1f; --ink: #e2eaee; --muted: #8fa1ab;
+      --rule: #25333c; --soft: #1b262d; --accent: #45c2cd; --running: #e0b04a; --good: #57c28f;
+      --bad: #ee7b62; --stalled: #c39ad6; --line-1: #45c2cd; --line-2: #ee8f6a; --line-3: #a597f0;
+      --line-4: #7fcf83; --line-5: #e0b04a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(--sans); }
+  header { display: flex; align-items: center; gap: 18px; padding: 12px 20px; border-bottom: 1px solid var(--rule); background: var(--surface); position: sticky; top: 0; z-index: 5; }
+  header h1 { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -0.01em; }
+  header nav { display: flex; gap: 4px; }
+  header nav button { border: 1px solid transparent; background: none; color: var(--muted); font: 500 13px var(--sans); padding: 5px 12px; border-radius: 6px; cursor: pointer; }
+  header nav button[aria-pressed="true"] { color: var(--ink); background: var(--soft); border-color: var(--rule); }
+  .refresh { margin-left: auto; color: var(--muted); font: 12px var(--mono); }
+  main { display: grid; grid-template-columns: minmax(300px, 380px) 1fr; min-height: calc(100vh - 53px); }
+  aside { border-right: 1px solid var(--rule); background: var(--surface-2); display: flex; flex-direction: column; max-height: calc(100vh - 53px); position: sticky; top: 53px; }
+  .filters { padding: 12px 14px; display: grid; gap: 8px; border-bottom: 1px solid var(--rule); }
+  .filters input { width: 100%; padding: 7px 10px; border: 1px solid var(--rule); border-radius: 6px; background: var(--surface); color: var(--ink); font: 13px var(--sans); }
+  .chips { display: flex; flex-wrap: wrap; gap: 5px; }
+  .chip { border: 1px solid var(--rule); background: var(--surface); color: var(--muted); border-radius: 999px; padding: 2px 9px; font: 500 11px var(--mono); cursor: pointer; }
+  .chip[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); }
+  .list { overflow-y: auto; padding: 6px; }
+  .run { display: block; width: 100%; text-align: left; border: 1px solid transparent; background: none; color: inherit; border-radius: 8px; padding: 9px 10px; cursor: pointer; font: inherit; }
+  .run:hover { background: var(--soft); }
+  .run[aria-current="true"] { background: var(--surface); border-color: var(--rule); box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
+  .run-top { display: flex; align-items: center; gap: 7px; }
+  .run-name { font: 500 13px var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+  .run-meta { color: var(--muted); font: 11px var(--mono); margin-top: 2px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .run-head { margin-top: 4px; display: grid; gap: 1px; font: 11.5px var(--mono); color: var(--ink); }
+  .run-head span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .run-head b { font-weight: 500; color: var(--muted); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--muted); }
+  .dot.running { background: var(--running); box-shadow: 0 0 0 3px color-mix(in srgb, var(--running) 22%, transparent); }
+  .dot.complete, .dot.results { background: var(--good); }
+  .dot.failed { background: var(--bad); }
+  .dot.stalled { background: var(--stalled); }
+  .pill { display: inline-block; border: 1px solid currentColor; border-radius: 999px; padding: 0 8px; font: 500 11px/1.7 var(--mono); text-transform: uppercase; letter-spacing: 0.04em; }
+  .pill.running { color: var(--running); } .pill.complete, .pill.results { color: var(--good); } .pill.failed { color: var(--bad); } .pill.stalled { color: var(--stalled); } .pill.unknown { color: var(--muted); }
+  .content { padding: 22px 26px 60px; min-width: 0; }
+  .empty { color: var(--muted); padding: 40px 0; }
+  .detail-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .detail-head h2 { margin: 0; font: 600 20px var(--mono); letter-spacing: -0.01em; word-break: break-all; }
+  .sub { color: var(--muted); font: 12px var(--mono); margin-top: 4px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; margin-top: 16px; }
+  .card { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 10px 12px; }
+  .card .k { color: var(--muted); font: 11px var(--mono); text-transform: uppercase; letter-spacing: 0.04em; }
+  .card .v { font: 500 14px var(--mono); margin-top: 3px; word-break: break-word; }
+  section { margin-top: 26px; }
+  section h3 { margin: 0 0 10px; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+  .charts { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+  .chart { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 10px 12px 8px; }
+  .chart-title { font: 500 12px var(--mono); margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .chart .axis { fill: var(--muted); font: 10px var(--mono); }
+  .chart .grid { stroke: var(--rule); stroke-width: 1; }
+  .legend { display: flex; gap: 10px; flex-wrap: wrap; font: 11px var(--mono); color: var(--muted); margin-top: 4px; }
+  .legend i { display: inline-block; width: 10px; height: 2px; vertical-align: middle; margin-right: 4px; }
+  .videos { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+  .videos figure { margin: 0; display: grid; gap: 5px; }
+  .videos video, .videos img { width: 100%; border-radius: 6px; border: 1px solid var(--rule); background: #000; display: block; }
+  .videos figcaption { font: 11px var(--mono); color: var(--muted); word-break: break-all; }
+  pre { margin: 0; background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 12px 14px; overflow: auto; font: 12px/1.55 var(--mono); max-height: 420px; }
+  details summary { cursor: pointer; color: var(--muted); font: 500 12px var(--mono); margin: 6px 0; }
+  .tabs-empty { color: var(--muted); font: 12px var(--mono); }
+  .table { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font: 12.5px var(--mono); font-variant-numeric: tabular-nums; }
+  th, td { padding: 7px 12px; text-align: left; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; background: var(--soft); }
+  tbody tr:last-child td { border-bottom: 0; }
+  td.num { color: var(--accent); font-weight: 500; }
+  td.seeds { color: var(--muted); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  @media (max-width: 860px) {
+    main { grid-template-columns: 1fr; }
+    aside { position: static; max-height: 45vh; border-right: 0; border-bottom: 1px solid var(--rule); }
+    .content { padding: 16px; }
+    header { flex-wrap: wrap; padding: 10px 16px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>FlyArm runs</h1>
+  <nav>
+    <button id="tab-runs" aria-pressed="true">Runs</button>
+    <button id="tab-rollouts" aria-pressed="false">Rollouts</button>
+  </nav>
+  <span class="refresh" id="refresh">loading</span>
+</header>
+<main id="runs-view">
+  <aside>
+    <div class="filters">
+      <input id="search" type="search" placeholder="Filter runs by name">
+      <div class="chips" id="family-chips"></div>
+      <div class="chips" id="status-chips"></div>
+    </div>
+    <div class="list" id="list"></div>
+  </aside>
+  <div class="content" id="detail"><p class="empty">Select a run.</p></div>
+</main>
+<main id="rollouts-view" hidden style="grid-template-columns: 1fr;">
+  <div class="content">
+    <div class="filters" style="padding: 0 0 14px; border: 0;"><input id="video-search" type="search" placeholder="Filter videos by name or path"></div>
+    <div class="videos" id="gallery"></div>
+  </div>
+</main>
+<script>
+const state = { runs: [], selected: null, family: new Set(), status: new Set(), query: "", videos: [], videoQuery: "" };
+const COLORS = ["--line-1", "--line-2", "--line-3", "--line-4", "--line-5"];
+const escape = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+
+function ago(seconds) {
+  const delta = Math.max(0, Date.now() / 1000 - seconds);
+  if (delta < 60) return `${Math.round(delta)}s ago`;
+  if (delta < 3600) return `${Math.round(delta / 60)} min ago`;
+  if (delta < 86400) return `${(delta / 3600).toFixed(1)} h ago`;
+  return `${Math.round(delta / 86400)} d ago`;
+}
+const stamp = (seconds) => new Date(seconds * 1000).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+
+async function getJSON(url) {
+  const response = await fetch(url, { cache: "no-store" });
+  if (!response.ok) throw new Error(`${url}: ${response.status}`);
+  return response.json();
+}
+
+function chips(container, values, active, onChange) {
+  container.innerHTML = values.map((v) => `<button class="chip" aria-pressed="${active.has(v)}" data-v="${escape(v)}">${escape(v)}</button>`).join("");
+  container.querySelectorAll(".chip").forEach((chip) => chip.addEventListener("click", () => {
+    const v = chip.dataset.v; active.has(v) ? active.delete(v) : active.add(v); onChange();
+  }));
+}
+
+function renderList() {
+  const families = [...new Set(state.runs.map((r) => r.family))].sort();
+  const statuses = [...new Set(state.runs.map((r) => r.status))].sort();
+  chips(document.getElementById("family-chips"), families, state.family, renderList);
+  chips(document.getElementById("status-chips"), statuses, state.status, renderList);
+  const shown = state.runs.filter((r) =>
+    (!state.family.size || state.family.has(r.family)) &&
+    (!state.status.size || state.status.has(r.status)) &&
+    (!state.query || `${r.root}/${r.name}`.toLowerCase().includes(state.query)));
+  const list = document.getElementById("list");
+  if (!shown.length) { list.innerHTML = `<p class="tabs-empty" style="padding: 12px;">No runs match.</p>`; return; }
+  list.innerHTML = shown.map((r) => `
+    <button class="run" data-id="${escape(r.id)}" aria-current="${state.selected === r.id}">
+      <div class="run-top"><span class="dot ${escape(r.status)}" title="${escape(r.status)}"></span><span class="run-name">${escape(r.name)}</span></div>
+      <div class="run-meta"><span>${escape(r.root)}</span><span>${escape(r.family)}</span><span>${ago(r.updated)}</span>${r.media ? `<span>${r.media} media</span>` : ""}</div>
+      ${r.headline.length ? `<div class="run-head">${r.headline.slice(0, 5).map((h) => `<span><b>${escape(h.label)}</b> ${escape(h.value)}</span>`).join("")}</div>` : ""}
+    </button>`).join("");
+  list.querySelectorAll(".run").forEach((el) => el.addEventListener("click", () => select(el.dataset.id)));
+}
+
+// Sparse series (scored every few epochs) connect across gaps; long noisy series are smoothed.
+function prepare(line) {
+  const pts = line.x.map((x, i) => [x, line.y[i]]).filter(([, y]) => y !== null && y !== undefined && Number.isFinite(y));
+  if (pts.length <= 60) return { ...line, pts, smoothed: false };
+  const window = Math.max(3, Math.round(pts.length / 30));
+  const smooth = pts.map(([x], i) => {
+    const slice = pts.slice(Math.max(0, i - window + 1), i + 1);
+    return [x, slice.reduce((sum, [, y]) => sum + y, 0) / slice.length];
+  });
+  return { ...line, pts: smooth, smoothed: true };
+}
+
+function lineChart(title, rawLines) {
+  const lines = rawLines.map(prepare).filter((l) => l.pts.length);
+  const width = 320, height = 150, pad = { l: 42, r: 8, t: 6, b: 20 };
+  const points = lines.flatMap((l) => l.pts);
+  if (!points.length) return "";
+  const xs = points.map((p) => p[0]), ys = points.map((p) => p[1]);
+  let [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+  if (x0 === x1) x1 = x0 + 1;
+  if (y0 === y1) { y0 = Math.min(y0, 0); y1 = y1 === 0 ? 1 : Math.max(y1, 0); }
+  const sx = (x) => pad.l + ((x - x0) / (x1 - x0)) * (width - pad.l - pad.r);
+  const sy = (y) => height - pad.b - ((y - y0) / (y1 - y0)) * (height - pad.t - pad.b);
+  const fmt = (v) => Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(v >= 1e5 ? 0 : 1)}k` : Math.abs(v) >= 10 ? v.toFixed(0) : Math.abs(v) >= 1 ? v.toFixed(1) : v.toPrecision(2);
+  const paths = lines.map((l, k) => {
+    const color = `var(${COLORS[k % COLORS.length]})`;
+    const d = l.pts.map(([x, y], i) => `${i ? "L" : "M"}${sx(x).toFixed(1)},${sy(y).toFixed(1)}`).join("");
+    const dots = l.pts.length <= 25 ? l.pts.map(([x, y]) => `<circle cx="${sx(x).toFixed(1)}" cy="${sy(y).toFixed(1)}" r="2" fill="${color}"/>`).join("") : "";
+    return `<path d="${d}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linejoin="round"/>${dots}`;
+  }).join("");
+  const grid = [y0, (y0 + y1) / 2, y1].map((y) => `<line class="grid" x1="${pad.l}" x2="${width - pad.r}" y1="${sy(y)}" y2="${sy(y)}"/><text class="axis" x="${pad.l - 5}" y="${sy(y) + 3}" text-anchor="end">${fmt(y)}</text>`).join("");
+  const axis = `<text class="axis" x="${pad.l}" y="${height - 5}">${fmt(x0)}</text><text class="axis" x="${width - pad.r}" y="${height - 5}" text-anchor="end">${fmt(x1)}</text>`;
+  const legend = lines.map((l, k) => `<span><i style="background: var(${COLORS[k % COLORS.length]})"></i>${escape(l.metric)}${l.smoothed ? " (smoothed)" : ""}</span>`).join("");
+  return `<div class="chart"><div class="chart-title" title="${escape(title)}">${escape(title)}</div><svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${escape(title)}">${grid}${axis}${paths}</svg><div class="legend">${legend}</div></div>`;
+}
+
+function renderCharts(series) {
+  const groups = new Map();
+  for (const s of series) {
+    const scale = s.metric.includes("loss") || s.metric.includes("mse") ? "loss" : s.metric;
+    const key = `${s.group} · ${scale === "loss" ? "loss" : s.metric}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(s);
+  }
+  return [...groups.entries()].map(([title, lines]) => lineChart(title, lines)).join("");
+}
+
+function mediaTile(root, path) {
+  const url = `/media/${encodeURIComponent(root)}/${path.split("/").map(encodeURIComponent).join("/")}`;
+  const body = path.endsWith(".mp4") ? `<video src="${url}" controls muted playsinline preload="metadata"></video>` : `<img src="${url}" alt="${escape(path)}" loading="lazy">`;
+  return `<figure>${body}<figcaption>${escape(path)}</figcaption></figure>`;
+}
+
+async function select(id, keepScroll = false) {
+  state.selected = id;
+  if (location.hash !== `#${id}`) history.replaceState(null, "", `#${id}`);
+  renderList();
+  const [root, ...rest] = id.split("/");
+  const detailEl = document.getElementById("detail");
+  let run;
+  try { run = await getJSON(`/api/runs/${encodeURIComponent(root)}/${encodeURIComponent(rest.join("/"))}`); }
+  catch (error) { detailEl.innerHTML = `<p class="empty">${escape(error.message)}</p>`; return; }
+  if (state.selected !== id) return;
+  const scroll = window.scrollY;
+  const cards = run.headline.map((h) => `<div class="card"><div class="k">${escape(h.label)}</div><div class="v">${escape(h.value)}</div></div>`).join("");
+  const charts = renderCharts(run.curves);
+  const table = run.table.length ? `<section><h3>Sweep</h3><div class="table"><table><thead><tr><th>Setting</th><th>Controller</th><th>Mean</th><th>Per seed</th></tr></thead><tbody>${run.table.map((row) => `<tr><td>${escape(row.setting)}</td><td>${escape(row.kind)}</td><td class="num">${row.mean.toFixed(1)}</td><td class="seeds">${row.scores.map((v) => v.toFixed(0)).join(", ")}</td></tr>`).join("")}</tbody></table></div></section>` : "";
+  const media = run.media_files.map((p) => mediaTile(run.root, p)).join("");
+  detailEl.innerHTML = `
+    <div class="detail-head"><h2>${escape(run.name)}</h2><span class="pill ${escape(run.status)}">${escape(run.status)}</span></div>
+    <div class="sub">${escape(run.root)} · ${escape(run.family)} · started ${stamp(run.started)} · updated ${ago(run.updated)}</div>
+    ${cards ? `<div class="cards">${cards}</div>` : ""}
+    ${table}
+    ${charts ? `<section><h3>Curves</h3><div class="charts">${charts}</div></section>` : ""}
+    ${media ? `<section><h3>Rollouts and figures</h3><div class="videos">${media}</div></section>` : ""}
+    ${run.log.length ? `<section><h3>Log tail</h3><pre>${escape(run.log.join("\n"))}</pre></section>` : ""}
+    <section><h3>Config and results</h3>
+      <details><summary>config.json</summary><pre>${escape(JSON.stringify(run.config, null, 2))}</pre></details>
+      <details><summary>results.json (per-episode lists omitted)</summary><pre>${escape(JSON.stringify(run.results, null, 2))}</pre></details>
+    </section>`;
+  if (keepScroll) window.scrollTo(0, scroll);
+  const pre = detailEl.querySelector("section pre"); if (pre) pre.scrollTop = pre.scrollHeight;
+}
+
+function renderGallery() {
+  const q = state.videoQuery;
+  const shown = state.videos.filter((v) => !q || `${v.root}/${v.path}`.toLowerCase().includes(q));
+  document.getElementById("gallery").innerHTML = shown.length
+    ? shown.map((v) => mediaTile(v.root, v.path).replace("</figcaption>", ` · ${escape(v.root)} · ${ago(v.updated)}</figcaption>`)).join("")
+    : `<p class="tabs-empty">No videos yet.</p>`;
+}
+
+async function refresh() {
+  try {
+    const data = await getJSON("/api/runs");
+    state.runs = data.runs;
+    renderList();
+    const linked = decodeURIComponent(location.hash.slice(1));
+    if (!state.selected && linked && state.runs.some((r) => r.id === linked)) await select(linked);
+    else if (!state.selected && state.runs.length) await select(state.runs[0].id);
+    else if (state.selected && !document.getElementById("runs-view").hidden) {
+      const open = document.querySelector("#detail video:not([paused])");
+      const playing = [...document.querySelectorAll("#detail video")].some((v) => !v.paused);
+      const reading = document.querySelector("#detail details[open]");
+      if (!playing && !reading && !open) await select(state.selected, true);
+    }
+    document.getElementById("refresh").textContent = `${state.runs.length} runs · refreshed ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`;
+  } catch (error) {
+    document.getElementById("refresh").textContent = `refresh failed: ${error.message}`;
+  }
+}
+
+async function loadGallery() {
+  state.videos = (await getJSON("/api/gallery")).videos;
+  renderGallery();
+}
+
+function show(view) {
+  const runs = view === "runs";
+  document.getElementById("runs-view").hidden = !runs;
+  document.getElementById("rollouts-view").hidden = runs;
+  document.getElementById("tab-runs").setAttribute("aria-pressed", runs);
+  document.getElementById("tab-rollouts").setAttribute("aria-pressed", !runs);
+  if (!runs) loadGallery();
+}
+
+document.getElementById("tab-runs").addEventListener("click", () => show("runs"));
+document.getElementById("tab-rollouts").addEventListener("click", () => show("rollouts"));
+document.getElementById("search").addEventListener("input", (e) => { state.query = e.target.value.toLowerCase(); renderList(); });
+document.getElementById("video-search").addEventListener("input", (e) => { state.videoQuery = e.target.value.toLowerCase(); renderGallery(); });
+refresh();
+setInterval(refresh, 30000);
+</script>
+</body>
+</html>
