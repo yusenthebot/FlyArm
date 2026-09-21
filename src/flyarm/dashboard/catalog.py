@@ -72,10 +72,14 @@ def find_runs(root: Root) -> list[Path]:
     )
 
 
-def family(config: Any, results: Any) -> str:
+def family(config: Any, results: Any, name: str = "") -> str:
     config = config if isinstance(config, dict) else {}
     if isinstance(results, list):
         return "sweep"
+    if name.startswith("hand"):
+        return "dexterous"
+    if name.startswith("long-horizon"):
+        return "long-horizon"
     if "base_run" in config:
         return "rl-ppo"
     if "split" in config:
@@ -84,12 +88,13 @@ def family(config: Any, results: Any) -> str:
         return "multitask"
     if config.get("task") in ("reach", "pick-place"):
         return "whole-brain"
-    return "other"
+    # The 256-node subgraph prototypes (reach, pick-place, smoke) predate every family above.
+    return "prototype"
 
 
 def _updated(run: Path) -> float:
-    stamps = [run.stat().st_mtime]
-    stamps += [p.stat().st_mtime for p in run.iterdir() if p.is_file()]
+    """Latest change of the run's own files (a directory's time moves when media is archived)."""
+    stamps = [p.stat().st_mtime for p in run.iterdir() if p.is_file()] or [run.stat().st_mtime]
     log = run.with_suffix(".log")
     if log.is_file():
         stamps.append(log.stat().st_mtime)
@@ -163,7 +168,7 @@ def safe_headline(kind: str, results: Any) -> list[dict[str, str]]:
 
 def summarize(root: Root, run: Path) -> dict[str, Any]:
     config, results = _load(run / "config.json"), _load(run / "results.json")
-    kind = family(config, results)
+    kind = family(config, results, run.name)
     status = results.get("status", "unknown") if isinstance(results, dict) else "unknown"
     if kind == "sweep":
         status = "results"
@@ -301,26 +306,110 @@ def detail(root: Root, run: Path) -> dict[str, Any]:
         "results": _strip_episodes(results),
         "curves": curves(run),
         "log": log_tail(run),
-        "media_files": [str(path.relative_to(root.path)) for path in _media(run)],
+        "media_files": [
+            {"path": str(path.relative_to(root.path)), "title": readable(path.stem)}
+            for path in _media(run)
+        ],
     }
 
 
-def gallery(roots: list[Root], limit: int = 200) -> list[dict[str, Any]]:
-    """Every rollout video under the roots, newest first."""
+HIDDEN_DIRS = ("_archive", "site")
+DEFAULT_HIDDEN = ("smoke", "draft")
+AREAS = (
+    ("ppo", "Reinforcement learning"),
+    ("kitchen", "Kitchen"),
+    ("flyleg", "Kitchen"),
+    ("multitask", "Multi-task"),
+    ("long-horizon", "Long horizon"),
+    ("hand", "Dexterous hand"),
+    ("pick-place", "Pick and place"),
+    ("whole-brain", "Pick and place"),
+    ("reach", "Reach"),
+)
+WORDS = {
+    "flyleg": "fly CNS",
+    "flyleg_shuffled": "shuffled CNS",
+    "connectome": "MaleCNS",
+    "shuffled": "shuffled CNS",
+    "gru": "GRU",
+    "mlp": "MLP",
+    "act": "ACT",
+    "before": "before",
+}
+
+
+def area_of(root: str, relative: str) -> str:
+    text = f"{root}/{relative}".lower()
+    return next((area for key, area in AREAS if key in text), "Other")
+
+
+def readable(stem: str) -> str:
+    """A title from a file name, for example kitchen-complete-comparison-seed0-episode0 ->
+    "kitchen complete comparison · seed 0 · episode 0" and heavier_6_10x-before-after ->
+    "heavier 6-10x · before vs after PPO"."""
+    before_after = stem.endswith("before-after")
+    stem = stem.removesuffix("-before-after").removesuffix("before-after")
+    parts: list[str] = []
+    detail: list[str] = []
+    for token in stem.split("-"):
+        matched = False
+        for prefix in ("seed", "episode"):
+            number = token[len(prefix) :]
+            if token.startswith(prefix) and number.isdigit():
+                detail.append(f"{prefix} {number}")
+                matched = True
+        if matched:
+            continue
+        if token.startswith("r") and token[1:].isdigit():
+            detail.append(f"shuffle #{int(token[1:]) + 1}")
+        elif token.isdigit() and parts:
+            detail.append(f"seed {token}")  # agent recordings name checkpoints kind-seed
+        else:
+            words = token.split("_")
+            if len(words) == 3 and words[1].isdigit() and words[2].endswith("x"):
+                parts.append(f"{words[0]} {words[1]}-{words[2]}")
+            else:
+                parts.append(WORDS.get(token, token.replace("_", " ")))
+    if before_after:
+        detail.append("before vs after PPO")
+    return " · ".join([" ".join(parts), *detail]).strip(" ·")
+
+
+def gallery(roots: list[Root], featured_path: Path | None = None) -> dict[str, Any]:
+    """Featured rollouts and every other rollout video grouped by area, newest first.
+
+    Archived media and published-page copies are skipped; smoke tests and drafts are
+    returned with ``hidden`` set so the page can leave them out by default.
+    """
+    labels = {root.label for root in roots}
     videos: list[dict[str, Any]] = []
     for root in roots:
         for path in root.path.rglob("*.mp4"):
-            if len(path.relative_to(root.path).parts) > 5:
+            relative = path.relative_to(root.path)
+            if len(relative.parts) > 5 or any(part in HIDDEN_DIRS for part in relative.parts):
                 continue
+            text = str(relative).lower()
             videos.append(
                 {
                     "root": root.label,
-                    "path": str(path.relative_to(root.path)),
-                    "name": path.stem,
+                    "path": str(relative),
+                    "title": readable(path.stem),
+                    "group": relative.parts[0],
+                    "area": area_of(root.label, str(relative)),
+                    "hidden": any(word in text for word in DEFAULT_HIDDEN),
                     "updated": path.stat().st_mtime,
                 }
             )
-    return sorted(videos, key=lambda item: item["updated"], reverse=True)[:limit]
+    videos.sort(key=lambda item: item["updated"], reverse=True)
+    featured: list[dict[str, Any]] = []
+    entries = _load(featured_path) if featured_path is not None else None
+    for entry in entries or []:
+        owner = next((r for r in roots if r.label == entry.get("root")), None)
+        if owner is None or entry.get("root") not in labels:
+            continue
+        if (owner.path / entry["path"]).is_file():
+            featured.append({**entry, "area": area_of(owner.label, entry["path"])})
+    return {"featured": featured, "videos": videos}
 
 
 def resolve_media(roots: list[Root], label: str, relative: str) -> Path:
