@@ -1,4 +1,4 @@
-import type { CausalMode, GraphPayload, RuntimeState } from "./types";
+import type { CausalMode, GraphPayload, NeuronDetail, RobotPayload, RuntimeState } from "./types";
 
 const sessionToken =
   document.querySelector<HTMLMetaElement>('meta[name="flyarm-session"]')?.content ?? "";
@@ -24,6 +24,24 @@ export async function loadGraph(): Promise<GraphPayload> {
   });
   if (!response.ok) throw new Error(`Graph load failed: ${response.status}`);
   return response.json() as Promise<GraphPayload>;
+}
+
+/** Resolves to null on servers that predate the mesh endpoint (skeleton fallback). */
+export async function loadRobot(): Promise<RobotPayload | null> {
+  const response = await fetch("/api/robot", {
+    headers: { "X-FlyArm-Session": sessionToken },
+  });
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`Robot model load failed: ${response.status}`);
+  return response.json() as Promise<RobotPayload>;
+}
+
+export async function loadNeuron(id: number): Promise<NeuronDetail> {
+  const response = await fetch(`/api/neuron/${id}`, {
+    headers: { "X-FlyArm-Session": sessionToken },
+  });
+  if (!response.ok) throw new Error(`Neuron ${id} failed: ${response.status}`);
+  return response.json() as Promise<NeuronDetail>;
 }
 
 export const controls = {

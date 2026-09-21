@@ -109,3 +109,24 @@ def test_render_shows_rgb_scene(env: PandaPickPlaceEnv) -> None:
     assert image.shape == (480, 640, 3)
     assert image.dtype == np.uint8
     assert int(image.max()) > int(image.min())
+
+
+def test_robot_payload_exports_the_compiled_panda_geometry(env: PandaPickPlaceEnv) -> None:
+    import base64
+
+    from flyarm.live import ROBOT_BODIES, build_robot_payload, robot_body_poses
+
+    payload = build_robot_payload(env.model)
+    meshes = [geom for geom in payload["geoms"] if geom["kind"] == "mesh"]
+    assert payload["bodies"] == list(ROBOT_BODIES)
+    assert len(meshes) >= 50 and any(geom["kind"] == "box" for geom in payload["geoms"])
+    for geom in meshes:
+        vertices = len(base64.b64decode(geom["positions"])) // 12
+        width = "<u2" if geom["index_width"] == 2 else "<u4"
+        index = np.frombuffer(base64.b64decode(geom["index"]), dtype=width)
+        assert len(index) % 3 == 0 and index.max() < vertices
+        assert len(base64.b64decode(geom["normals"])) == vertices * 3
+    env.reset(seed=3)
+    poses = np.asarray(robot_body_poses(env.model, env.data))
+    assert poses.shape == (len(ROBOT_BODIES), 7)
+    np.testing.assert_allclose(np.linalg.norm(poses[:, 3:], axis=1), 1.0, atol=1e-5)

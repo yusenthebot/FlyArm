@@ -1,9 +1,11 @@
 import { OrbitControls } from "@react-three/drei";
 import { Canvas, type ThreeEvent } from "@react-three/fiber";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import * as THREE from "three";
 
-import type { RuntimeState } from "../types";
+import { loadRobot } from "../api";
+import type { RobotPayload, RuntimeState } from "../types";
+import { FrankaModel } from "./FrankaModel";
 
 type Movable = "object" | "goal";
 
@@ -62,9 +64,11 @@ function RobotSkeleton({
 
 function RobotScene({
   state,
+  robot,
   onMove,
 }: {
   state: RuntimeState;
+  robot: RobotPayload | null;
   onMove: (kind: Movable, value: [number, number, number]) => void;
 }) {
   const [dragging, setDragging] = useState<Movable | null>(null);
@@ -89,8 +93,12 @@ function RobotScene({
         <planeGeometry args={[1.15, 0.82]} />
         <meshStandardMaterial color="#edf3f5" roughness={0.82} />
       </mesh>
-      {state.robot_points.length > 1 && (
-        <RobotSkeleton points={state.robot_points} gripperPoints={state.gripper_points} />
+      {robot && state.robot_bodies ? (
+        <FrankaModel robot={robot} poses={state.robot_bodies} />
+      ) : (
+        state.robot_points.length > 1 && (
+          <RobotSkeleton points={state.robot_points} gripperPoints={state.gripper_points} />
+        )
       )}
       <mesh
         position={toScene(state.object)}
@@ -125,11 +133,25 @@ export function RobotView({
   state: RuntimeState;
   onMove: (kind: Movable, value: [number, number, number]) => void;
 }) {
+  const [robot, setRobot] = useState<RobotPayload | null>(null);
+  useEffect(() => {
+    let current = true;
+    loadRobot()
+      .then((payload) => {
+        if (current) setRobot(payload);
+      })
+      .catch(() => {
+        if (current) setRobot(null);
+      });
+    return () => {
+      current = false;
+    };
+  }, []);
   return (
     <div className="viewport robot-viewport">
       <Canvas camera={{ position: [1.35, 1.08, 1.45], fov: 41 }} dpr={[1, 1.5]}>
         <color attach="background" args={["#f8fbfc"]} />
-        <RobotScene state={state} onMove={onMove} />
+        <RobotScene state={state} robot={robot} onMove={onMove} />
       </Canvas>
       <dl className="sim-readout">
         <div><dt>Sim time</dt><dd>{state.sim_time.toFixed(2)} s</dd></div>
@@ -138,7 +160,10 @@ export function RobotView({
         <div><dt>Goal error</dt><dd>{state.goal_error.toFixed(3)} m</dd></div>
       </dl>
       <div className="viewport-caption">
-        <span>Drag cube / goal to reset episode</span>
+        <span>
+          Drag cube / goal to reset episode
+          {robot && " · Franka Panda meshes: MuJoCo Menagerie (Apache-2.0)"}
+        </span>
         <span>Drag · orbit / Scroll · zoom</span>
       </div>
     </div>

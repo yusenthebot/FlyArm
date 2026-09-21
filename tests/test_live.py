@@ -261,3 +261,14 @@ def test_live_server_rejects_remote_hosts_and_arbitrary_static_roots(tmp_path: P
 )
 def test_physical_stage_is_not_the_teacher_state(info: dict[str, bool], expected: str) -> None:
     assert LiveRuntime._physical_stage(info) == expected
+
+
+def test_activity_code_keeps_four_decades_and_signs() -> None:
+    from flyarm.live import decode_activity, encode_activity
+
+    values = np.array([0.0, 5e-5, 1e-4, -1e-3, 3.3e-3, -0.02, 0.5, -1.0, 1.7])
+    decoded = decode_activity(encode_activity(values))
+    assert decoded[0] == 0.0 and decoded[1] == 0.0
+    assert np.all(np.sign(decoded[2:]) == np.sign(values[2:]))
+    np.testing.assert_allclose(decoded[2:8], values[2:8], rtol=0.04)
+    assert decoded[8] == 1.0

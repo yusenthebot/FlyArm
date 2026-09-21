@@ -94,6 +94,8 @@ class FrozenCSR:
             mx.array(targets[transpose]),
             mx.array(np.asarray(weights, dtype=np.float32)[transpose]).astype(dtype),
         )
+        # Materialize the constants once; lazy arrays are bound to the creating thread's stream.
+        mx.eval(*self._forward, *self._adjoint)
         self.apply: Callable[[mx.array], mx.array] = self._differentiable()
 
     def _run(self, matrix: tuple[mx.array, mx.array, mx.array], state: mx.array) -> mx.array:

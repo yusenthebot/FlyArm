@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import secrets
 import threading
 import time
-from collections.abc import AsyncIterator, Mapping
+from collections.abc import AsyncIterator, Callable, Mapping
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Literal
@@ -24,10 +25,10 @@ from pydantic import BaseModel, ConfigDict
 from flyarm.config import PickPlaceConfig
 from flyarm.graph import Graph
 from flyarm.interfaces import NeuralInterface, canonical_interface
-from flyarm.pick_place_env import PandaPickPlaceEnv
+from flyarm.pick_place_env import PandaPickPlaceEnv, physical_stage
 from flyarm.pick_place_models import PickPlaceController, PickPlacePolicy
 
-CausalMode = Literal["connectome", "shuffled", "edges_off"]
+CausalMode = Literal["connectome", "shuffled", "edges_off", "direct_only"]
 
 
 class ResetRequest(BaseModel):
@@ -49,6 +50,104 @@ def _json_value(value: Any) -> Any:
     if isinstance(value, np.generic):
         return value.item()
     return value
+
+
+ACTIVITY_FLOOR = 1e-4
+ROBOT_BODIES = (*(f"link{index}" for index in range(8)), "hand", "left_finger", "right_finger")
+
+
+def _b64(array: np.ndarray, dtype: str) -> str:
+    return base64.b64encode(np.ascontiguousarray(array, dtype=dtype).tobytes()).decode("ascii")
+
+
+def encode_activity(values: np.ndarray) -> str:
+    """Signed log-scale int8, base64: |state| in [1e-4, 1] maps to codes 1..127, below to 0.
+
+    Rate states span four decades (saturated inputs near 1, most internal neurons near
+    1e-3), so a linear int8 code would erase almost the whole brain. The log code keeps
+    about 3.7% relative precision over the full range; the UI decodes it back to values.
+    """
+    state = np.clip(np.asarray(values, dtype=np.float64), -1.0, 1.0)
+    magnitude = np.abs(state)
+    decades = -np.log10(ACTIVITY_FLOOR)
+    scaled = np.log10(np.maximum(magnitude, ACTIVITY_FLOOR) / ACTIVITY_FLOOR) / decades
+    code = np.where(magnitude >= ACTIVITY_FLOOR, 1 + np.round(scaled * 126), 0)
+    return _b64(np.sign(state) * code, "i1")
+
+
+def decode_activity(encoded: str) -> np.ndarray:
+    """Inverse of encode_activity (used by tests; the UI implements the same formula)."""
+    code = np.frombuffer(base64.b64decode(encoded), dtype=np.int8).astype(np.float64)
+    magnitude = ACTIVITY_FLOOR * 10 ** ((np.abs(code) - 1) / 126 * -np.log10(ACTIVITY_FLOOR))
+    return np.where(code == 0, 0.0, np.sign(code) * magnitude)
+
+
+def _robot_body_ids(model: mujoco.MjModel) -> list[int]:
+    ids = [mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, name) for name in ROBOT_BODIES]
+    missing = [name for name, body in zip(ROBOT_BODIES, ids, strict=True) if body < 0]
+    if missing:
+        raise ValueError(f"Compiled model lacks Panda bodies: {missing}")
+    return ids
+
+
+def robot_body_poses(model: mujoco.MjModel, data: mujoco.MjData) -> list[list[float]]:
+    """Live world pose [x, y, z, qw, qx, qy, qz] of every Panda body, in ROBOT_BODIES order."""
+    ids = _robot_body_ids(model)
+    return np.round(np.hstack((data.xpos[ids], data.xquat[ids])), 6).tolist()
+
+
+def build_robot_payload(model: mujoco.MjModel) -> dict[str, Any]:
+    """Every visible Panda geom exactly as MuJoCo compiled it, in its body's frame.
+
+    Meshes come from the pinned Menagerie assets through the compiled model, so the UI
+    draws the same geometry MuJoCo simulates and renders (default visible groups 0-2),
+    including FlyArm's rigid finger pads. Vertices are deduplicated by (position, normal).
+    """
+    body_index = {body: index for index, body in enumerate(_robot_body_ids(model))}
+    geoms: list[dict[str, Any]] = []
+    for geom in range(model.ngeom):
+        body = int(model.geom_bodyid[geom])
+        if body not in body_index or model.geom_group[geom] > 2:
+            continue
+        material = int(model.geom_matid[geom])
+        rgba = model.mat_rgba[material] if material >= 0 else model.geom_rgba[geom]
+        entry: dict[str, Any] = {
+            "body": body_index[body],
+            "pos": model.geom_pos[geom].tolist(),
+            "quat": model.geom_quat[geom].tolist(),
+            "rgba": np.round(rgba, 4).tolist(),
+        }
+        kind = model.geom_type[geom]
+        if kind == mujoco.mjtGeom.mjGEOM_MESH:
+            mesh = int(model.geom_dataid[geom])
+            v0 = model.mesh_vertadr[mesh]
+            f0, fn = model.mesh_faceadr[mesh], model.mesh_facenum[mesh]
+            faces = model.mesh_face[f0 : f0 + fn]
+            corner_normals = model.mesh_normal[
+                model.mesh_normaladr[mesh] + model.mesh_facenormal[f0 : f0 + fn]
+            ]
+            corners = np.concatenate(
+                (model.mesh_vert[v0 + faces.reshape(-1)], corner_normals.reshape(-1, 3)), axis=1
+            )
+            unique, index = np.unique(np.round(corners, 5), axis=0, return_inverse=True)
+            entry.update(
+                kind="mesh",
+                positions=_b64(unique[:, :3], "<f4"),
+                normals=_b64(np.round(unique[:, 3:] * 127), "i1"),
+                index=_b64(index.reshape(-1), "<u2" if len(unique) < 65536 else "<u4"),
+                index_width=2 if len(unique) < 65536 else 4,
+            )
+        elif kind == mujoco.mjtGeom.mjGEOM_BOX:
+            entry.update(kind="box", size=(2 * model.geom_size[geom]).tolist())
+        else:
+            continue
+        geoms.append(entry)
+    return {
+        "source": "Google DeepMind MuJoCo Menagerie franka_emika_panda (Apache-2.0)",
+        "bodies": list(ROBOT_BODIES),
+        "geoms": geoms,
+        "pose_layout": "x y z qw qx qy qz, MuJoCo world frame (z up)",
+    }
 
 
 def build_graph_payload(
@@ -135,6 +234,9 @@ def build_graph_payload(
         "interface_fingerprint": interface.fingerprint,
         "dataset": graph.metadata["dataset"],
         "layout": "measured_soma_locations",
+        "format": "nodes-v1",
+        "title": f"{len(graph.ids)} measured neurons · {len(graph.pre):,} synaptic edges",
+        "modes": ["connectome", "shuffled", "edges_off"],
     }
 
 
@@ -272,7 +374,7 @@ class LiveRuntime:
     def __init__(
         self,
         env: PandaPickPlaceEnv,
-        controllers: dict[CausalMode, PickPlaceController],
+        controllers: Mapping[CausalMode, Any],
         evidence: dict[str, Any],
         *,
         seed: int = 0,
@@ -364,6 +466,8 @@ class LiveRuntime:
         return vector
 
     def set_mode(self, mode: CausalMode) -> None:
+        if mode not in self.controllers:
+            raise ValueError(f"Mode {mode} is not available for this run")
         with self._lock:
             self.mode = mode
             self.running = False
@@ -374,57 +478,59 @@ class LiveRuntime:
             for controller in self.controllers.values():
                 controller.reset()
 
+    @staticmethod
+    def _hidden(controller: Any) -> np.ndarray:
+        return controller.state[0].detach().cpu().numpy()
+
     def snapshot(self) -> dict[str, Any]:
         with self._lock:
-            controller = self.controllers[self.mode]
-            hidden = controller.state[0].detach().cpu().numpy()
-            robot_points: list[list[float]] = []
-            for name in [*(f"link{index}" for index in range(8)), "hand"]:
-                body_id = mujoco.mj_name2id(self.env.model, mujoco.mjtObj.mjOBJ_BODY, name)
-                if body_id >= 0:
-                    robot_points.append(self.env.data.xpos[body_id].tolist())
-            gripper_points = []
-            for name in ["left_finger", "right_finger"]:
-                body_id = mujoco.mj_name2id(self.env.model, mujoco.mjtObj.mjOBJ_BODY, name)
-                if body_id >= 0:
-                    gripper_points.append(self.env.data.xpos[body_id].tolist())
-            info = {key: _json_value(value) for key, value in self._info.items()}
-            return {
-                "connected": True,
-                "running": self.running,
-                "mode": self.mode,
-                "step": self.env.steps,
-                "sim_time": float(self.env.data.time),
-                "stage": self._physical_stage(info),
-                "success": bool(info["is_success"]),
-                "contact_left": bool(info["contact_left"]),
-                "contact_right": bool(info["contact_right"]),
-                "ever_grasped": bool(info["ever_grasped"]),
-                "ever_lifted": bool(info["ever_lifted"]),
-                "object_height": float(info["object_height"]),
-                "goal_error": float(info["goal_xy_error"]),
-                "gripper_opening": float(info["gripper_opening"]),
-                "object": info["object_position"],
-                "goal": info["goal"],
-                "end_effector": info["ee_position"],
-                "robot_points": robot_points,
-                "gripper_points": gripper_points,
-                "action": self._last_action.tolist(),
-                "hidden": hidden.tolist(),
-                "evidence": self.evidence,
-            }
+            return self._compute_snapshot()
+
+    def _compute_snapshot(self) -> dict[str, Any]:
+        controller = self.controllers[self.mode]
+        hidden = self._hidden(controller)
+        robot_points: list[list[float]] = []
+        for name in [*(f"link{index}" for index in range(8)), "hand"]:
+            body_id = mujoco.mj_name2id(self.env.model, mujoco.mjtObj.mjOBJ_BODY, name)
+            if body_id >= 0:
+                robot_points.append(self.env.data.xpos[body_id].tolist())
+        gripper_points = []
+        for name in ["left_finger", "right_finger"]:
+            body_id = mujoco.mj_name2id(self.env.model, mujoco.mjtObj.mjOBJ_BODY, name)
+            if body_id >= 0:
+                gripper_points.append(self.env.data.xpos[body_id].tolist())
+        info = {key: _json_value(value) for key, value in self._info.items()}
+        return {
+            "connected": True,
+            "running": self.running,
+            "mode": self.mode,
+            "step": self.env.steps,
+            "sim_time": float(self.env.data.time),
+            "stage": self._physical_stage(info),
+            "success": bool(info["is_success"]),
+            "contact_left": bool(info["contact_left"]),
+            "contact_right": bool(info["contact_right"]),
+            "ever_grasped": bool(info["ever_grasped"]),
+            "ever_lifted": bool(info["ever_lifted"]),
+            "object_height": float(info["object_height"]),
+            "goal_error": float(info["goal_xy_error"]),
+            "gripper_opening": float(info["gripper_opening"]),
+            "object": info["object_position"],
+            "goal": info["goal"],
+            "end_effector": info["ee_position"],
+            "robot_points": robot_points,
+            "gripper_points": gripper_points,
+            "action": self._last_action.tolist(),
+            "robot_bodies": robot_body_poses(self.env.model, self.env.data),
+            "hidden_q": encode_activity(hidden),
+            "hidden_count": int(hidden.size),
+            "hidden_floor": ACTIVITY_FLOOR,
+            "evidence": self.evidence,
+        }
 
     @staticmethod
     def _physical_stage(info: Mapping[str, Any]) -> str:
-        if bool(info["is_success"]):
-            return "placed"
-        if bool(info["ever_lifted"]):
-            return "lifted"
-        if bool(info["ever_grasped"]):
-            return "grasped"
-        if bool(info["contact_left"]) or bool(info["contact_right"]):
-            return "contact"
-        return "free"
+        return physical_stage(dict(info))
 
 
 def _approved_ui_dist() -> Path:
@@ -441,7 +547,13 @@ def _validate_server_scope(ui_dist: Path, host: str) -> Path:
     return resolved
 
 
-def create_app(runtime: LiveRuntime, graph_payload: dict[str, Any], ui_dist: Path) -> FastAPI:
+def create_app(
+    runtime: LiveRuntime,
+    graph_payload: dict[str, Any],
+    ui_dist: Path,
+    neuron_details: Callable[[int], dict[str, Any]] | None = None,
+    robot_payload: dict[str, Any] | None = None,
+) -> FastAPI:
     if not (ui_dist / "index.html").is_file():
         raise FileNotFoundError(f"Built UI not found: {ui_dist}; run `npm --prefix ui run build`")
 
@@ -488,6 +600,25 @@ def create_app(runtime: LiveRuntime, graph_payload: dict[str, Any], ui_dist: Pat
         require_session(request)
         return graph_payload
 
+    @app.get("/api/robot")
+    async def robot(request: Request) -> dict[str, Any]:
+        require_session(request)
+        if robot_payload is None:
+            raise HTTPException(status_code=404, detail="Robot meshes are not served")
+        return robot_payload
+
+    @app.get("/api/neuron/{body_id}")
+    async def neuron(body_id: int, request: Request) -> dict[str, Any]:
+        require_session(request)
+        if neuron_details is None:
+            raise HTTPException(
+                status_code=404, detail="Neuron details are not served for this run"
+            )
+        try:
+            return neuron_details(body_id)
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail=f"Unknown Body ID {body_id}") from error
+
     @app.get("/api/state")
     async def state(request: Request) -> dict[str, Any]:
         require_session(request)
@@ -523,7 +654,10 @@ def create_app(runtime: LiveRuntime, graph_payload: dict[str, Any], ui_dist: Pat
     @app.post("/api/mode")
     async def mode(body: ModeRequest, request: Request) -> dict[str, bool]:
         require_session(request)
-        runtime.set_mode(body.mode)
+        try:
+            runtime.set_mode(body.mode)
+        except ValueError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
         return {"ok": True}
 
     @app.websocket("/ws/state")
@@ -600,4 +734,7 @@ def serve_live(
         seed=seed,
     )
     runtime.start()
-    uvicorn.run(create_app(runtime, payload, ui_dist), host=host, port=port, log_level="info")
+    app = create_app(
+        runtime, payload, ui_dist, robot_payload=build_robot_payload(runtime.env.model)
+    )
+    uvicorn.run(app, host=host, port=port, log_level="info")

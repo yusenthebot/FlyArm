@@ -1,19 +1,51 @@
-import type { GraphNode, GraphPayload, RuntimeState } from "../types";
+import type { GraphPayload, NeuronDetail, Partner, RuntimeState } from "../types";
 
-function metric(value: number | null) {
-  return value === null ? "pending" : `${(value * 100).toFixed(0)}%`;
+/** The fields both the subgraph node list and the whole-brain detail endpoint provide. */
+export interface SelectedNeuron {
+  id: number;
+  index: number;
+  type: string | null;
+  superclass: string | null;
+  role: "input" | "internal" | "output";
+  sign: -1 | 0 | 1;
+  in_degree: number;
+  out_degree: number;
+}
+
+function metric(value: number | null | undefined) {
+  return value === null || value === undefined ? "pending" : `${(value * 100).toFixed(0)}%`;
+}
+
+function Partners({ label, partners }: { label: string; partners: Partner[] }) {
+  return (
+    <div className="partners">
+      <h3>{label}</h3>
+      <ol>
+        {partners.slice(0, 6).map((partner) => (
+          <li key={partner.id}>
+            <span>{partner.type ?? "untyped"}</span>
+            <b>{partner.contacts}</b>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
 }
 
 export function AuditPanel({
   graph,
   selected,
+  detail,
+  hidden,
   state,
 }: {
   graph: GraphPayload;
-  selected: GraphNode | null;
+  selected: SelectedNeuron | null;
+  detail: NeuronDetail | null;
+  hidden: Float32Array;
   state: RuntimeState;
 }) {
-  const activation = selected ? (state.hidden[selected.index] ?? 0) : 0;
+  const activation = selected ? (hidden[selected.index] ?? 0) : 0;
   const evidence = state.evidence;
   return (
     <div className="audit-stack">
@@ -31,6 +63,12 @@ export function AuditPanel({
           </dl>
         ) : (
           <p className="empty-audit">Select a neuron in the measured soma map.</p>
+        )}
+        {detail && (
+          <div className="partner-grid">
+            <Partners label="Strongest inputs · contacts" partners={detail.upstream} />
+            <Partners label="Strongest outputs · contacts" partners={detail.downstream} />
+          </div>
         )}
         <div className="hash-row">
           <span>Graph SHA</span>
@@ -51,11 +89,16 @@ export function AuditPanel({
           <strong>Graph-mediated: {evidence.graph_mediated.replace("_", " ")}</strong>
           <span>
             MaleCNS {metric(evidence.connectome_success_rate)} · edges off {metric(evidence.edges_off_success_rate)}
+            {evidence.direct_only_success_rate !== undefined &&
+              ` · direct I/O only ${metric(evidence.direct_only_success_rate)}`}
           </span>
         </div>
         <div className={`evidence evidence-${evidence.topology_advantage}`}>
           <strong>Topology advantage: {evidence.topology_advantage.replace("_", " ")}</strong>
-          <span>degree-preserving shuffle {metric(evidence.shuffled_success_rate)}</span>
+          <span>
+            degree-preserving shuffle {metric(evidence.shuffled_success_rate)}
+            {evidence.seeds !== undefined && ` · ${evidence.seeds} seed${evidence.seeds === 1 ? "" : "s"}`}
+          </span>
         </div>
       </section>
     </div>
