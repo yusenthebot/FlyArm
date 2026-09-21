@@ -38,8 +38,14 @@ def _whole_brain(args: argparse.Namespace) -> None:
         task, policy = load_trained_policy(args.run, args.kind, args.seed, args.pack, args.model)
         try:
             seeds = task.seeds("test", args.episodes)
-            path = args.run / f"{args.kind}-{args.seed}" / "rollout.mp4"
-            record_rollouts(task, policy, seeds, path)
+            path = args.output or args.run / f"{args.kind}-{args.seed}" / "rollout.mp4"
+            names = {
+                "connectome": "Complete MaleCNS (166,700 neurons)",
+                "shuffled": "Degree-matched shuffled CNS",
+                "gru": "GRU, parameter-matched",
+            }
+            title = f"{names[args.kind]} · {task.name} · seed {args.seed}"
+            record_rollouts(task, policy, seeds, path, title=title)
         finally:
             task.close()
         print(path)
@@ -116,6 +122,7 @@ def main() -> None:
     record.add_argument("--seed", type=int, default=0)
     record.add_argument("--episodes", type=int, default=3)
     record.add_argument("--pack", type=Path, default=Path(DEFAULT_PACK))
+    record.add_argument("--output", type=Path, help="MP4 path (default: inside the run)")
     record.add_argument(
         "--model", type=Path, default=Path("assets/menagerie/franka_emika_panda/scene.xml")
     )
@@ -142,6 +149,15 @@ def main() -> None:
     leg_run.add_argument("--pack", type=Path, default=Path(DEFAULT_PACK))
     leg_run.add_argument("--annotations", type=Path, default=Path(DEFAULT_ANNOTATIONS))
     leg_run.add_argument("--output", type=Path, required=True)
+    leg_record = leg_sub.add_parser("record", help="Labelled kitchen rollouts of saved checkpoints")
+    leg_record.add_argument("--run", type=Path, required=True)
+    leg_record.add_argument("--seed", type=int, default=0)
+    leg_record.add_argument("--episodes", type=int, nargs="+", default=[0, 1])
+    leg_record.add_argument("--pack", type=Path, default=Path(DEFAULT_PACK))
+    leg_record.add_argument("--annotations", type=Path, default=Path(DEFAULT_ANNOTATIONS))
+    leg_record.add_argument("--output", type=Path, required=True)
+    report = sub.add_parser("report", help="Aggregate completed runs into a Markdown report")
+    report.add_argument("--output", type=Path, required=True)
     serve = sub.add_parser("serve", help="Launch the real-time causal simulator and 3D UI")
     serve.add_argument("--run", type=Path, required=True)
     serve.add_argument("--graph", type=Path, default=Path("data/graphs/malecns-256-v1.npz"))
@@ -178,6 +194,19 @@ def main() -> None:
         print(f"Complete: {args.output}; {len(result['models'])} trained models")
     elif args.command == "whole-brain":
         _whole_brain(args)
+    elif args.command == "report":
+        from flyarm.report import build_report
+
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(build_report(Path.cwd()))
+        print(args.output)
+    elif args.command == "flyleg" and args.leg_command == "record":
+        from flyarm.flyleg.record import record_kitchen
+
+        manifest = record_kitchen(
+            args.run, args.seed, args.episodes, args.pack, args.annotations, args.output
+        )
+        print(json.dumps(manifest, indent=2))
     elif args.command == "flyleg":
         from flyarm.config import FlyLegConfig
         from flyarm.flyleg.experiment import run_flyleg_experiment
