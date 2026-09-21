@@ -130,3 +130,47 @@ def test_robot_payload_exports_the_compiled_panda_geometry(env: PandaPickPlaceEn
     poses = np.asarray(robot_body_poses(env.model, env.data))
     assert poses.shape == (len(ROBOT_BODIES), 7)
     np.testing.assert_allclose(np.linalg.norm(poses[:, 3:], axis=1), 1.0, atol=1e-5)
+
+
+def _teacher_trace(teacher_resync: bool, seed: int) -> list[np.ndarray]:
+    env = PandaPickPlaceEnv(Path(MODEL), teacher_resync=teacher_resync)
+    obs, _ = env.reset(seed=seed)
+    trace = [obs]
+    for _ in range(env.horizon):
+        obs, _, terminated, _, _ = env.step(env.teacher_action())
+        trace.append(obs)
+        if terminated:
+            break
+    env.close()
+    return trace
+
+
+def test_stage_resync_leaves_the_teacher_demonstrations_unchanged() -> None:
+    for seed in (40000, 40001, 40002, 40003, 40004, 40005):
+        plain, resync = _teacher_trace(False, seed), _teacher_trace(True, seed)
+        assert len(plain) == len(resync)
+        assert all(np.array_equal(a, b) for a, b in zip(plain, resync, strict=True))
+
+
+def test_stage_resync_keeps_holding_a_cube_the_learner_lifted() -> None:
+    """A learner that grasps and lifts on its own must not be told to open the gripper."""
+    reference = PandaPickPlaceEnv(Path(MODEL))
+    reference.reset(seed=60000)
+    actions = []
+    for _ in range(reference.horizon):
+        action = reference.teacher_action()
+        actions.append(action)
+        _, _, _, _, info = reference.step(action)
+        if info["ever_lifted"] and info["grasped"]:
+            break
+    assert info["ever_lifted"] and info["grasped"]
+    labels = {}
+    for resync in (False, True):
+        learner = PandaPickPlaceEnv(Path(MODEL), teacher_resync=resync)
+        learner.reset(seed=60000)
+        for action in actions:  # the "learner" acts; its teacher is never consulted
+            learner.step(action)
+        labels[resync] = learner.teacher_action()
+        learner.close()
+    assert labels[False][3] > 0  # the stateful teacher is still approaching: "open"
+    assert labels[True][3] < 0  # the resynchronized teacher keeps squeezing
