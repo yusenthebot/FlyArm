@@ -43,19 +43,23 @@ def topology_statistics(models: list[dict[str, Any]]) -> dict[str, Any]:
     seeds = sorted({m["seed"] for m in models if m["kind"] == "connectome"})
     by_seed: dict[int, dict[str, Any]] = {}
     for seed in seeds:
-        measured = [m for m in models if m["kind"] == "connectome" and m["seed"] == seed]
-        shuffles = [m for m in models if m["kind"] == "shuffled" and m["seed"] == seed]
-        grus = [m for m in models if m["kind"] == "gru" and m["seed"] == seed]
-        if len(measured) != 1 or not shuffles:
+        of_seed = [m for m in models if m["seed"] == seed]
+        measured_models = [m for m in of_seed if m["kind"] == "connectome"]
+        shuffled_models = [m for m in of_seed if m["kind"] == "shuffled"]
+        if len(measured_models) != 1 or not shuffled_models:
             continue
-        by_seed[seed] = {"connectome": measured[0], "shuffled": shuffles, "gru": grus}
+        by_seed[seed] = {
+            "connectome": measured_models[0],
+            "shuffled": shuffled_models,
+            "gru": [m for m in of_seed if m["kind"] == "gru"],
+        }
     report: dict[str, Any] = {
         "seeds": list(by_seed),
         "shuffles_per_seed": {seed: len(v["shuffled"]) for seed, v in by_seed.items()},
         "outcomes": {},
     }
     for name, field in OUTCOMES.items():
-        per_seed = []
+        per_seed: list[dict[str, Any]] = []
         wins = losses = 0
         for seed, group in by_seed.items():
             measured = _outcomes(group["connectome"], field)
@@ -75,7 +79,7 @@ def topology_statistics(models: list[dict[str, Any]]) -> dict[str, Any]:
                     "difference": float(measured.mean() - np.mean([r.mean() for r in shuffled])),
                 }
             )
-        differences = [row["difference"] for row in per_seed]
+        differences = [float(row["difference"]) for row in per_seed]
         report["outcomes"][name] = {
             "per_seed": per_seed,
             "connectome_rate": float(np.mean([r["connectome"] / r["episodes"] for r in per_seed]))

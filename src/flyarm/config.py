@@ -165,6 +165,24 @@ class FlyLegConfig(BaseModel):
     act_batch_size: int = Field(default=64, ge=8, le=1024)
     act_learning_rate: float = Field(default=1e-4, gt=0, le=0.01)
     act_kl_weight: float = Field(default=10.0, ge=0, le=100)
+    # Checkpoint selection: "closed_loop" keeps the weights with the most tasks completed on
+    # selection_episodes held-out validation episodes (seeds disjoint from evaluation),
+    # scored every select_every epochs; "validation_loss" keeps the lowest imitation loss.
+    selection: Literal["validation_loss", "closed_loop"] = "validation_loss"
+    selection_episodes: int = Field(default=5, ge=1, le=50)
+    select_every: int = Field(default=5, ge=1, le=100)
+    # DART: extra training episodes in which the demonstration tracker acts with Gaussian
+    # action noise and every visited state is labelled with its clean action.
+    dart_episodes: int = Field(default=0, ge=0, le=2000)
+    dart_noise: float = Field(default=0.1, gt=0, le=1)
+    # Interactive imitation: after behavior cloning, each iteration rolls out the learner from
+    # clean starts (seeds disjoint from evaluation), labels the visited states with the
+    # demonstration tracker and retrains on demonstrations plus every labelled rollout.
+    dagger_iterations: int = Field(default=0, ge=0, le=10)
+    dagger_episodes: int = Field(default=20, ge=1, le=200)
+    dagger_epochs: int = Field(default=30, ge=1, le=500)
+    act_dagger_steps: int = Field(default=5000, ge=100, le=200000)
+    tracker_gain: float = Field(default=0.5, ge=0, le=1)
     eval_episodes: int = Field(default=50, ge=2, le=500)
     ood_joint_offsets: list[float] = Field(default_factory=lambda: [0.05, 0.1], max_length=6)
     seeds: list[int] = Field(default_factory=lambda: [0, 1, 2], min_length=1, max_length=10)
@@ -184,4 +202,6 @@ class FlyLegConfig(BaseModel):
             raise ValueError("decoder_warmup_epochs must leave at least one joint epoch")
         if any(not 0 < offset <= 0.5 for offset in self.ood_joint_offsets):
             raise ValueError("OOD joint offsets must be in (0, 0.5] rad")
+        if (self.dagger_iterations or self.dart_episodes) and self.split != "complete":
+            raise ValueError("The demonstration tracker is validated as a teacher on complete only")
         return self

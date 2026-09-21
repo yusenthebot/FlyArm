@@ -24,6 +24,7 @@ from __future__ import annotations
 import json
 import platform
 import time
+from collections.abc import Callable
 from importlib.metadata import version
 from pathlib import Path
 from typing import Any
@@ -33,6 +34,7 @@ import numpy as np
 
 from flyarm.assets import digest_file
 from flyarm.benchmarks import kitchen
+from flyarm.benchmarks.kitchen_expert import DemonstrationTracker, noisy_teacher_episodes
 from flyarm.config import FlyLegConfig
 from flyarm.experiment import save_json
 from flyarm.flyleg.interface import front_leg_interface, front_leg_report, leg_channels
@@ -60,6 +62,10 @@ from flyarm.whole_brain.training import (
 )
 
 VALIDATION_SEED = 90_000
+# Environment seeds; evaluation uses 0..eval_episodes-1, so every other range is disjoint.
+SELECTION_SEED = 50_000
+DAGGER_SEED = 200_000
+DART_SEED = 300_000
 
 
 def split_episodes(count: int, fraction: float, seed: int) -> tuple[np.ndarray, np.ndarray]:
@@ -83,11 +89,18 @@ def ood_suite(config: FlyLegConfig) -> dict[str, dict[str, float]]:
 def _evaluate(
     config: FlyLegConfig, controller: Any, seeds: list[int], **variant: float
 ) -> dict[str, Any]:
+    features = kitchen.PositionFeatures(controller) if controller is not None else None
+    return _evaluate_raw(config, features, seeds, **variant)
+
+
+def _evaluate_raw(
+    config: FlyLegConfig, controller: Any, seeds: list[int], **variant: float
+) -> dict[str, Any]:
+    """Evaluate a controller that reads the full benchmark observation (e.g. the teacher)."""
     offset = float(variant.pop("initial_joint_offset", 0.0))
     env = kitchen.recover_env(config.split, **variant)
-    features = kitchen.PositionFeatures(controller) if controller is not None else None
     try:
-        result = kitchen.evaluate(env, features, seeds, initial_joint_offset=offset)
+        result = kitchen.evaluate(env, controller, seeds, initial_joint_offset=offset)
     finally:
         env.close()
     return {**result, "environment_overrides": variant}
@@ -127,39 +140,101 @@ def make_policy(
     )
 
 
-def _train(
+def _pad(data: dict[str, np.ndarray], horizon: int) -> dict[str, np.ndarray]:
+    extra = horizon - data["obs"].shape[1]
+    if extra < 0:
+        raise ValueError("Episodes are longer than the benchmark horizon")
+    return {
+        key: np.pad(value, [(0, 0), (0, extra)] + [(0, 0)] * (value.ndim - 2))
+        if key in ("obs", "actions", "mask")
+        else value
+        for key, value in data.items()
+    }
+
+
+def _dagger_rollouts(
+    policy: SequencePolicy,
+    expert: DemonstrationTracker,
+    env: Any,
+    episodes: int,
+    seed: int,
+    iteration: int,
+) -> tuple[dict[str, np.ndarray], dict[str, Any]]:
+    """Learner-driven episodes from clean starts, every visited state labelled by the tracker."""
+    horizon = env.spec.max_episode_steps
+    obs = np.zeros((episodes, horizon, kitchen.FEATURE_DIM), np.float32)
+    actions = np.zeros((episodes, horizon, kitchen.ACTION_DIM), np.float32)
+    mask = np.zeros((episodes, horizon), np.float32)
+    controller = MlxController(policy)
+    completed: list[int] = []
+    for episode in range(episodes):
+        observation, info = env.reset(seed=DAGGER_SEED + 10_000 * seed + 100 * iteration + episode)
+        controller.reset()
+        info = {}
+        for step in range(horizon):
+            full = np.asarray(observation["observation"], dtype=np.float32)
+            obs[episode, step] = full[kitchen.POLICY_FEATURES]
+            actions[episode, step] = expert.label(full)
+            mask[episode, step] = 1.0
+            action = controller.act(obs[episode, step])
+            observation, _, terminated, truncated, info = env.step(action.astype(np.float64))
+            if terminated or truncated:
+                break
+        completed.append(len(info.get("episode_task_completions", [])))
+    stats = {
+        "rollout_episodes": episodes,
+        "learner_mean_tasks": float(np.mean(completed)),
+        "labelled_states": int(mask.sum()),
+    }
+    return {"obs": obs, "actions": actions, "mask": mask}, stats
+
+
+Selector = Callable[[SequencePolicy], float]
+
+
+def _fit(
     policy: SequencePolicy,
     config: FlyLegConfig,
-    train: dict[str, np.ndarray],
+    data: dict[str, np.ndarray],
     validation: dict[str, np.ndarray],
     seed: int,
     deadline: float,
-) -> tuple[list[dict[str, Any]], dict[str, Any], dict[str, float] | None]:
+    *,
+    phase: str,
+    selector: Selector | None,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """One training phase: behavior cloning on the training set, or a DAgger aggregate."""
+    first = phase == "behavior_cloning"
     if isinstance(policy, ACTPolicy):
+        steps = config.act_steps if first else config.act_dagger_steps
         budget = ACTBudget(
-            steps=config.act_steps,
+            steps=steps,
             batch_size=config.act_batch_size,
             learning_rate=config.act_learning_rate,
             kl_weight=config.act_kl_weight,
-            eval_every=max(1, config.act_steps // 50),
+            eval_every=max(1, steps // 50),
             deadline=deadline,
         )
-        return (*train_act_policy(policy, train, validation, budget, seed), None)
-    calibration = None
+        return train_act_policy(
+            policy,
+            data,
+            validation,
+            budget,
+            seed,
+            phase=phase,
+            set_normalization=first,
+            selector=selector,
+        )
     brain = isinstance(policy, BrainPolicy)
-    if brain:
-        samples = train["obs"][train["mask"].astype(bool)]
-        policy.set_normalization(samples.mean(0), np.maximum(samples.std(0), 0.05))
-        calibration = policy.calibrate_readout(train["obs"], train["mask"])
-    curves, training = train_sequence_policy(
+    return train_sequence_policy(
         policy,
-        train,
-        train["mask"],
+        data,
+        data["mask"],
         validation,
         validation["mask"],
         Budget(
-            epochs=config.epochs,
-            decoder_warmup_epochs=config.decoder_warmup_epochs if brain else 0,
+            epochs=config.epochs if first else config.dagger_epochs,
+            decoder_warmup_epochs=config.decoder_warmup_epochs if brain and first else 0,
             batch_size=config.batch_size,
             bptt_steps=config.bptt_steps,
             learning_rate=config.learning_rate,
@@ -167,8 +242,83 @@ def _train(
             loss=config.loss,
         ),
         seed,
-        set_normalization=not brain,
+        phase=phase,
+        set_normalization=first and not brain,
+        selector=selector,
+        select_every=config.select_every,
     )
+
+
+def _train(
+    policy: SequencePolicy,
+    config: FlyLegConfig,
+    train: dict[str, np.ndarray],
+    validation: dict[str, np.ndarray],
+    seed: int,
+    deadline: float,
+    expert: DemonstrationTracker | None,
+) -> tuple[list[dict[str, Any]], dict[str, Any], dict[str, float] | None]:
+    calibration = None
+    if isinstance(policy, BrainPolicy):
+        samples = train["obs"][train["mask"].astype(bool)]
+        policy.set_normalization(samples.mean(0), np.maximum(samples.std(0), 0.05))
+        calibration = policy.calibrate_readout(train["obs"], train["mask"])
+    env = kitchen.recover_env(config.split)
+    selection_seeds = list(range(SELECTION_SEED, SELECTION_SEED + config.selection_episodes))
+
+    def closed_loop(candidate: SequencePolicy) -> float:
+        controller = kitchen.PositionFeatures(MlxController(candidate))
+        return float(kitchen.evaluate(env, controller, selection_seeds)["mean_tasks"])
+
+    selector = closed_loop if config.selection == "closed_loop" else None
+    try:
+        curves, summary = _fit(
+            policy,
+            config,
+            train,
+            validation,
+            seed,
+            deadline,
+            phase="behavior_cloning",
+            selector=selector,
+        )
+        phases = [{"phase": "behavior_cloning", **summary}]
+        aggregate = _pad(train, env.spec.max_episode_steps)
+        for iteration in range(config.dagger_iterations if expert is not None else 0):
+            assert expert is not None
+            rollouts, stats = _dagger_rollouts(
+                policy, expert, env, config.dagger_episodes, seed, iteration
+            )
+            aggregate = {
+                key: np.concatenate((aggregate[key], rollouts[key]))
+                for key in ("obs", "actions", "mask")
+            }
+            phase = f"dagger_{iteration + 1}"
+            more, summary = _fit(
+                policy,
+                config,
+                aggregate,
+                validation,
+                seed + iteration + 1,
+                deadline,
+                phase=phase,
+                selector=selector,
+            )
+            curves += more
+            phases.append(
+                {"phase": phase, **summary, **stats, "aggregate_episodes": len(aggregate["obs"])}
+            )
+            print(f"  {phase}: learner mean tasks {stats['learner_mean_tasks']:.2f}", flush=True)
+    finally:
+        env.close()
+    training = {
+        "phases": phases,
+        "loss": phases[-1]["loss"],
+        "selection": phases[-1]["selection"],
+        "selection_score": phases[-1]["selection_score"],
+        "best_validation_loss": phases[-1]["best_validation_loss"],
+        "training_seconds": float(sum(phase["training_seconds"] for phase in phases)),
+    }
     return curves, training, calibration
 
 
@@ -259,6 +409,30 @@ def _run(pack_root: Path, annotations: Path, output: Path, config: FlyLegConfig)
         "zero_action": _evaluate(config, None, seeds[:5]),
         "models": [],
     }
+    expert = None
+    if config.dagger_iterations or config.dart_episodes:
+        expert = DemonstrationTracker.from_data(data, gain=config.tracker_gain)
+        results["teacher"] = {
+            "name": "demonstration tracker (nearest demo state + joint correction)",
+            "gain": config.tracker_gain,
+            "clean": _evaluate_raw(config, expert, seeds),
+        }
+    if config.dart_episodes and expert is not None:
+        env = kitchen.recover_env(config.split)
+        try:
+            dart, dart_stats = noisy_teacher_episodes(
+                expert, env, config.dart_episodes, config.dart_noise, DART_SEED
+            )
+        finally:
+            env.close()
+        np.savez_compressed(
+            output / "dart.npz", obs=dart["obs"], actions=dart["actions"], mask=dart["mask"]
+        )
+        results["teacher"]["dart"] = dart_stats
+        padded = _pad(train, dart["obs"].shape[1])
+        train = {
+            key: np.concatenate((padded[key], dart[key])) for key in ("obs", "actions", "mask")
+        }
     save_json(output / "results.json", results)
 
     channels = leg_channels(leg)
@@ -298,7 +472,7 @@ def _run(pack_root: Path, annotations: Path, output: Path, config: FlyLegConfig)
                 fly_budget=fly_budget,
             )
             curves, training, calibration = _train(
-                policy, config, train, validation, seed, deadline
+                policy, config, train, validation, seed, deadline, expert
             )
             save_json(run / "learning.json", curves)
             policy.save(run / "policy.safetensors")

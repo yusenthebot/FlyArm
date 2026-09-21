@@ -71,3 +71,97 @@ def test_complete_split_replays_to_a_full_score() -> None:
     assert replay["normalized_score"] == 100.0
     assert zero["normalized_score"] == 0.0
     assert data.subset(np.array([0]))["obs"].shape == (1, 236, kitchen.FEATURE_DIM)
+
+
+def test_tracker_returns_the_demo_action_on_the_demo_and_corrects_joint_error() -> None:
+    from flyarm.benchmarks.kitchen_expert import (
+        ACTION_TO_VELOCITY,
+        CONTROL_DT,
+        DemonstrationTracker,
+    )
+
+    rng = np.random.default_rng(0)
+    obs = rng.uniform(-1, 1, (2, 5, 59)).astype(np.float32)
+    actions = rng.uniform(-0.2, 0.2, (2, 5, 9)).astype(np.float32)
+    mask = np.ones((2, 5), np.float32)
+    mask[1, 3:] = 0
+    tracker = DemonstrationTracker(obs, actions, mask, gain=0.5)
+    assert np.allclose(tracker.label(obs[1, 2]), actions[1, 2])
+    shifted = obs[0, 1].copy()
+    shifted[0] += 0.01  # a small joint error keeps the same nearest demonstration state
+    correction = 0.5 * -0.01 / (ACTION_TO_VELOCITY * CONTROL_DT)
+    assert tracker.label(shifted)[0] == pytest.approx(actions[0, 1, 0] + correction, abs=1e-6)
+    # Padding past the end of an episode is never a neighbour.
+    assert not np.allclose(tracker.label(obs[1, 4]), actions[1, 4])
+    with pytest.raises(ValueError, match="gain"):
+        DemonstrationTracker(obs, actions, mask, gain=1.5)
+
+
+@pytest.mark.skipif(not _dataset_available(), reason="Minari kitchen-complete-v2 not downloaded")
+def test_tracker_solves_the_benchmark_from_perturbed_starts() -> None:
+    from flyarm.benchmarks.kitchen_expert import DemonstrationTracker
+
+    tracker = DemonstrationTracker.from_data(kitchen.load("complete", download=False))
+    env = kitchen.recover_env("complete")
+    try:
+        result = kitchen.evaluate(env, tracker, [0, 1], initial_joint_offset=0.1)
+    finally:
+        env.close()
+    assert result["normalized_score"] == 100.0
+
+
+def test_dagger_is_only_configured_where_the_tracker_is_validated() -> None:
+    from pydantic import ValidationError
+
+    from flyarm.config import FlyLegConfig
+
+    assert FlyLegConfig(split="complete", dagger_iterations=2).dagger_iterations == 2
+    with pytest.raises(ValidationError, match="tracker"):
+        FlyLegConfig(split="partial", dagger_iterations=1)
+
+
+@pytest.mark.skipif(not _dataset_available(), reason="Minari kitchen-complete-v2 not downloaded")
+def test_dagger_rollouts_follow_the_learner_and_carry_teacher_labels() -> None:
+    mx = pytest.importorskip("mlx.core")
+    if not mx.metal.is_available():
+        pytest.skip("MLX Metal device unavailable")
+    from flyarm.benchmarks.kitchen_expert import DemonstrationTracker
+    from flyarm.flyleg.experiment import _dagger_rollouts
+    from flyarm.whole_brain.policy import MLPPolicy
+
+    data = kitchen.load("complete", download=False)
+    tracker = DemonstrationTracker.from_data(data)
+    policy = MLPPolicy(
+        obs_dim=kitchen.FEATURE_DIM, action_dim=kitchen.ACTION_DIM, hidden=8, chunk=3
+    )
+    env = kitchen.recover_env("complete")
+    try:
+        rollouts, stats = _dagger_rollouts(policy, tracker, env, 1, seed=0, iteration=0)
+    finally:
+        env.close()
+    steps = int(rollouts["mask"][0].sum())
+    assert rollouts["obs"].shape == (1, 280, kitchen.FEATURE_DIM) and steps == 280
+    assert stats["labelled_states"] == steps and stats["learner_mean_tasks"] == 0.0
+    # Labels are the teacher's actions at the learner's own states, not the learner's actions.
+    first = np.zeros(59, dtype=np.float32)
+    first[kitchen.POLICY_FEATURES] = rollouts["obs"][0, 0]
+    assert np.allclose(rollouts["actions"][0, 0], tracker.label(first), atol=1e-6)
+
+
+@pytest.mark.skipif(not _dataset_available(), reason="Minari kitchen-complete-v2 not downloaded")
+def test_dart_episodes_label_noisy_teacher_states_with_clean_actions() -> None:
+    from flyarm.benchmarks.kitchen_expert import DemonstrationTracker, noisy_teacher_episodes
+
+    tracker = DemonstrationTracker.from_data(kitchen.load("complete", download=False))
+    env = kitchen.recover_env("complete")
+    try:
+        episodes, stats = noisy_teacher_episodes(tracker, env, 2, 0.1, 300_000)
+    finally:
+        env.close()
+    steps = episodes["mask"].sum(1)
+    assert stats["labelled_states"] == int(steps.sum()) and stats["episodes"] == 2
+    full = np.zeros(59, dtype=np.float32)
+    full[kitchen.POLICY_FEATURES] = episodes["obs"][1, 5]
+    assert np.allclose(episodes["actions"][1, 5], tracker.label(full), atol=1e-6)
+    # Noise moves the arm off the demonstrations, so the two noisy episodes differ.
+    assert not np.allclose(episodes["obs"][0, 50], episodes["obs"][1, 50])
