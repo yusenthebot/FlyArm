@@ -175,6 +175,15 @@ def main() -> None:
         "--model", type=Path, default=Path("assets/menagerie/franka_emika_panda/scene.xml")
     )
     ppo.add_argument("--output", type=Path, required=True)
+    rl_record = rl_sub.add_parser("record", help="Before/after videos of a PPO run")
+    rl_record.add_argument("--run", type=Path, required=True)
+    rl_record.add_argument("--variant", default="nominal")
+    rl_record.add_argument("--seeds", type=int, nargs="+", default=[60000, 60001])
+    rl_record.add_argument("--iteration", type=int, help="PPO checkpoint (default: last)")
+    rl_record.add_argument("--pack", type=Path, default=Path(DEFAULT_PACK))
+    rl_record.add_argument(
+        "--model", type=Path, default=Path("assets/menagerie/franka_emika_panda/scene.xml")
+    )
     leg_serve = leg_sub.add_parser("serve", help="Live kitchen UI driven by a B2 checkpoint")
     leg_serve.add_argument("--run", type=Path, required=True)
     leg_serve.add_argument("--seed", type=int, default=0)
@@ -224,6 +233,19 @@ def main() -> None:
         from flyarm.dashboard.server import serve_dashboard
 
         serve_dashboard(Path.cwd(), args.host, args.port)
+    elif args.command == "rl" and args.rl_command == "record":
+        from flyarm.rl.record import record_before_after
+
+        print(
+            record_before_after(
+                args.run,
+                args.pack,
+                args.model,
+                variant=args.variant,
+                seeds=args.seeds,
+                iteration=args.iteration,
+            )
+        )
     elif args.command == "rl":
         from flyarm.config import PPOConfig
         from flyarm.rl.ppo import run_ppo

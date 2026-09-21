@@ -1,0 +1,44 @@
+[
+  {
+    "root": "main",
+    "path": "ppo-pick-place-randomized-001/videos/heavier_6_10x-before-after.mp4",
+    "title": "RL on the fly brain: cubes heavier than any it trained on",
+    "note": "Left: the fly controller after imitation only. Right: after PPO tuned only its motor decoder; the connectome is frozen. Cube mass 6 to 10x, never seen in training."
+  },
+  {
+    "root": "main",
+    "path": "ppo-pick-place-randomized-001/videos/train_distribution-before-after.mp4",
+    "title": "RL on the fly brain: randomized cube mass and grip friction",
+    "note": "Same comparison on the training distribution (mass 1 to 4x, friction 0.15 to 1x)."
+  },
+  {
+    "root": "main",
+    "path": "ppo-pick-place-001/videos/nominal-before-after.mp4",
+    "title": "RL on the fly brain: the standard pick-and-place task",
+    "note": "PPO raised lifting from 18/24 to 24/24 held-out episodes; placing did not improve reliably."
+  },
+  {
+    "root": "main",
+    "path": "overnight/videos/pick-place-connectome-seed2.mp4",
+    "title": "Complete MaleCNS picks and places a cube (imitation, seed 2)",
+    "note": "166,700 frozen neurons between 1,846 ascending inputs and 2,022 descending and motor outputs."
+  },
+  {
+    "root": "main",
+    "path": "overnight/videos/pick-place-shuffled-seed2.mp4",
+    "title": "The same training on a shuffled connectome (seed 2)",
+    "note": "Degree-preserving shuffle of the same CNS, identical data and budget."
+  },
+  {
+    "root": "main",
+    "path": "milestone/videos/kitchen-chunk/kitchen-complete-comparison-seed0-episode0.mp4",
+    "title": "Kitchen protocol v2: fly CNS, shuffled CNS, MLP, GRU and ACT on one episode",
+    "note": "The Franka as the fly's left front leg; the fly controller opens the microwave."
+  },
+  {
+    "root": "main",
+    "path": "overnight/videos/proprio/kitchen-complete-lesions-seed2-episode0.mp4",
+    "title": "Kitchen: the fly leg opens the slide cabinet, and every lesion removes it",
+    "note": "Proprioception-only interface, seed 2: intact, leg deafferented, edges off, direct synapses only."
+  }
+]

@@ -60,6 +60,8 @@ def test_runs_are_found_and_summarized_by_family(runs: Root) -> None:
     ppo = summarize(runs, runs.path / "ppo-b")
     assert ppo["headline"][1]["value"].startswith("place 6 lift 20")
     assert family(None, [1]) == "sweep" and family({"task": "pick-place"}, {}) == "whole-brain"
+    assert family({}, {}, "hand-dexterous-001") == "dexterous"
+    assert family({"train_episodes": 96}, {}) == "prototype"
 
 
 def test_media_resolution_refuses_escapes_and_non_media(runs: Root) -> None:
@@ -81,8 +83,51 @@ def test_api_serves_list_detail_and_media(runs: Root, monkeypatch: pytest.Monkey
     assert {run["name"] for run in listing["runs"]} == {"kitchen-a", "ppo-b", "sweep"}
     detail = client.get("/api/runs/main/kitchen-a").json()
     assert {s["metric"] for s in detail["curves"]} >= {"train_loss", "selection_score"}
-    assert detail["media_files"] == ["kitchen-a/clip.mp4"]
+    assert detail["media_files"] == [{"path": "kitchen-a/clip.mp4", "title": "clip"}]
+    gallery = client.get("/api/gallery").json()
+    assert [v["path"] for v in gallery["videos"]] == ["kitchen-a/clip.mp4"]
+    assert gallery["videos"][0]["area"] == "Kitchen" and gallery["featured"] == []
     assert client.get("/media/main/kitchen-a/clip.mp4").status_code == 200
     assert client.get("/media/main/secret.txt").status_code == 403
     assert client.get("/api/runs/main/%2E%2E").status_code == 404  # encoded, not normalized
     assert "FlyArm runs" in client.get("/").text
+
+
+def test_gallery_skips_archives_hides_smoke_and_titles_files(tmp_path: Path) -> None:
+    from flyarm.dashboard.catalog import gallery, readable
+
+    root = tmp_path / "runs"
+    for relative in (
+        "ppo-a/videos/heavier_6_10x-before-after.mp4",
+        "_archive/old/clip.mp4",
+        "overnight/site/videos/copy.mp4",
+        "multitask-smoke-001/videos/connectome-0-push.mp4",
+    ):
+        (root / relative).parent.mkdir(parents=True, exist_ok=True)
+        (root / relative).write_bytes(b"\x00")
+    featured = tmp_path / "featured.json"
+    featured.write_text(
+        json.dumps(
+            [
+                {
+                    "root": "main",
+                    "path": "ppo-a/videos/heavier_6_10x-before-after.mp4",
+                    "title": "t",
+                },
+                {"root": "main", "path": "missing.mp4", "title": "gone"},
+            ]
+        )
+    )
+    result = gallery([Root("main", root.resolve())], featured)
+    paths = {v["path"]: v for v in result["videos"]}
+    assert set(paths) == {
+        "ppo-a/videos/heavier_6_10x-before-after.mp4",
+        "multitask-smoke-001/videos/connectome-0-push.mp4",
+    }
+    assert paths["multitask-smoke-001/videos/connectome-0-push.mp4"]["hidden"]
+    assert paths["ppo-a/videos/heavier_6_10x-before-after.mp4"]["area"] == "Reinforcement learning"
+    assert [f["title"] for f in result["featured"]] == ["t"]
+    assert readable("heavier_6_10x-before-after") == "heavier 6-10x · before vs after PPO"
+    assert (
+        readable("pick-place-shuffled-seed5-r1") == "pick place shuffled CNS · seed 5 · shuffle #2"
+    )

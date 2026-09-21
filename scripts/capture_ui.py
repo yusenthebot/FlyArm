@@ -25,8 +25,20 @@ CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 PORT = 9333
 
 
+def _targets(timeout: float = 20.0) -> list[dict]:
+    """Chrome's DevTools target list, waiting for the debugging port on a busy machine."""
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            return json.loads(urllib.request.urlopen(f"http://127.0.0.1:{PORT}/json").read())
+        except OSError:
+            if time.monotonic() > deadline:
+                raise
+            time.sleep(0.5)
+
+
 async def _capture(url: str, output: Path, clicks: list[str], seconds: float) -> None:
-    targets = json.loads(urllib.request.urlopen(f"http://127.0.0.1:{PORT}/json").read())
+    targets = _targets()
     page = next(target for target in targets if target["type"] == "page")
     async with websockets.connect(page["webSocketDebuggerUrl"], max_size=2**28) as socket:
         counter = 0
@@ -86,7 +98,6 @@ def main() -> None:
             stderr=subprocess.DEVNULL,
         )
         try:
-            time.sleep(2)
             asyncio.run(_capture(args.url, args.output, args.clicks, args.seconds))
         finally:
             chrome.terminate()

@@ -79,7 +79,7 @@ Seed 0 result: ACT 100, GRU 57.5, MLP 31.2, fly 25.0 (microwave in every episode
 Fly lesions, seed 0: edges off 0, direct synapses only 0, deafferented leg 0, head senses removed 0, state reset every step 0.
 Fly OOD, seed 0: robot noise 8.75, object noise 25, joint offsets 21.25 and 11.25.
 Reading: the protocol now separates controllers; the fly skill is graph-mediated and uses both senses and its own state, but it stops after the first task.
-Seeds 1 and 2 are running.
+Seed 1: fly 21.25 (microwave), shuffle 15.0; seed 2 is running.
 
 ## 2026-09-21: reinforcement learning on the frozen connectome
 
@@ -141,7 +141,8 @@ Reading: negative; memory is not what stops the fly controller after the first t
 
 ### E21. Pick-and-place topology replication (runs/whole-brain-pick-place-003, -004, running)
 Method: seeds 3 to 5 with two independent shuffles each (replicate r uses shuffle seed seed + 17000 + 1000 r), then a second shuffle for seeds 0 to 2.
-Partial: seed 3 connectome lift 9, place 5; its first shuffle lift 15, place 11 (the reverse of seeds 0 to 2).
+Partial (lift / stable place of 24; shuffles listed as #1, #2): seed 3 connectome 9/5, shuffles 15/11 and 12/3, GRU 17/3; seed 4 connectome 17/13, shuffles 22/12 and 22/4, GRU 18/1; seed 5 connectome 20/3, shuffles running.
+Reading so far: in seeds 3 and 4 both shuffles lift more often than the measured connectome, the reverse of seeds 0 to 2, while placement is mixed; this run uses the first protocol's teacher (E23), and the clean comparison is E24.
 
 ## Parallel tracks (agents on their own branches)
 
@@ -191,3 +192,9 @@ LEAP hand, four fly legs as fingers; privileged PPO teacher 64/64 rotation episo
 Change from the first protocol: the stage-resynchronized teacher (teacher "resync", commit 5a9f2d9), whose demonstrations are bit-identical to the first protocol's on six compared episodes and which keeps squeezing a cube a learner has already lifted.
 Design: seeds 0 to 5, each training the connectome, two independent degree-preserving shuffles and a parameter-matched GRU on identical data; lesions as before; statistics per E3 (seed-level sign-flip and episode-level binomial).
 It starts after run 003 finishes (scripts/pick_place_v2.sh); run 004 (a second shuffle for the first protocol's seeds 0 to 2) was cancelled because v2 supersedes it.
+
+## Housekeeping 2026-09-21 evening
+Superseded rollout media (67 files: the first kitchen protocol, most proprioception-only clips, page copies, the 256-node prototypes and a duplicate) moved to runs/_archive with a manifest by scripts/archive_media.py, which can restore them.
+The obsolete live views on ports 8769 and 8770 were stopped; the kitchen v2 view (8771) and the dashboard (8780) stay.
+The dashboard's rollout page now shows curated featured rollouts (docs/featured-videos.json) and groups every other video by area with readable titles; smoke tests and drafts are hidden by default.
+PPO before-and-after videos (flyarm rl record) render the imitation checkpoint and the final PPO checkpoint on the same seeds and task variant.

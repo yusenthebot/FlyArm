@@ -58,7 +58,7 @@ def create_dashboard_app(repo: Path) -> FastAPI:
 
     @app.get("/api/gallery")
     def videos() -> dict[str, Any]:
-        return {"videos": gallery(roots())}
+        return gallery(roots(), repo / "docs" / "featured-videos.json")
 
     @app.get("/media/{label}/{relative:path}")
     def media(label: str, relative: str) -> FileResponse:
