@@ -120,6 +120,8 @@ def test_dagger_is_only_configured_where_the_tracker_is_validated() -> None:
         FlyLegConfig(split="partial", dagger_iterations=1)
     with pytest.raises(ValidationError, match="disjoint"):
         FlyLegConfig(split="complete", dagger_iterations=1, seeds=[3, 12])
+    with pytest.raises(ValidationError, match="init_from"):
+        FlyLegConfig(split="complete", init_from="runs/earlier")
 
 
 @pytest.mark.skipif(not _dataset_available(), reason="Minari kitchen-complete-v2 not downloaded")

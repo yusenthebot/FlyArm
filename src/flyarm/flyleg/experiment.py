@@ -269,9 +269,13 @@ def _train(
     seed: int,
     deadline: float,
     expert: DemonstrationTracker | None,
+    initial: Path | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any], dict[str, float] | None]:
     calibration = None
-    if isinstance(policy, BrainPolicy):
+    if initial is not None:
+        # Encoder, decoder, normalization and readout scale all come from the checkpoint.
+        policy.load(initial)
+    elif isinstance(policy, BrainPolicy):
         samples = train["obs"][train["mask"].astype(bool)]
         policy.set_normalization(samples.mean(0), np.maximum(samples.std(0), 0.05))
         calibration = policy.calibrate_readout(train["obs"], train["mask"])
@@ -284,17 +288,22 @@ def _train(
 
     selector = closed_loop if config.selection == "closed_loop" else None
     try:
-        curves, summary = _fit(
-            policy,
-            config,
-            train,
-            validation,
-            seed,
-            deadline,
-            phase="behavior_cloning",
-            selector=selector,
-        )
-        phases = [{"phase": "behavior_cloning", **summary}]
+        curves: list[dict[str, Any]] = []
+        phases: list[dict[str, Any]] = []
+        if initial is None:
+            curves, summary = _fit(
+                policy,
+                config,
+                train,
+                validation,
+                seed,
+                deadline,
+                phase="behavior_cloning",
+                selector=selector,
+            )
+            phases.append({"phase": "behavior_cloning", **summary})
+        else:
+            phases.append({"phase": "initialized", "source": str(initial), "training_seconds": 0.0})
         aggregate = _pad(train, env.spec.max_episode_steps)
         for iteration in range(config.dagger_iterations if expert is not None else 0):
             assert expert is not None
@@ -450,6 +459,16 @@ def _run(pack_root: Path, annotations: Path, output: Path, config: FlyLegConfig)
             key: np.concatenate((padded[key], dart[key])) for key in ("obs", "actions", "mask")
         }
     save_json(output / "results.json", results)
+    if config.init_from is not None:
+        source = FlyLegConfig.model_validate_json(
+            (Path(config.init_from) / "config.json").read_text()
+        )
+        if (source.action_chunk, source.sensory_channels, source.split) != (
+            config.action_chunk,
+            config.sensory_channels,
+            config.split,
+        ):
+            raise ValueError("init_from must share the action chunk, senses and split")
 
     channels = leg_channels(leg)
     measured = RateDynamics(pack, leg.interface)
@@ -487,8 +506,13 @@ def _run(pack_root: Path, annotations: Path, output: Path, config: FlyLegConfig)
                 channels=channels,
                 fly_budget=fly_budget,
             )
+            initial = None
+            if config.init_from is not None:
+                initial = Path(config.init_from) / f"{kind}-{seed}" / "policy.safetensors"
+                if not initial.is_file():
+                    raise FileNotFoundError(f"init_from has no checkpoint {initial}")
             curves, training, calibration = _train(
-                policy, config, train, validation, seed, deadline, expert
+                policy, config, train, validation, seed, deadline, expert, initial
             )
             save_json(run / "learning.json", curves)
             policy.save(run / "policy.safetensors")
