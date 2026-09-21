@@ -1,0 +1,106 @@
+from __future__ import annotations
+
+import inspect
+import os
+from collections.abc import Iterator
+from pathlib import Path
+from typing import Any
+
+import numpy as np
+import pytest
+
+from flyarm.pick_place_env import PandaPickPlaceEnv
+
+MODEL = os.environ.get("FLYARM_MODEL")
+pytestmark = pytest.mark.skipif(
+    not MODEL or not Path(MODEL).is_file(), reason="set FLYARM_MODEL to Panda scene.xml"
+)
+
+
+@pytest.fixture
+def env() -> Iterator[PandaPickPlaceEnv]:
+    assert MODEL is not None
+    instance = PandaPickPlaceEnv(Path(MODEL), horizon=400)
+    yield instance
+    instance.close()
+
+
+def _run_teacher(env: PandaPickPlaceEnv, seed: int) -> dict[str, Any]:
+    env.reset(seed=seed)
+    for _ in range(env.horizon):
+        _, _, terminated, truncated, info = env.step(env.teacher_action())
+        if terminated or truncated:
+            return info
+    raise AssertionError("environment did not terminate or truncate")
+
+
+def test_seeded_reset_and_observation_contract(env: PandaPickPlaceEnv) -> None:
+    first, _ = env.reset(seed=71)
+    first_object, first_goal = env.object_position.copy(), env.goal.copy()
+    second, _ = env.reset(seed=71)
+    assert first.shape == (37,)
+    assert first.dtype == np.float32
+    assert np.all(np.isfinite(first))
+    assert np.allclose(first, second)
+    assert np.allclose(first_object, env.object_position)
+    assert np.allclose(first_goal, env.goal)
+
+
+@pytest.mark.parametrize(
+    "action", [np.zeros(3), np.array([np.nan, 0, 0, 0]), np.array([0, 0, 0, 1.1])]
+)
+def test_invalid_actions_are_rejected(env: PandaPickPlaceEnv, action: np.ndarray) -> None:
+    with pytest.raises(ValueError):
+        env.step(action)
+
+
+def test_step_uses_dynamics_and_does_not_teleport_object(env: PandaPickPlaceEnv) -> None:
+    env.reset(seed=3)
+    arm_before = env.data.qpos[env._qadr].copy()
+    cube_before = env.data.qpos[env._cube_qadr : env._cube_qadr + 7].copy()
+    env.step(np.array([0.4, -0.2, 0.3, 1.0], dtype=np.float32))
+    assert env.data.time == pytest.approx(0.05)
+    assert not np.array_equal(arm_before, env.data.qpos[env._qadr])
+    # The cube may settle vertically under gravity, but an open, spatially
+    # separated gripper cannot translate it horizontally in one step.  This
+    # catches an accidental object-state assignment hidden in step().
+    cube_after = env.data.qpos[env._cube_qadr : env._cube_qadr + 7]
+    assert np.allclose(cube_before[:2], cube_after[:2])
+    source = inspect.getsource(PandaPickPlaceEnv.step)
+    assert "qpos[" not in source
+    assert "mocap_pos" not in source
+
+
+def test_teacher_performs_physical_pick_place_and_release(env: PandaPickPlaceEnv) -> None:
+    info = _run_teacher(env, 4)
+    assert info["is_success"]
+    assert info["ever_grasped"]
+    assert info["ever_lifted"]
+    assert not info["contact_left"] and not info["contact_right"]
+    assert float(info["object_height"]) < 0.032
+    assert float(info["goal_xy_error"]) < 0.03
+
+
+def test_teacher_reliably_solves_development_seeds(env: PandaPickPlaceEnv) -> None:
+    results = {seed: _run_teacher(env, seed) for seed in range(12)}
+    successes = [seed for seed, info in results.items() if bool(info["is_success"])]
+    assert len(successes) >= 11, f"teacher success={successes}; results={results}"
+
+
+def test_zero_action_cannot_complete_contact_task(env: PandaPickPlaceEnv) -> None:
+    env.reset(seed=4)
+    info: dict[str, object] = {}
+    for _ in range(env.horizon):
+        _, _, terminated, truncated, info = env.step(np.zeros(4, dtype=np.float32))
+        if terminated or truncated:
+            break
+    assert not info["is_success"]
+    assert not info["ever_lifted"]
+
+
+def test_render_shows_rgb_scene(env: PandaPickPlaceEnv) -> None:
+    env.reset(seed=6)
+    image = env.render()
+    assert image.shape == (480, 640, 3)
+    assert image.dtype == np.uint8
+    assert int(image.max()) > int(image.min())
