@@ -34,6 +34,8 @@ build-backend = "hatchling.build"
 
 [tool.ruff]
 line-length = 100
+# Vendored figure kit (block-diagram-drawer) keeps its upstream style.
+extend-exclude = ["docs/figures/src"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
