@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import inspect
 import os
+import platform
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -98,6 +99,10 @@ def test_zero_action_cannot_complete_contact_task(env: PandaPickPlaceEnv) -> Non
     assert not info["ever_lifted"]
 
 
+@pytest.mark.skipif(
+    os.environ.get("CI") == "true" and platform.system() == "Darwin",
+    reason="GitHub macOS runners do not expose a CGL pixel format",
+)
 def test_render_shows_rgb_scene(env: PandaPickPlaceEnv) -> None:
     env.reset(seed=6)
     image = env.render()
