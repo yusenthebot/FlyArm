@@ -17,6 +17,7 @@ dependencies = [
     "httpx>=0.28",
     "fastapi>=0.116",
     "uvicorn[standard]>=0.35",
+    "mlx>=0.29 ; platform_machine == 'arm64' and sys_platform == 'darwin'",
 ]
 
 [project.scripts]
@@ -37,6 +38,8 @@ select = ["E", "F", "I", "UP", "B"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Some macOS/iCloud hosts hide editable-install .pth files; keep tests independent of them.
+pythonpath = ["src"]
 
 [tool.mypy]
 ignore_missing_imports = true

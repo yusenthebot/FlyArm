@@ -12,6 +12,7 @@ import json
 from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Protocol
 
 import numpy as np
 
@@ -96,6 +97,17 @@ DESCENDING_COMMAND_BODY_IDS = np.array(
 )
 
 
+class BindableGraph(Protocol):
+    """Any measured connectome with ordered Body IDs and a content fingerprint."""
+
+    @property
+    def ids(self) -> np.ndarray: ...
+
+    def validate(self) -> None: ...
+
+    def fingerprint(self) -> str: ...
+
+
 def _interface_fingerprint(inputs: np.ndarray, outputs: np.ndarray, graph_fingerprint: str) -> str:
     digest = hashlib.sha256()
     digest.update(inputs.astype("<i8", copy=False).tobytes())
@@ -158,7 +170,7 @@ class NeuralInterface:
     @classmethod
     def bind(
         cls,
-        graph: Graph,
+        graph: BindableGraph,
         input_body_ids: np.ndarray,
         output_body_ids: np.ndarray,
         *,
@@ -182,7 +194,7 @@ class NeuralInterface:
             DESCENDING_COMMAND_BODY_IDS,
         )
 
-    def resolve_indices(self, graph: Graph) -> tuple[np.ndarray, np.ndarray]:
+    def resolve_indices(self, graph: BindableGraph) -> tuple[np.ndarray, np.ndarray]:
         """Resolve body IDs without changing their declared order."""
         self.validate()
         graph.validate()

@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 import pyarrow.feather as feather
 
-from flyarm.assets import SOURCE_SHA256, SOURCES, digest_file
+from flyarm.assets import SOURCE_SHA256, SOURCES, verify_raw_sources
 
 RECIPE_VERSION = "descending-contact-v1"
 CANONICAL_256 = "7a5018c5481d14307e1efec305f4f448648545e5feda7caf9297dab518f4da5d"
@@ -171,13 +171,7 @@ def prepare_graph(raw: Path, output: Path, max_nodes: int = 256) -> Graph:
     """Grow an anatomically seeded subgraph without using any task outcomes."""
     if not 32 <= max_nodes <= 4096:
         raise ValueError("MVP subgraph limit must be between 32 and 4096 nodes")
-    manifest = json.loads((raw / "sources.lock.json").read_text())
-    for key, source in SOURCES.items():
-        entry = manifest["files"][key]
-        if entry["name"] != source[0] or entry["sha256"] != SOURCE_SHA256[key]:
-            raise ValueError(f"Source manifest differs from pinned source: {key}")
-        if digest_file(raw / source[0]) != SOURCE_SHA256[key]:
-            raise ValueError(f"Source SHA256 mismatch: {key}")
+    manifest = verify_raw_sources(raw)
     neurons = feather.read_table(raw / SOURCES["annotations"][0]).to_pandas()
     transmitters = feather.read_table(raw / SOURCES["neurotransmitters"][0]).to_pandas()
     edges = feather.read_table(raw / SOURCES["weights"][0]).to_pandas()

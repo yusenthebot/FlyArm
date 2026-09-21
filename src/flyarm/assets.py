@@ -81,6 +81,18 @@ def fetch_data(destination: Path) -> dict:
     return manifest
 
 
+def verify_raw_sources(raw: Path) -> dict[str, Any]:
+    """Check the local manifest and every export against the code-pinned SHA-256 values."""
+    manifest: dict[str, Any] = json.loads((raw / "sources.lock.json").read_text())
+    for key, source in SOURCES.items():
+        entry = manifest["files"][key]
+        if entry["name"] != source[0] or entry["sha256"] != SOURCE_SHA256[key]:
+            raise ValueError(f"Source manifest differs from pinned source: {key}")
+        if digest_file(raw / source[0]) != SOURCE_SHA256[key]:
+            raise ValueError(f"Source SHA256 mismatch: {key}")
+    return manifest
+
+
 def _git(*arguments: str, timeout: int = 180) -> str:
     executable = shutil.which("git")
     if executable is None:
