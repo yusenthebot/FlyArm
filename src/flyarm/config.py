@@ -181,6 +181,11 @@ class FlyLegConfig(BaseModel):
     dagger_iterations: int = Field(default=0, ge=0, le=10)
     dagger_episodes: int = Field(default=20, ge=1, le=200)
     dagger_epochs: int = Field(default=30, ge=1, le=500)
+    # Mixed rollouts: in iteration i the teacher's action is executed with probability
+    # dagger_beta * dagger_beta_decay**i (per step), the learner's otherwise; every visited
+    # state is labelled by the teacher either way. 0 is pure learner rollouts.
+    dagger_beta: float = Field(default=0.0, ge=0, le=1)
+    dagger_beta_decay: float = Field(default=0.5, ge=0, le=1)
     act_dagger_steps: int = Field(default=5000, ge=100, le=200000)
     tracker_gain: float = Field(default=0.5, ge=0, le=1)
     eval_episodes: int = Field(default=50, ge=2, le=500)

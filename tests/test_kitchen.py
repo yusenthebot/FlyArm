@@ -143,7 +143,7 @@ def test_dagger_rollouts_follow_the_learner_and_carry_teacher_labels() -> None:
         env.close()
     steps = int(rollouts["mask"][0].sum())
     assert rollouts["obs"].shape == (1, 280, kitchen.FEATURE_DIM) and steps == 280
-    assert stats["labelled_states"] == steps and stats["learner_mean_tasks"] == 0.0
+    assert stats["labelled_states"] == steps and stats["rollout_mean_tasks"] == 0.0
     # Labels are the teacher's actions at the learner's own states, not the learner's actions.
     first = np.zeros(59, dtype=np.float32)
     first[kitchen.POLICY_FEATURES] = rollouts["obs"][0, 0]
@@ -167,3 +167,23 @@ def test_dart_episodes_label_noisy_teacher_states_with_clean_actions() -> None:
     assert np.allclose(episodes["actions"][1, 5], tracker.label(full), atol=1e-6)
     # Noise moves the arm off the demonstrations, so the two noisy episodes differ.
     assert not np.allclose(episodes["obs"][0, 50], episodes["obs"][1, 50])
+
+
+@pytest.mark.skipif(not _dataset_available(), reason="Minari kitchen-complete-v2 not downloaded")
+def test_beta_one_rollouts_follow_the_teacher() -> None:
+    mx = pytest.importorskip("mlx.core")
+    if not mx.metal.is_available():
+        pytest.skip("MLX Metal device unavailable")
+    from flyarm.benchmarks.kitchen_expert import DemonstrationTracker
+    from flyarm.flyleg.experiment import _dagger_rollouts
+    from flyarm.whole_brain.policy import MLPPolicy
+
+    tracker = DemonstrationTracker.from_data(kitchen.load("complete", download=False))
+    policy = MLPPolicy(obs_dim=kitchen.FEATURE_DIM, action_dim=kitchen.ACTION_DIM, hidden=8)
+    env = kitchen.recover_env("complete")
+    try:
+        _, stats = _dagger_rollouts(policy, tracker, env, 1, seed=0, iteration=0, beta=1.0)
+    finally:
+        env.close()
+    # Driven entirely by the teacher, the untrained learner's rollout solves the kitchen.
+    assert stats["teacher_step_fraction"] == 1.0 and stats["rollout_mean_tasks"] == 4.0
