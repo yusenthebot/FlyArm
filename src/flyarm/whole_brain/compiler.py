@@ -126,11 +126,23 @@ class ConnectomePack:
         """SHA-256 of the ordered numeric content, independent of file layout."""
         return self._fingerprint
 
-    def normalized_weights(self) -> np.ndarray:
-        """Same rule as Graph.normalized_weights: incoming absolute strength <= 1 per target."""
+    def normalized_weights(self, power: float = 1.0) -> np.ndarray:
+        """Signed contacts divided by the L-``power`` norm of each target's incoming weights.
+
+        ``power`` 1 is the default rule (as Graph.normalized_weights): incoming absolute
+        strength <= 1 per target. Larger powers shrink each neuron's inputs less, moving the
+        rate model from its quiet, near-linear regime toward self-sustained activity (at 2,
+        variance preserving, it runs away; research log E28).
+        """
+        if not 1.0 <= power <= 2.0:
+            raise ValueError("power must lie in [1, 2]")
         signed = self.contacts.astype(np.float64) * self.signs[self.col_idx]
         rows = self.rows()
-        denom = np.bincount(rows, weights=np.abs(signed), minlength=self.nodes)
+        if power == 1.0:
+            denom = np.bincount(rows, weights=np.abs(signed), minlength=self.nodes)
+        else:
+            total = np.bincount(rows, weights=np.abs(signed) ** power, minlength=self.nodes)
+            denom = total ** (1.0 / power)
         return (signed / np.maximum(denom[rows], 1.0)).astype(np.float32)
 
     def degrees(self) -> tuple[np.ndarray, np.ndarray]:

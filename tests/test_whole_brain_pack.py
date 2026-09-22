@@ -50,6 +50,23 @@ def test_from_graph_matches_graph_normalization_and_round_trips(tmp_path: Path) 
         pack.save(tmp_path / "pack")
 
 
+def test_weight_norm_power_interpolates_between_l1_and_l2_rows() -> None:
+    pack = ConnectomePack.from_graph(small_graph())
+    rows = pack.rows()
+    assert np.array_equal(pack.normalized_weights(1.0), pack.normalized_weights())
+    for power in (1.0, 1.5, 2.0):
+        weights = pack.normalized_weights(power).astype(np.float64)
+        norms = np.bincount(rows, weights=np.abs(weights) ** power, minlength=pack.nodes)
+        signed_rows = np.unique(rows[weights != 0])
+        np.testing.assert_allclose(norms[signed_rows], 1.0, rtol=1e-5)
+    # Larger powers shrink each input less.
+    assert np.all(
+        np.abs(pack.normalized_weights(2.0)) >= np.abs(pack.normalized_weights(1.5)) - 1e-7
+    )
+    with pytest.raises(ValueError, match="power"):
+        pack.normalized_weights(0.5)
+
+
 def test_load_rejects_tampered_content(tmp_path: Path) -> None:
     pack = ConnectomePack.from_graph(small_graph())
     pack.save(tmp_path / "pack")

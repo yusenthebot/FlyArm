@@ -110,6 +110,8 @@ def leg_dynamics(
     config: FlyLegConfig, pack: ConnectomePack, interface: NeuralInterface, **options: Any
 ) -> RateDynamics:
     """The connectome dynamics of a run, in the rate regime its config names."""
+    if config.weight_norm_power != 1.0 and options.get("edges", True):
+        options.setdefault("weights", pack.normalized_weights(config.weight_norm_power))
     return RateDynamics(pack, interface, recurrent_gain=config.recurrent_gain, **options)
 
 
@@ -574,7 +576,9 @@ def _run(pack_root: Path, annotations: Path, output: Path, config: FlyLegConfig)
                             config,
                             pack,
                             leg.interface,
-                            weights=direct_only_weights(pack, leg.interface),
+                            weights=direct_only_weights(
+                                pack, leg.interface, config.weight_norm_power
+                            ),
                         ),
                     ),
                     "deafferented_leg": policy.silence_channel("deafferented_leg", 0),
