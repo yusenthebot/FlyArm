@@ -224,6 +224,8 @@ L1.25, gain 0.8: error 0.21, participation ratio 5.1, 9 values for 90% and 23 fo
 L1.5, gain 0.5: error 0.16, 8 values for 90%, head share 46%, lingering 3,637; L1.5 at gain 0.8 runs away (23,075 lingering).
 Reading: between the default and runaway activity there is a narrow band (L1.25 at 0.8, L1.5 at 0.5) where the leg's motor interface carries about twice as many directions, receives six times more of its signal from the head, is measurably nonlinear, and keeps a small subpopulation active after the input stops.
 Test: runs/flyleg-kitchen-lp125-dev-001 (configs/flyleg-kitchen-lp125-dev.json: E26's 68-motor unit_norm run with weight_norm_power 1.25 and nothing else changed), started 2026-09-22 00:24.
+Same probe on the B1a pick-and-place interface (1,846 ascending neurons in, 1,314 descending plus 708 VNC motor neurons out; docs/results/weight-normalization-pick-place.json): in the default regime its linear response is already high-dimensional (participation ratio 78.7, 208 values for 90%, 579 for 99%), and L1.25 at 0.8 or L1.5 at 0.5 change it little (238 and 259 values for 90%, linear-prediction error 0.11 to 0.12); L2 above gain 0.3 runs away as on the kitchen interface.
+Reading: the low dimensionality of E25 belongs to the single-leg kitchen interface (68 motor neurons), not to the connectome as a whole; the whole-body pick-and-place interface does not have it, which fits pick-and-place being where the fly controller works best.
 
 ### E29. Open-loop baselines on the kitchen (scripts/kitchen_open_loop.py, running)
 Motivation: E11 seed 2 keeps the microwave with every edge removed, that is with one constant action.
