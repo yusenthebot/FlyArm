@@ -375,6 +375,45 @@ def readable(stem: str) -> str:
     return " · ".join([" ".join(parts), *detail]).strip(" ·")
 
 
+def live(roots: list[Root]) -> dict[str, Any]:
+    """The newest progress clip of every run that has one, newest recording first.
+
+    Written by `flyarm rl watch`: each run keeps exactly one clip, progress/latest.mp4, and
+    replaces it whenever the run saves a newer checkpoint.
+    """
+    rows: list[dict[str, Any]] = []
+    for root in roots:
+        for manifest in sorted(root.path.glob("*/progress/latest.json")):
+            video = manifest.with_suffix(".mp4")
+            if not video.is_file():
+                continue
+            try:
+                record = json.loads(manifest.read_text())
+            except json.JSONDecodeError:
+                continue
+            run = manifest.parent.parent
+            results = run / "results.json"
+            status = "running"
+            if results.is_file():
+                try:
+                    status = json.loads(results.read_text()).get("status", "running")
+                except json.JSONDecodeError:
+                    status = "running"
+            rows.append(
+                {
+                    "root": root.label,
+                    "run": run.name,
+                    "path": str(video.relative_to(root.path)),
+                    "status": status,
+                    "updated": video.stat().st_mtime,
+                    **{key: record.get(key) for key in ("iteration", "outcomes", "recorded_at")},
+                    "curve": record.get("curve", {}),
+                }
+            )
+    rows.sort(key=lambda item: item["updated"], reverse=True)
+    return {"clips": rows}
+
+
 def gallery(roots: list[Root], featured_path: Path | None = None) -> dict[str, Any]:
     """Featured rollouts and every other rollout video grouped by area, newest first.
 

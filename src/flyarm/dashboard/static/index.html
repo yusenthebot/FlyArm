@@ -119,6 +119,7 @@
   <nav>
     <button id="tab-runs" aria-pressed="true">Runs</button>
     <button id="tab-rollouts" aria-pressed="false">Rollouts</button>
+    <button id="tab-live" aria-pressed="false">Live</button>
   </nav>
   <span class="refresh" id="refresh">loading</span>
 </header>
@@ -133,6 +134,15 @@
     <div class="list" id="list"></div>
   </aside>
   <div class="content" id="detail"><p class="empty">Select a run.</p></div>
+</main>
+<main id="live-view" hidden style="grid-template-columns: 1fr;">
+  <div class="content">
+    <section style="margin-top: 0;">
+      <h3>Live progress</h3>
+      <p class="empty" id="live-empty" hidden>No run is being watched. Start one with <code>flyarm rl watch --run RUN</code>.</p>
+      <div class="featured" id="live"></div>
+    </section>
+  </div>
 </main>
 <main id="rollouts-view" hidden style="grid-template-columns: 1fr;">
   <div class="content">
@@ -149,7 +159,7 @@
   </div>
 </main>
 <script>
-const state = { runs: [], selected: null, family: new Set(), status: new Set(), query: "", videos: [], featured: [], videoQuery: "", areas: new Set(), showHidden: false, showPrototypes: false };
+const state = { live: [], runs: [], selected: null, family: new Set(), status: new Set(), query: "", videos: [], featured: [], videoQuery: "", areas: new Set(), showHidden: false, showPrototypes: false };
 const AREA_ORDER = ["Reinforcement learning", "Pick and place", "Kitchen", "Multi-task", "Long horizon", "Dexterous hand", "Reach", "Other"];
 const COLORS = ["--line-1", "--line-2", "--line-3", "--line-4", "--line-5"];
 const escape = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -323,6 +333,39 @@ async function refresh() {
   }
 }
 
+function liveCard(clip) {
+  const curve = clip.curve || {};
+  const metrics = [
+    curve.mean_reward === undefined ? null : `reward ${Number(curve.mean_reward).toFixed(3)}`,
+    curve.success_rate === undefined || curve.success_rate === null ? null : `training success ${(100 * curve.success_rate).toFixed(0)}%`,
+    curve.lift_rate === undefined || curve.lift_rate === null ? null : `lift ${(100 * curve.lift_rate).toFixed(0)}%`,
+    curve.env_steps === undefined ? null : `${(curve.env_steps / 1e6).toFixed(2)} M steps`,
+    curve.encoder_loss === undefined || curve.encoder_loss === null ? null : "encoder trained",
+  ].filter(Boolean).join(" · ");
+  const outcomes = (clip.outcomes || []).join(", ");
+  return `<figure class="card">
+    <video src="/media/${encodeURIComponent(clip.root)}/${clip.path.split("/").map(encodeURIComponent).join("/")}?v=${Math.round(clip.updated)}" controls muted loop playsinline preload="metadata"></video>
+    <figcaption>
+      <strong>${escape(clip.run)}</strong>
+      <p>iteration ${escape(clip.iteration)} · ${escape(clip.status)} · recorded ${ago(clip.updated)}</p>
+      <p>${escape(outcomes)}</p>
+      <p>${escape(metrics)}</p>
+    </figcaption>
+  </figure>`;
+}
+
+function renderLive() {
+  const container = document.getElementById("live");
+  container.innerHTML = state.live.map(liveCard).join("");
+  document.getElementById("live-empty").hidden = state.live.length > 0;
+}
+
+async function loadLive() {
+  const data = await getJSON("/api/live");
+  state.live = data.clips;
+  renderLive();
+}
+
 async function loadGallery() {
   const data = await getJSON("/api/gallery");
   state.videos = data.videos;
@@ -331,22 +374,24 @@ async function loadGallery() {
 }
 
 function show(view) {
-  const runs = view === "runs";
-  document.getElementById("runs-view").hidden = !runs;
-  document.getElementById("rollouts-view").hidden = runs;
-  document.getElementById("tab-runs").setAttribute("aria-pressed", runs);
-  document.getElementById("tab-rollouts").setAttribute("aria-pressed", !runs);
-  if (!runs) loadGallery();
+  state.view = view;
+  for (const name of ["runs", "rollouts", "live"]) {
+    document.getElementById(`${name}-view`).hidden = name !== view;
+    document.getElementById(`tab-${name}`).setAttribute("aria-pressed", name === view);
+  }
+  if (view === "rollouts") loadGallery();
+  if (view === "live") loadLive();
 }
 
 document.getElementById("tab-runs").addEventListener("click", () => show("runs"));
 document.getElementById("tab-rollouts").addEventListener("click", () => show("rollouts"));
+document.getElementById("tab-live").addEventListener("click", () => show("live"));
 document.getElementById("search").addEventListener("input", (e) => { state.query = e.target.value.toLowerCase(); renderList(); });
 document.getElementById("video-search").addEventListener("input", (e) => { state.videoQuery = e.target.value.toLowerCase(); renderGallery(); });
 document.getElementById("show-hidden").addEventListener("change", (e) => { state.showHidden = e.target.checked; renderGallery(); });
 document.getElementById("show-prototypes").addEventListener("change", (e) => { state.showPrototypes = e.target.checked; renderList(); });
 refresh();
-setInterval(refresh, 30000);
+setInterval(() => { refresh(); if (state.view === "live") loadLive(); }, 30000);
 </script>
 </body>
 </html>

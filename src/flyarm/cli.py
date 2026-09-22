@@ -184,6 +184,18 @@ def main() -> None:
     rl_record.add_argument(
         "--model", type=Path, default=Path("assets/menagerie/franka_emika_panda/scene.xml")
     )
+    rl_watch = rl_sub.add_parser(
+        "watch", help="Keep one short rollout clip of the newest checkpoint of a running PPO run"
+    )
+    rl_watch.add_argument("--run", type=Path, required=True)
+    rl_watch.add_argument("--variant", default="nominal")
+    rl_watch.add_argument("--episodes", type=int, default=2)
+    rl_watch.add_argument("--poll-seconds", type=float, default=60.0)
+    rl_watch.add_argument("--once", action="store_true", help="Record once and exit")
+    rl_watch.add_argument("--pack", type=Path, default=Path(DEFAULT_PACK))
+    rl_watch.add_argument(
+        "--model", type=Path, default=Path("assets/menagerie/franka_emika_panda/scene.xml")
+    )
     leg_serve = leg_sub.add_parser("serve", help="Live kitchen UI driven by a B2 checkpoint")
     leg_serve.add_argument("--run", type=Path, required=True)
     leg_serve.add_argument("--seed", type=int, default=0)
@@ -233,6 +245,18 @@ def main() -> None:
         from flyarm.dashboard.server import serve_dashboard
 
         serve_dashboard(Path.cwd(), args.host, args.port)
+    elif args.command == "rl" and args.rl_command == "watch":
+        from flyarm.progress import watch
+
+        watch(
+            args.run,
+            args.pack,
+            args.model,
+            episodes=args.episodes,
+            poll_seconds=args.poll_seconds,
+            variant=args.variant,
+            once=args.once,
+        )
     elif args.command == "rl" and args.rl_command == "record":
         from flyarm.rl.record import record_before_after
 

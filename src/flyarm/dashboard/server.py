@@ -17,6 +17,7 @@ from flyarm.dashboard.catalog import (
     discover_roots,
     find_runs,
     gallery,
+    live,
     resolve_media,
     summarize,
 )
@@ -59,6 +60,10 @@ def create_dashboard_app(repo: Path) -> FastAPI:
     @app.get("/api/gallery")
     def videos() -> dict[str, Any]:
         return gallery(roots(), repo / "docs" / "featured-videos.json")
+
+    @app.get("/api/live")
+    def live_clips() -> dict[str, Any]:
+        return live(roots())
 
     @app.get("/media/{label}/{relative:path}")
     def media(label: str, relative: str) -> FileResponse:
