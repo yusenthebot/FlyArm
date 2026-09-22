@@ -76,14 +76,15 @@ Exploratory result (3 seeds): MLP single-step 65, 25, 40.6; MLP with DART 42.5, 
 Method: transformer encoder-decoder with a CVAE (7.4 M parameters, z = 0 at test), 10-step chunks, temporal ensemble; a reference for what the data supports, not a fly model.
 Exploratory: 2,000 steps gave 55 on seed 0; 10,000 steps with validation-loss selection gave 25, 0 and 2.5.
 
-### E11. Kitchen protocol v2, 5 controllers (runs/flyleg-kitchen-complete-chunk-001, config configs/flyleg-kitchen-complete-chunk.json, running)
+### E11. Kitchen protocol v2, 5 controllers (runs/flyleg-kitchen-complete-chunk-001, config configs/flyleg-kitchen-complete-chunk.json)
 Protocol: position features, 10-step chunks with ACT's temporal ensemble, L1, 100 epochs, closed-loop selection every 5 epochs; identical for every controller; 40 test episodes plus OOD (10x robot or object noise, 0.05 and 0.1 rad joint offsets).
 Seed 0 result: ACT 100, GRU 57.5, MLP 31.2, fly 25.0 (microwave in every episode), shuffle 0.
 Fly lesions, seed 0: edges off 0, direct synapses only 0, deafferented leg 0, head senses removed 0, state reset every step 0.
 Fly OOD, seed 0: robot noise 8.75, object noise 25, joint offsets 21.25 and 11.25.
 Reading: the protocol now separates controllers; the fly skill is graph-mediated and uses both senses and its own state, but it stops after the first task.
 Seed 1: ACT 98.1, GRU 39.4, MLP 21.9, fly 21.25 (microwave), shuffle 15.0; the fly is above the shuffle in both seeds (25 vs 0, 21.25 vs 15) and close to the MLP, and seed 2 is running (fly training at 21:30).
-Seed 2, fly: 25.0 (microwave in all 40 episodes); lesions edges off 25.0, direct synapses only 0, deafferented leg 0, head senses removed 22.5, state reset 0; shuffle 0.0; the MLP, GRU and ACT of seed 2 are running.
+Seed 2, fly: 25.0 (microwave in all 40 episodes); lesions edges off 25.0, direct synapses only 0, deafferented leg 0, head senses removed 22.5, state reset 0; shuffle 0.0; MLP 25.0, GRU 25.0, ACT 86.9.
+Protocol v2 complete (runs/flyleg-kitchen-complete-chunk-001, 2026-09-22): ACT 100, 98.1, 86.9; GRU 57.5, 39.4, 25.0; MLP 31.2, 21.9, 25.0; fly 25.0, 21.25, 25.0; shuffle 0, 15.0, 0 (seeds 0, 1, 2).
 Fly against shuffle over the three seeds: 25 vs 0, 21.25 vs 15, 25 vs 0, better in 3 of 3 (seed-level sign-flip p = 0.125, the minimum with three seeds); at 0.1 rad starts 11.2 vs 0 and 15.0 vs 1.9 in seeds 0 and 1; read with E29 (clean kitchen scores reward replay).
 Open-loop caveat: with every edge removed the readout is exactly constant, so the policy emits one constant action for the whole episode, and in seed 2 that constant action opens the microwave in 40 of 40 episodes.
 The first kitchen task can therefore be solved without perception or feedback, so a score of 25 is not by itself evidence of closed-loop control; seeds 0 and 1 lose the skill with edges off (0), seed 2 does not, and the paper must report an open-loop (constant-action) baseline next to every kitchen score.
@@ -279,6 +280,7 @@ Reading: negative closed loop; the whole-body interface fits the demonstrations 
 Test result of push seed 3 (runs/whole-brain-pick-place-push-s3, 48 test episodes, last phase kept as in every earlier run): placed 12/48 (25%), lifted 44/48, grasped 48/48; 32 of the failures still hold the cube at the end, 0.9 to 4.7 cm from the goal.
 The learner's own DAgger query rollouts (fresh seeds, no teacher actions) show why: successes out of 48 before rounds 1, 2 and 3 were 31, 43 and 2 for seed 3, 15, 33 and 9 for seed 0, and 26 and 19 before rounds 1 and 2 for seed 1.
 So round 1 helps and round 2 collapses the controller in two of three seeds while the validation imitation loss keeps falling (seed 3: 0.0230 after round 1, 0.0189 after round 2); the best controller of the night, seed 3 after round 1 (43/48 on its rollout seeds), was not kept because the protocol evaluates the last phase.
+The push seed 3 GRU on the same data, also last phase: placed 13/48 (27%), lifted 29/48.
 Fix: phase_selection "validation_success" saves every phase's weights, scores each phase by closed-loop stable-place success on the validation seeds (lift rate breaks ties) and restores the best; tested in tests/test_whole_brain_record.py.
 Runs: runs/whole-brain-pick-place-push2-s3, -s0 and -s1 (configs/whole-brain-pick-place-push2-sN.json): the push protocol with phase selection over 24 validation episodes and 2 DAgger rounds, started 2026-09-22 05:45; push-s0 and push-s1 were stopped (their final phase would be a collapsed one), and so was the fly part of the kitchen perturbed-DAgger run.
 The same collapse likely affected v2 and every earlier B1a run with DAgger, whose reported numbers are last-phase numbers; v2's rollouts (0 to 5 of 24 successes) were too weak for it to matter much there.
