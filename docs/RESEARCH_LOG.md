@@ -361,6 +361,13 @@ Reading: the advantage clip is the right general guard and stays in, but it cann
 Rerun again (runs/ppo-kitchen-scratch-003, configs/ppo-kitchen-scratch-003.json and its README): the four changes above plus readout_calibration "scale" to "unit_norm".
 A warm-started run needs no such setting, because it loads the imitation checkpoint's own frozen readout_scale.
 
+### E40. Kitchen with the whole-body interface and eight times the data (runs/flyleg-kitchen-body-scale-001)
+Question: the kitchen dataset has 19 demonstrations while the tracker teacher can generate any number and scores 100, and E32 showed the whole-body interface fits the kitchen far better than the leg; does scaling the data on that interface move the fly past one task?
+Method: E11 protocol, whole-body interface, unit_norm calibration, 150 extra tracker episodes with action noise 0.02 from starts perturbed by up to 0.1 rad (169 episodes in total), 15 epochs, closed-loop selection every 3 epochs on 10 perturbed validation episodes, fly and a parameter-matched GRU on identical data, 20 test episodes.
+Result: fly validation L1 0.0874, clean score 25.0 (the microwave in all 20 episodes and nothing else), 0.1 rad starts 13.8, 0.2 rad starts 15.0; GRU validation L1 0.0774, clean score 50.0 (microwave and kettle in all 20 episodes), 0.1 rad 33.8, 0.2 rad 13.8.
+Reading: eight times the data and the better interface improved the fly's fit (0.105 in E26 to 0.087) but not the number of tasks it completes, while the same data takes the GRU to two tasks; on the kitchen the fly controller's limit is not the amount of data or the width of the interface.
+Next: runs/flyleg-kitchen-body-chunk1-001 repeats this with action chunk 1 as the warm start for kitchen PPO (E39), since reward is the lever that moved pick-and-place from 73% to 95%.
+
 ### E23. Stateful-teacher labels in B1a DAgger (found by the multi-task agent, quantified here)
 Finding: the scripted pick-and-place teacher keeps its own stage machine, so while labelling learner-driven DAgger states it can still be in "approach" or "descend" after the learner has already grasped and lifted the cube, and it then labels those states "open the gripper".
 Quantification over every saved B1a DAgger set (runs/whole-brain-pick-place-001 to -003, 36 files): 337,014 labelled states, 6,353 with both fingers on a cube at least 6 cm above rest, 931 of those (15%) labelled with an open gripper, all in teacher stages 0 or 1.
