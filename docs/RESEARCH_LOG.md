@@ -10,12 +10,13 @@ Numbers marked exploratory come from scratch probes that were later superseded b
 | Claim | Status | Evidence |
 |---|---|---|
 | The complete MaleCNS (166,700 neurons, 10.5 M edges) runs as a frozen real-time controller on a laptop | supported | E1 |
-| Control is graph-mediated: removing every edge removes the skill | supported (pick-place, kitchen seed 0) | E3, E11 |
-| The skill needs the connectome's own state across control steps | supported (pick-place, kitchen seed 0) | E3, E11 |
-| Measured wiring beats a degree-preserving shuffle | open: strong in seeds 0 to 2, reversed in seed 3, replication running | E3, E21 |
-| The fly controller solves more than one kitchen task | not yet: one task (microwave); not fixed by longer memory (E20) or tracker DAgger (E19); readout ablation running | E4, E11, E19, E20, E22 |
+| Control is graph-mediated: removing every edge removes the skill | supported (pick-place, kitchen, dexterous seed 0: 0/64) | E3, E11, E22, dexterous track |
+| The skill needs the connectome's own state across control steps | supported for pick-place and dexterous seed 0 (0/64); kitchen depends on the run (E11 yes, standardized readout 23.8 of 25 without state) | E3, E11, E22, dexterous track |
+| Measured wiring beats a degree-preserving shuffle | open: strong in pick-place seeds 0 to 2, reversed in seeds 3 and 4; dexterous seed 0 tie on the training object (62 vs 63 of 64), connectome ahead on transfer (251 vs 216 of 512); v2 and dexterous seeds 1 and 2 running | E3, E21, E24, dexterous track |
+| The fly controller solves more than one kitchen task | not yet: one task (microwave); not fixed by longer memory (E20), tracker DAgger (E19) or a wider standardized readout (E22, whose kettle scores are shoves) | E4, E11, E19, E20, E22 |
 | RL on the frozen connectome improves a skill | supported for lifting (18/24 to 24/24), not for placing | E12 |
-| RL on the frozen connectome generalizes to unseen physics | partly: lifting generalizes to heavier cubes; placement gains on heavy cubes are partly physical; shuffle control running | E17 |
+| RL on the frozen connectome generalizes to unseen physics | partly: lifting generalizes to heavier cubes; placement gains on heavy cubes are partly physical; at mid-training the shuffled connectome gains as much, final comparison pending | E17 |
+| The frozen connectome controls a dexterous hand | supported for seed 0: in-hand rotation 62/64 (teacher 64/64), transfer to unseen objects partial | dexterous track |
 | The rate model holds information for seconds | only near critical recurrent gain (0.99); about 0.2 s at the default 0.8 | E15, E16 |
 
 ## 2026-09-20 to 21: B1a and B2, first protocol
@@ -164,8 +165,12 @@ Evidence for the question: after behavior cloning the fly's training L1 is 0.106
 First attempt (runs/flyleg-kitchen-descending-dev-001, stopped): reading the 68 motor neurons plus all 1,314 descending neurons with scale-only calibration, training L1 stayed near 0.9 from epoch 1: the 1,382 unit-RMS outputs share a strong common mode and saturate the tanh decoder.
 Fix (commit after 5a9f2d9): an optional standardized calibration that subtracts each output's mean activity before dividing by its standard deviation, still a frozen per-neuron affine map.
 Design: two runs that differ only in the readout, both standardized, fly only, seed 0, 20 test episodes: runs/flyleg-kitchen-leg-std-dev-001 (68 motor neurons) and runs/flyleg-kitchen-descending-std-dev-001 (68 motor plus 1,314 descending neurons).
-Interim, epoch 83 to 89 of 100: the 68-neuron readout trains to L1 0.11 (as E11), the 1,382-neuron readout stays at 0.81 (0.95 at epoch 1), so standardization did not fix the wide readout; both reach 1 task on some validation checks.
-Next if it ends this way: probe the standardized descending outputs on the demonstration data (per-neuron scale floor, spread of the standardized values, decoder pre-activation) before any further run.
+Result, 20 test episodes each (both complete): 68 motor neurons (113,536 trained parameters) best validation L1 0.109, microwave in 20/20 and nothing else, score 25, OOD 21 to 25; lesions edges off, direct only, deafferented leg and head sensory deprived all 0, state reset every step 23.8.
+68 motor plus 1,314 descending neurons (231,796 parameters): best validation L1 0.817, kettle in 20/20 and nothing else, score 25, OOD 22.5 to 25; every lesion 0.
+The kettle completions are not a learned skill: in the recorded episodes (runs/flyleg-kitchen-descending-std-dev-001/videos) the arm flails, its links sweep the kettle from the front-left to the back-left burner without the gripper on the handle, and then the arm swings upward.
+Benchmark caveat: the kettle counts as done when its 7-dimensional position and orientation are within 0.3 of the goal, and it starts 0.41 away, so a 10 to 15 cm shove toward the back suffices; kettle scores must be checked on video or with a lift criterion.
+Reading: a wider readout is not the fix; with descending neurons the decoder does not fit at all (L1 0.82 against 0.11), and the 68-neuron readout reproduces E11 (microwave only, L1 0.106 there, 0.109 here), so standardizing the readout changes nothing either.
+Open: why 1,382 standardized outputs do not train; to probe (per-neuron scale floor, spread of the standardized values, decoder pre-activation) before any further wide-readout run.
 
 ### E23. Stateful-teacher labels in B1a DAgger (found by the multi-task agent, quantified here)
 Finding: the scripted pick-and-place teacher keeps its own stage machine, so while labelling learner-driven DAgger states it can still be in "approach" or "descend" after the learner has already grasped and lifted the cube, and it then labels those states "open the gripper".
