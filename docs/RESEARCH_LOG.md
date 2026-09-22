@@ -271,7 +271,9 @@ Reading: on seed 0 the GRU beats both connectome controllers, most clearly in ro
 ### E24. B1a pick-and-place protocol v2 (configs/whole-brain-pick-place-v2a.json and -v2b.json, running)
 Change from the first protocol: the stage-resynchronized teacher (teacher "resync", commit 5a9f2d9), whose demonstrations are bit-identical to the first protocol's on six compared episodes and which keeps squeezing a cube a learner has already lifted.
 Design: seeds 0 to 5, each training the connectome, two independent degree-preserving shuffles and a parameter-matched GRU on identical data; lesions as before; statistics per E3 (seed-level sign-flip and episode-level binomial).
-Run v2a (seeds 0 to 2) started 2026-09-21 21:35 when run 003 finished, v2b (seeds 3 to 5) follows (scripts/pick_place_v2.sh); run 004 (a second shuffle for the first protocol's seeds 0 to 2) was cancelled because v2 supersedes it.
+Run v2a (seeds 0 to 2) started 2026-09-21 21:35 when run 003 finished, and v2b (seeds 3 to 5) was started next to it at 21:40; run 004 (a second shuffle for the first protocol's seeds 0 to 2) was cancelled because v2 supersedes it.
+First v2 checkpoints (lift / stable place of 24, first protocol in brackets): connectome seed 0 12/12 (18/5), connectome seed 3 24/7 (9/5); edges off 0 lifts in both.
+Early reading: with the resynchronized teacher, placement of the measured connectome rises in both seeds; the shuffles and GRUs of these seeds are training.
 
 ## Housekeeping 2026-09-21 evening
 Superseded rollout media (67 files: the first kitchen protocol, most proprioception-only clips, page copies, the 256-node prototypes and a duplicate) moved to runs/_archive with a manifest by scripts/archive_media.py; at the user's request the archive (148 MB, manifest included) then went to the macOS Trash, so these files are no longer part of the record.
