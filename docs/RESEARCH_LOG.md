@@ -83,7 +83,8 @@ Fly lesions, seed 0: edges off 0, direct synapses only 0, deafferented leg 0, he
 Fly OOD, seed 0: robot noise 8.75, object noise 25, joint offsets 21.25 and 11.25.
 Reading: the protocol now separates controllers; the fly skill is graph-mediated and uses both senses and its own state, but it stops after the first task.
 Seed 1: ACT 98.1, GRU 39.4, MLP 21.9, fly 21.25 (microwave), shuffle 15.0; the fly is above the shuffle in both seeds (25 vs 0, 21.25 vs 15) and close to the MLP, and seed 2 is running (fly training at 21:30).
-Seed 2, fly: 25.0 (microwave in all 40 episodes); lesions edges off 25.0, direct synapses only 0, deafferented leg 0, head senses removed 22.5, state reset 0; the shuffle, MLP, GRU and ACT of seed 2 are running.
+Seed 2, fly: 25.0 (microwave in all 40 episodes); lesions edges off 25.0, direct synapses only 0, deafferented leg 0, head senses removed 22.5, state reset 0; shuffle 0.0; the MLP, GRU and ACT of seed 2 are running.
+Fly against shuffle over the three seeds: 25 vs 0, 21.25 vs 15, 25 vs 0, better in 3 of 3 (seed-level sign-flip p = 0.125, the minimum with three seeds); at 0.1 rad starts 11.2 vs 0 and 15.0 vs 1.9 in seeds 0 and 1; read with E29 (clean kitchen scores reward replay).
 Open-loop caveat: with every edge removed the readout is exactly constant, so the policy emits one constant action for the whole episode, and in seed 2 that constant action opens the microwave in 40 of 40 episodes.
 The first kitchen task can therefore be solved without perception or feedback, so a score of 25 is not by itself evidence of closed-loop control; seeds 0 and 1 lose the skill with edges off (0), seed 2 does not, and the paper must report an open-loop (constant-action) baseline next to every kitchen score.
 
