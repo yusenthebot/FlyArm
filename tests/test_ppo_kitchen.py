@@ -57,13 +57,17 @@ def test_from_scratch_needs_no_imitation_checkpoint() -> None:
     assert config.from_scratch and config.base_run.endswith("push2-s3")
 
 
-def test_the_config_refuses_a_tracking_weight_that_breaks_the_stalling_floor() -> None:
-    """The same E34 invariant, checked before a run starts and without importing MuJoCo."""
-    assert KitchenPPOConfig(tracking_weight=0.5).completion_bonus == 200.0
+def test_the_config_refuses_a_gaussian_weight_that_breaks_the_stalling_floor() -> None:
+    """The same E34 invariant, checked before a run starts and without importing MuJoCo.
+
+    Only the Gaussian form can be collected every step forever, so only it enters the budget.
+    """
+    assert KitchenPPOConfig(tracking_weight=0.5, tracking_form="gaussian").completion_bonus == 200.0
     with pytest.raises(ValueError, match="log E34"):
-        KitchenPPOConfig(tracking_weight=1.5)
+        KitchenPPOConfig(tracking_weight=1.5, tracking_form="gaussian")
     # Raising the bonus with the weight keeps it valid.
-    assert KitchenPPOConfig(tracking_weight=1.5, completion_bonus=400.0).tracking_weight == 1.5
+    raised = KitchenPPOConfig(tracking_weight=1.5, tracking_form="gaussian", completion_bonus=400.0)
+    assert raised.tracking_weight == 1.5
     assert KitchenPPOConfig().tracking_weight == 0.0  # off by default
 
 
