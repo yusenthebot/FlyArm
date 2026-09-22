@@ -1,0 +1,22 @@
+{
+  "run": "runs/ppo-pick-place-hard-push2-s3-001",
+  "checkpoint": "policy-0275",
+  "episodes": 24,
+  "variants": {
+    "friction 0.4-0.6x": {
+      "placed": 24,
+      "lifted": 24,
+      "grasped": 24
+    },
+    "friction 0.25-0.4x": {
+      "placed": 24,
+      "lifted": 24,
+      "grasped": 24
+    },
+    "friction 0.6-0.8x": {
+      "placed": 24,
+      "lifted": 24,
+      "grasped": 24
+    }
+  }
+}
