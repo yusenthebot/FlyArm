@@ -195,6 +195,7 @@ User decision (2026-09-21): keep the cue for the main run and add a no-cue contr
 Reading rule 8 on that branch: a controller sequences on its own if its no-cue iid progress is at least half its cued progress and its first pick is right in at least half of the episodes.
 Cued controls, 20:00 (iid progress, full successes of 36, progress with the cue silenced): GRU seed 0 0.25, 4, 0.05; GRU seed 1 0.05, 0, 0.03; MLP seed 0 0.11, 1, 0.00; MLP seeds 1 and 2 training; the seed-to-seed spread of the GRU is large.
 The connectome queue (runs/long-horizon-queue-brain.log) has waited at its GPU gate since 18:56.
+Cued controls complete (runs/long-horizon-001-controls, seeds 0 to 2): mean iid progress GRU 0.140, MLP 0.147; the no-cue controls start next.
 
 ### Dexterous hand (branch feat/dexterous-hand)
 LEAP hand, four fly legs as fingers; privileged PPO teacher frozen at iteration 925 (15.2 M steps): 64/64 rotation episodes, 0 drops, 50 rad in 20 s on selection seeds; held-out transfer of the teacher around iteration 500 (selection seeds): small cube 54/64, sphere 53/64, cylinder 49/64; distilled GRU pilot 60/64.
@@ -207,6 +208,8 @@ Video: runs/hand-dexterous-001/connectome-0/rollout.mp4, episode 200000 turns 29
 Shuffle seed 0 (degree-preserving, same parameters and data): 63/64 successes, 1 drop, 35.2 rad, so on the training object the measured wiring gives no advantage.
 Transfer, connectome vs shuffle: small cube 0 vs 0, large 29 vs 8, light 51 vs 51, heavy 64 vs 59, slippery 16 vs 10, grippy 56 vs 54, cylinder 16 vs 16, sphere 19 vs 18 (251 vs 216 of 512 in total, most of the gap from the large cube).
 Reading: one seed; the only visible difference is transfer to a larger cube, to be tested on seeds 1 and 2 with the episode-level binomial and the seed-level sign-flip test before any claim.
+Parameter-matched GRU seed 0 (86,531 parameters, same data): 64/64, 0 drops, 50.4 rad, at the teacher's level; transfer 331/512 (small cube 10, large 27, light 63, heavy 64, slippery 37, grippy 63, cylinder 44, sphere 23).
+Reading: on seed 0 the GRU beats both connectome controllers, most clearly in rotation speed (50.4 against 38.0 and 35.2 rad) and in transfer to slippery, cylindrical and small objects; the dexterous result is that the frozen connectome can do in-hand rotation, not that it does it better than a trained recurrent network.
 
 ### E24. B1a pick-and-place protocol v2 (configs/whole-brain-pick-place-v2a.json and -v2b.json, queued)
 Change from the first protocol: the stage-resynchronized teacher (teacher "resync", commit 5a9f2d9), whose demonstrations are bit-identical to the first protocol's on six compared episodes and which keeps squeezing a cube a learner has already lifted.
