@@ -30,3 +30,9 @@ The fly brain stays the protagonist: the controller is W_in -> frozen complete M
 2. Check the running processes and their logs; act on finished results (log, commit, next lever).
 3. Keep at most one waiter per condition; keep the number of full-connectome training jobs at five or fewer.
 4. Before 08:00: record labelled videos of the best new checkpoints, add dashboard featured entries with honest notes, and write the morning summary.
+
+## Status 2026-09-22 08:32
+
+Pick-and-place: push2 test placement 72.9% (seed 3), 64.6% (seed 0), 54.2% (seed 1); 90% not reached; PPO from the seed-3 checkpoint running (runs/ppo-pick-place-push2-s3-001).
+Kitchen: every closed-loop recipe tried overnight was negative (E29, E30, E32).
+Still paused: v2a, v2b, dexterous, long-horizon, multi-task, protocol sweep.
