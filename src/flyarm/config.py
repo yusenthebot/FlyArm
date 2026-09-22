@@ -156,9 +156,11 @@ class FlyLegConfig(BaseModel):
     # What the decoder reads: the 68 left front-leg motor neurons, or those plus the brain's
     # 1,314 descending command neurons.
     readout: Literal["leg_motor", "leg_motor+descending"] = "leg_motor"
-    # Frozen output normalization before the decoder: divide by RMS ("scale"), or subtract
-    # the mean activity first and divide by the standard deviation ("standardize").
-    readout_calibration: Literal["scale", "standardize"] = "scale"
+    # Frozen output normalization before the decoder: divide by RMS ("scale"), subtract the
+    # mean activity first and divide by the standard deviation ("standardize"), or
+    # standardize and divide by sqrt(outputs) so that a wide readout does not saturate the
+    # decoder under Adam ("unit_norm").
+    readout_calibration: Literal["scale", "standardize", "unit_norm"] = "scale"
     validation_fraction: float = Field(default=0.1, gt=0, le=0.3)
     epochs: int = Field(default=60, ge=1, le=1000)
     decoder_warmup_epochs: int = Field(default=2, ge=0, le=50)

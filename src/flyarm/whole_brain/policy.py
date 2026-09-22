@@ -143,14 +143,19 @@ class BrainPolicy(_Normalized):
         *,
         floor_fraction: float = 0.01,
         center: bool = False,
+        unit_norm: bool = False,
     ) -> dict[str, float]:
         """Run training episodes through the current policy and normalize the outputs.
 
         Scale-only (default): divide each output by its RMS activity. With ``center`` the
-        outputs are standardized instead: their mean activity is subtracted first, which
-        removes a common mode that saturates the decoder when it reads many correlated
-        neurons (for example all descending neurons).
+        outputs are standardized instead: their mean activity is subtracted first.
+        ``unit_norm`` (implies ``center``) also divides every output by the square root of the
+        output count, so the readout vector has unit expected squared norm. Early Adam steps
+        move every decoder weight by about the learning rate, so on a batch of correlated
+        steps n unit outputs shift the pre-activation by about lr * n per update; at n = 1,382
+        one update saturates the tanh, and the 1 / sqrt(n) factor prevents it.
         """
+        center = center or unit_norm
         state = self.initial_state(obs.shape[0])
         first = np.zeros(self.dynamics.output_count)
         second = np.zeros(self.dynamics.output_count)
@@ -169,11 +174,15 @@ class BrainPolicy(_Normalized):
         spread = np.sqrt(np.maximum(raw - mean**2, 0.0)) if center else np.sqrt(raw)
         floor = max(float(np.median(spread)) * floor_fraction, 1e-12)
         offset = mean if center else np.zeros_like(mean)
+        scale = 1.0 / np.maximum(spread, floor)
+        if unit_norm:
+            scale = scale / np.sqrt(len(scale))
         self.readout_offset = mx.array(offset.astype(np.float32))
-        self.readout_scale = mx.array((1.0 / np.maximum(spread, floor)).astype(np.float32))
+        self.readout_scale = mx.array(scale.astype(np.float32))
         self._freeze_buffers()
         return {
             "centered": center,
+            "unit_norm": unit_norm,
             "median_spread": float(np.median(spread)),
             "min_spread": float(spread.min()),
             "max_spread": float(spread.max()),
