@@ -277,6 +277,10 @@ Run v2a (seeds 0 to 2) started 2026-09-21 21:35 when run 003 finished, v2b (seed
 Superseded rollout media (67 files: the first kitchen protocol, most proprioception-only clips, page copies, the 256-node prototypes and a duplicate) moved to runs/_archive with a manifest by scripts/archive_media.py; at the user's request the archive (148 MB, manifest included) then went to the macOS Trash, so these files are no longer part of the record.
 The obsolete live views on ports 8769, 8770 and 8771 were stopped; only the dashboard (8780) stays.
 Stale waiters were stopped: one on the stopped E18 run and five duplicate waiters of the long-horizon agent.
+User decision 2026-09-21 21:45: the dexterous hand waits; the kitchen and pick-and-place come first.
+Paused with SIGSTOP (resume with kill -CONT, progress kept): the dexterous run (connectome seed 1 in evaluation) and its follow-up script, the long-horizon brain queue and its no-cue controls run, and the multi-task launcher.
+The multi-task main run (runs/multitask-001) had started at 21:47, in the few minutes between the end of run 003 and the start of v2a, just before its launcher was paused; it was noticed and paused at 00:38 after 2 h 50 min (connectome seed 0 in DAgger round 2).
+v2b was started by hand at 21:53 next to v2a instead of after it.
 The control-only protocol sweep (runs/protocol-sweep, 46 of 50 settings done, the 4 left are GRU with 10-step chunks, seeds 1 to 4) is paused with SIGSTOP to give the fly runs the GPU; resume with kill -CONT on its Python process, or rerun the script, which skips finished settings.
 The dashboard's rollout page now shows curated featured rollouts (docs/featured-videos.json) and groups every other video by area with readable titles; smoke tests and drafts are hidden by default.
 PPO before-and-after videos (flyarm rl record) render the imitation checkpoint and the final PPO checkpoint on the same seeds and task variant.
