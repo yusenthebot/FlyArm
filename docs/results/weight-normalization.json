@@ -1,0 +1,192 @@
+{
+  "pack_fingerprint": "7aa88acd850bd908317d205edfaf53bbb65e17438d98112cca8722a521c172e6",
+  "protocol": {
+    "drive": "random +-0.5 on every input neuron, batch 8",
+    "control_steps": 10,
+    "neural_steps": 3,
+    "epsilon": 0.01,
+    "interface": "kitchen front leg: 23 proprioceptors + 4,868 head sensory in, 68 motor"
+  },
+  "settings": {
+    "L1 gain 0.8": {
+      "mean_abs_activity": 0.014419091865420341,
+      "share_above_0.1": 0.029820785842831432,
+      "motor_rms_under_drive": 0.001156312064267695,
+      "max_abs_after_drive_removed": {
+        "1": 0.524803102016449,
+        "5": 0.132645845413208,
+        "20": 0.0011477069929242134,
+        "mean_abs_at_20": 8.799484696453419e-09,
+        "neurons_above_0.1_at_20": 0
+      },
+      "motor_linear_response": {
+        "participation_ratio": 3.767993589876172,
+        "rank_90": 5,
+        "rank_99": 10,
+        "head_energy_share": 0.08074849098920822,
+        "frobenius": 0.021163269877433777
+      },
+      "linear_prediction_relative_error": 0.09203556180000305
+    },
+    "L2 gain 0.5": {
+      "mean_abs_activity": 0.04316941648721695,
+      "share_above_0.1": 0.09343356328734254,
+      "motor_rms_under_drive": 0.04530133679509163,
+      "max_abs_after_drive_removed": {
+        "1": 0.9992495775222778,
+        "5": 0.9992598295211792,
+        "20": 0.9994704127311707,
+        "mean_abs_at_20": 0.06761632859706879,
+        "neurons_above_0.1_at_20": 55798
+      },
+      "motor_linear_response": {
+        "participation_ratio": 1.0363682437790247,
+        "rank_90": 1,
+        "rank_99": 2,
+        "head_energy_share": 0.9999960064888,
+        "frobenius": 110.83409881591797
+      },
+      "linear_prediction_relative_error": 175.7367401123047
+    },
+    "L2 gain 0.8": {
+      "mean_abs_activity": 0.2450559139251709,
+      "share_above_0.1": 0.6549205158968207,
+      "motor_rms_under_drive": 0.4341517686843872,
+      "max_abs_after_drive_removed": {
+        "1": 0.9999999403953552,
+        "5": 1.0,
+        "20": 1.0,
+        "mean_abs_at_20": 0.25826215744018555,
+        "neurons_above_0.1_at_20": 153758
+      },
+      "motor_linear_response": {
+        "participation_ratio": 1.2009054838545656,
+        "rank_90": 1,
+        "rank_99": 5,
+        "head_energy_share": 0.9997097253799438,
+        "frobenius": 7661.65185546875
+      },
+      "linear_prediction_relative_error": 1194.116943359375
+    },
+    "L2 gain 0.95": {
+      "mean_abs_activity": 0.33253398537635803,
+      "share_above_0.1": 0.7652287042591481,
+      "motor_rms_under_drive": 0.5707948803901672,
+      "max_abs_after_drive_removed": {
+        "1": 1.0,
+        "5": 1.0,
+        "20": 1.0,
+        "mean_abs_at_20": 0.3480615019798279,
+        "neurons_above_0.1_at_20": 164217
+      },
+      "motor_linear_response": {
+        "participation_ratio": 1.6916764083602778,
+        "rank_90": 3,
+        "rank_99": 8,
+        "head_energy_share": 0.9985067248344421,
+        "frobenius": 19043.951171875
+      },
+      "linear_prediction_relative_error": 2212.364990234375
+    },
+    "L2 gain 0.2": {
+      "mean_abs_activity": 0.015207448974251747,
+      "share_above_0.1": 0.03086382723455309,
+      "motor_rms_under_drive": 0.002256498672068119,
+      "max_abs_after_drive_removed": {
+        "1": 0.28193265199661255,
+        "5": 0.1462288796901703,
+        "20": 0.048687927424907684,
+        "mean_abs_at_20": 8.167640771716833e-05,
+        "neurons_above_0.1_at_20": 0
+      },
+      "motor_linear_response": {
+        "participation_ratio": 3.858417862013573,
+        "rank_90": 5,
+        "rank_99": 16,
+        "head_energy_share": 0.1899438500404358,
+        "frobenius": 0.04163601994514465
+      },
+      "linear_prediction_relative_error": 0.091492660343647
+    },
+    "L2 gain 0.3": {
+      "mean_abs_activity": 0.01988607831299305,
+      "share_above_0.1": 0.0439629574085183,
+      "motor_rms_under_drive": 0.004930293653160334,
+      "max_abs_after_drive_removed": {
+        "1": 0.9078662395477295,
+        "5": 0.9036877751350403,
+        "20": 0.901551365852356,
+        "mean_abs_at_20": 0.0078214006498456,
+        "neurons_above_0.1_at_20": 5009
+      },
+      "motor_linear_response": {
+        "participation_ratio": 5.2561258560339645,
+        "rank_90": 7,
+        "rank_99": 22,
+        "head_energy_share": 0.6064936518669128,
+        "frobenius": 0.10252098739147186
+      },
+      "linear_prediction_relative_error": 0.5989936590194702
+    },
+    "L1.25 gain 0.8": {
+      "mean_abs_activity": 0.017940236255526543,
+      "share_above_0.1": 0.03737177564487103,
+      "motor_rms_under_drive": 0.004185157362371683,
+      "max_abs_after_drive_removed": {
+        "1": 0.6493916511535645,
+        "5": 0.5905561447143555,
+        "20": 0.7572836875915527,
+        "mean_abs_at_20": 0.004669484682381153,
+        "neurons_above_0.1_at_20": 2137
+      },
+      "motor_linear_response": {
+        "participation_ratio": 5.147880309087407,
+        "rank_90": 9,
+        "rank_99": 23,
+        "head_energy_share": 0.4767254889011383,
+        "frobenius": 0.07656299322843552
+      },
+      "linear_prediction_relative_error": 0.21166519820690155
+    },
+    "L1.5 gain 0.5": {
+      "mean_abs_activity": 0.018405355513095856,
+      "share_above_0.1": 0.039244151169766046,
+      "motor_rms_under_drive": 0.004369569011032581,
+      "max_abs_after_drive_removed": {
+        "1": 0.7526122331619263,
+        "5": 0.7606401443481445,
+        "20": 0.813920259475708,
+        "mean_abs_at_20": 0.006391054484993219,
+        "neurons_above_0.1_at_20": 3637
+      },
+      "motor_linear_response": {
+        "participation_ratio": 4.909450286759693,
+        "rank_90": 8,
+        "rank_99": 24,
+        "head_energy_share": 0.45719945430755615,
+        "frobenius": 0.07881861925125122
+      },
+      "linear_prediction_relative_error": 0.1612129658460617
+    },
+    "L1.5 gain 0.8": {
+      "mean_abs_activity": 0.03861004114151001,
+      "share_above_0.1": 0.08289217156568686,
+      "motor_rms_under_drive": 0.028405429795384407,
+      "max_abs_after_drive_removed": {
+        "1": 0.9948330521583557,
+        "5": 0.9964585304260254,
+        "20": 0.9966847896575928,
+        "mean_abs_at_20": 0.04064270853996277,
+        "neurons_above_0.1_at_20": 23075
+      },
+      "motor_linear_response": {
+        "participation_ratio": 1.0434903966863454,
+        "rank_90": 1,
+        "rank_99": 2,
+        "head_energy_share": 0.9995843172073364,
+        "frobenius": 7.566675186157227
+      },
+      "linear_prediction_relative_error": 18.8421573638916
+    }
+  }
+}

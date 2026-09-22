@@ -301,6 +301,7 @@ def serve_flyleg(
         include_descending=config.get("readout", "leg_motor") == "leg_motor+descending",
     )
     gain = float(config.get("recurrent_gain", 0.8))
+    power = float(config.get("weight_norm_power", 1.0))
     policy = load_flyleg_policy(run_root, "flyleg", seed, pack_root, annotations)
     if not isinstance(policy, BrainPolicy):
         raise ValueError("Expected a front-leg brain checkpoint")
@@ -315,7 +316,7 @@ def serve_flyleg(
                 pack,
                 leg.interface,
                 recurrent_gain=gain,
-                weights=direct_only_weights(pack, leg.interface),
+                weights=direct_only_weights(pack, leg.interface, power),
             ),
         ),
         "deafferented": policy.silence_channel("deafferented", 0),

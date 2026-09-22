@@ -26,7 +26,9 @@ from flyarm.whole_brain.interface import annotation_interface, interface_report
 CONTROL_HZ = 20.0
 
 
-def direct_only_weights(pack: ConnectomePack, interface: NeuralInterface) -> np.ndarray:
+def direct_only_weights(
+    pack: ConnectomePack, interface: NeuralInterface, power: float = 1.0
+) -> np.ndarray:
     """Normalized weights with every edge removed except input-to-output synapses."""
     inputs, outputs = interface.resolve_indices(pack)
     is_input = np.zeros(pack.nodes, dtype=bool)
@@ -34,7 +36,7 @@ def direct_only_weights(pack: ConnectomePack, interface: NeuralInterface) -> np.
     is_output = np.zeros(pack.nodes, dtype=bool)
     is_output[outputs] = True
     keep = is_input[pack.col_idx] & is_output[pack.rows()]
-    return np.where(keep, pack.normalized_weights(), 0.0).astype(np.float32)
+    return np.where(keep, pack.normalized_weights(power), 0.0).astype(np.float32)
 
 
 def _currents(count: int, steps: int, batch: int, seed: int, scale: float) -> np.ndarray:

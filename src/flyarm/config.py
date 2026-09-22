@@ -171,6 +171,9 @@ class FlyLegConfig(BaseModel):
     # Rate-model regime (weights unchanged): h <- 0.5 h + 0.5 tanh(I + g W h). Near 1 the
     # connectome keeps information for seconds instead of about 0.2 s.
     recurrent_gain: float = Field(default=0.8, ge=0, lt=1)
+    # Synaptic weights: signed contacts over the L-p norm of each neuron's inputs. 1 is the
+    # default (inputs sum to at most 1: quiet, near-linear); up to 2 (variance preserving).
+    weight_norm_power: float = Field(default=1.0, ge=1.0, le=2.0)
     # ACT-style output: every controller predicts the next action_chunk actions at each step,
     # executed through a fixed temporal ensemble. 1 is ordinary single-step control.
     action_chunk: int = Field(default=1, ge=1, le=50)
