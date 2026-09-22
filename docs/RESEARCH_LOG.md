@@ -195,7 +195,8 @@ User decision (2026-09-21): keep the cue for the main run and add a no-cue contr
 Reading rule 8 on that branch: a controller sequences on its own if its no-cue iid progress is at least half its cued progress and its first pick is right in at least half of the episodes.
 Cued controls, 20:00 (iid progress, full successes of 36, progress with the cue silenced): GRU seed 0 0.25, 4, 0.05; GRU seed 1 0.05, 0, 0.03; MLP seed 0 0.11, 1, 0.00; MLP seeds 1 and 2 training; the seed-to-seed spread of the GRU is large.
 The connectome queue (runs/long-horizon-queue-brain.log) has waited at its GPU gate since 18:56.
-Cued controls complete (runs/long-horizon-001-controls, seeds 0 to 2): mean iid progress GRU 0.140, MLP 0.147; the no-cue controls start next.
+Cued controls complete (runs/long-horizon-001-controls, seeds 0 to 2; tables in docs/results/long-horizon-001-controls.json and .md, commit 3ea7e5f on feat/long-horizon): iid progress per seed GRU 0.25, 0.05, 0.12 (mean 0.14, full successes 4/108), MLP 0.11, 0.17, 0.16 (mean 0.15, 6/108).
+Silencing the cue drops both to about 0 (GRU 0.03, MLP 0.00); silencing ranks, placed flags or the task code changes little; unseen target placements are the weakest split (0.06 to 0.07); the no-cue controls started 21:14.
 
 ### Dexterous hand (branch feat/dexterous-hand)
 LEAP hand, four fly legs as fingers; privileged PPO teacher frozen at iteration 925 (15.2 M steps): 64/64 rotation episodes, 0 drops, 50 rad in 20 s on selection seeds; held-out transfer of the teacher around iteration 500 (selection seeds): small cube 54/64, sphere 53/64, cylinder 49/64; distilled GRU pilot 60/64.
