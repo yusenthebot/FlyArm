@@ -120,6 +120,8 @@ The large placement gain on heavy cubes is partly physical: a heavy cube does no
 Far goals and low friction did not improve.
 This run predates validation-seed selection, so only final-iteration numbers are reported.
 Control: the same run on the degree-preserving shuffle (runs/ppo-pick-place-randomized-shuffled-001) started after it, with validation-seed selection.
+Interim control, same test seeds at matched iterations 300 to 375 (place of 24, connectome then shuffle): nominal 2-4 vs 4-6, training distribution 3-7 vs 3-8, heavy 4-8 vs 6-9, far goals 2-3 vs 4-7; lifting is 15 to 24 of 24 for both.
+Interim reading: at mid-training the shuffled connectome gains from PPO at least as much as the measured one, so the E17 gains are not yet evidence for the topology; the comparison at iteration 800 decides.
 
 ### E18. Beta-mixed DAgger with the tracker on the kitchen, MLP probe (runs/flyleg-kitchen-dagger-dev-001, commit 90cadbf, stopped)
 Method: from behavior cloning, four DAgger rounds of 20 episodes in which the teacher acts with probability 0.5, 0.25, 0.125, 0.0625, every visited state labelled by the tracker.
@@ -162,6 +164,8 @@ Evidence for the question: after behavior cloning the fly's training L1 is 0.106
 First attempt (runs/flyleg-kitchen-descending-dev-001, stopped): reading the 68 motor neurons plus all 1,314 descending neurons with scale-only calibration, training L1 stayed near 0.9 from epoch 1: the 1,382 unit-RMS outputs share a strong common mode and saturate the tanh decoder.
 Fix (commit after 5a9f2d9): an optional standardized calibration that subtracts each output's mean activity before dividing by its standard deviation, still a frozen per-neuron affine map.
 Design: two runs that differ only in the readout, both standardized, fly only, seed 0, 20 test episodes: runs/flyleg-kitchen-leg-std-dev-001 (68 motor neurons) and runs/flyleg-kitchen-descending-std-dev-001 (68 motor plus 1,314 descending neurons).
+Interim, epoch 83 to 89 of 100: the 68-neuron readout trains to L1 0.11 (as E11), the 1,382-neuron readout stays at 0.81 (0.95 at epoch 1), so standardization did not fix the wide readout; both reach 1 task on some validation checks.
+Next if it ends this way: probe the standardized descending outputs on the demonstration data (per-neuron scale floor, spread of the standardized values, decoder pre-activation) before any further run.
 
 ### E23. Stateful-teacher labels in B1a DAgger (found by the multi-task agent, quantified here)
 Finding: the scripted pick-and-place teacher keeps its own stage machine, so while labelling learner-driven DAgger states it can still be in "approach" or "descend" after the learner has already grasped and lifted the cube, and it then labels those states "open the gripper".
@@ -179,11 +183,13 @@ The connectome run (runs/multitask-001, about 15 to 20 h) waits for the GPU.
 
 ### Long-horizon (branch feat/long-horizon)
 Tasks: tower, sort and clear with four colour-coded cubes, 600 to 1,000 control steps; teacher 900/900.
-Design decision pending with the user: the observation includes a memoryless sub-task cue (the cube to handle now, recomputed from the scene every step), because without it no controller learned to pick the next cube in a pilot (MLP correct first pick 0/36, with the cue 27/36); a cue-silenced lesion keeps the brain's own sequencing testable.
+Design question (decided below): the observation includes a memoryless sub-task cue (the cube to handle now, recomputed from the scene every step), because without it no controller learned to pick the next cube in a pilot (MLP correct first pick 0/36, with the cue 27/36); a cue-silenced lesion keeps the brain's own sequencing testable.
 Early controls, seed 0, 36 test episodes per split (progress): GRU iid 0.25 (4/36 full), MLP 0.11 (1/36); both near 0 without the cue; tower about 0 for both.
 The connectome and shuffle runs (12 to 24 h) wait for the GPU.
 User decision (2026-09-21): keep the cue for the main run and add a no-cue control (config cue=false zeroes the 17 cue entries, same architecture, parameters, teacher and labels; commit 328222d on feat/long-horizon).
 Reading rule 8 on that branch: a controller sequences on its own if its no-cue iid progress is at least half its cued progress and its first pick is right in at least half of the episodes.
+Cued controls, 20:00 (iid progress, full successes of 36, progress with the cue silenced): GRU seed 0 0.25, 4, 0.05; GRU seed 1 0.05, 0, 0.03; MLP seed 0 0.11, 1, 0.00; MLP seeds 1 and 2 training; the seed-to-seed spread of the GRU is large.
+The connectome queue (runs/long-horizon-queue-brain.log) has waited at its GPU gate since 18:56.
 
 ### Dexterous hand (branch feat/dexterous-hand)
 LEAP hand, four fly legs as fingers; privileged PPO teacher frozen at iteration 925 (15.2 M steps): 64/64 rotation episodes, 0 drops, 50 rad in 20 s on selection seeds; held-out transfer of the teacher around iteration 500 (selection seeds): small cube 54/64, sphere 53/64, cylinder 49/64; distilled GRU pilot 60/64.
@@ -195,7 +201,9 @@ Design: seeds 0 to 5, each training the connectome, two independent degree-prese
 It starts after run 003 finishes (scripts/pick_place_v2.sh); run 004 (a second shuffle for the first protocol's seeds 0 to 2) was cancelled because v2 supersedes it.
 
 ## Housekeeping 2026-09-21 evening
-Superseded rollout media (67 files: the first kitchen protocol, most proprioception-only clips, page copies, the 256-node prototypes and a duplicate) moved to runs/_archive with a manifest by scripts/archive_media.py, which can restore them.
-The obsolete live views on ports 8769 and 8770 were stopped; the kitchen v2 view (8771) and the dashboard (8780) stay.
+Superseded rollout media (67 files: the first kitchen protocol, most proprioception-only clips, page copies, the 256-node prototypes and a duplicate) moved to runs/_archive with a manifest by scripts/archive_media.py; at the user's request the archive (148 MB, manifest included) then went to the macOS Trash, so these files are no longer part of the record.
+The obsolete live views on ports 8769, 8770 and 8771 were stopped; only the dashboard (8780) stays.
+Stale waiters were stopped: one on the stopped E18 run and five duplicate waiters of the long-horizon agent.
+The control-only protocol sweep (runs/protocol-sweep, 46 of 50 settings done, the 4 left are GRU with 10-step chunks, seeds 1 to 4) is paused with SIGSTOP to give the fly runs the GPU; resume with kill -CONT on its Python process, or rerun the script, which skips finished settings.
 The dashboard's rollout page now shows curated featured rollouts (docs/featured-videos.json) and groups every other video by area with readable titles; smoke tests and drafts are hidden by default.
 PPO before-and-after videos (flyarm rl record) render the imitation checkpoint and the final PPO checkpoint on the same seeds and task variant.
