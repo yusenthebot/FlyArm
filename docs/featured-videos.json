@@ -3,7 +3,7 @@
   "root": "dexterous-hand",
   "path": "hand-dexterous-001/connectome-0/rollout.mp4",
   "title": "Fly brain spins a cube with a four-finger hand",
-  "note": "LEAP hand, four fly legs as fingers, complete MaleCNS frozen. Seed 0 on 64 test episodes: 62 successes, 2 drops, 38 rad mean rotation (teacher 64, 0, 49.7). With the connectome's edges off: 0 of 64. A degree-preserving shuffle of the wiring does as well (63 of 64), so this shows the recurrent connectome can do it, not yet that the measured wiring matters."
+  "note": "LEAP hand, four fly legs as fingers, complete MaleCNS frozen. Seed 0 on 64 test episodes: 62 successes, 2 drops, 38 rad mean rotation (teacher 64, 0, 49.7). With the connectome's edges off: 0 of 64. Controls on the same seed: a degree-preserving shuffle 63 of 64 at 35 rad, a parameter-matched GRU 64 of 64 at 50 rad. The connectome can do it; it is not better."
  },
  {
   "root": "main",

@@ -16,7 +16,7 @@ Numbers marked exploratory come from scratch probes that were later superseded b
 | The fly controller solves more than one kitchen task | not yet: one task (microwave); not fixed by longer memory (E20), tracker DAgger (E19) or a wider standardized readout (E22, whose kettle scores are shoves) | E4, E11, E19, E20, E22 |
 | RL on the frozen connectome improves a skill | supported for lifting (18/24 to 24/24), not for placing | E12 |
 | RL on the frozen connectome generalizes to unseen physics | partly: lifting generalizes to heavier cubes; placement gains on heavy cubes are partly physical; at mid-training the shuffled connectome gains as much, final comparison pending | E17 |
-| The frozen connectome controls a dexterous hand | supported for seed 0: in-hand rotation 62/64 (teacher 64/64), transfer to unseen objects partial | dexterous track |
+| The frozen connectome controls a dexterous hand | supported for seed 0: in-hand rotation 62/64 (teacher 64/64); a matched GRU does better (64/64, faster, 331 vs 251 of 512 on transfer) | dexterous track |
 | The rate model holds information for seconds | only near critical recurrent gain (0.99); about 0.2 s at the default 0.8 | E15, E16 |
 
 ## 2026-09-20 to 21: B1a and B2, first protocol
