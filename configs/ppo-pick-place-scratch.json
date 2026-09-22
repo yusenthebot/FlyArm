@@ -9,10 +9,11 @@
   "iterations": 3000,
   "eval_every": 50,
   "eval_episodes": 24,
-  "log_std": -0.9,
+  "log_std": -0.7,
   "seed": 0,
   "eval_variants": {
     "nominal": {}
   },
-  "best_on": "nominal"
+  "best_on": "nominal",
+  "reach_slope": 3.0
 }
