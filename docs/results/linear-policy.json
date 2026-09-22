@@ -1,0 +1,29 @@
+{
+  "split_from": "runs/flyleg-kitchen-complete-chunk-001",
+  "steps": 20000,
+  "fits": {
+    "linear (tanh of an affine map of the 30 features)": {
+      "train_l1": 0.11754956096410751,
+      "best_validation_l1": 0.11916287988424301
+    },
+    "MLP 2 x 256": {
+      "train_l1": 0.037371762096881866,
+      "best_validation_l1": 0.07236842066049576
+    }
+  },
+  "run_references": {
+    "flyleg seed 0": 0.11086916097005209,
+    "flyleg_shuffled seed 0": 0.13197328016493057,
+    "mlp seed 0": 0.07899304877387153,
+    "gru seed 0": 0.07901699490017361,
+    "act seed 0": 0.07387130398220486,
+    "flyleg seed 1": 0.11283011203342014,
+    "flyleg_shuffled seed 1": 0.1710755886501736,
+    "mlp seed 1": 0.0779330308702257,
+    "gru seed 1": 0.08168094889322916,
+    "act seed 1": 0.07404532877604167,
+    "flyleg seed 2": 0.10523714192708333,
+    "68 motor, unit_norm": 0.10371891954210069,
+    "1,382 neurons, unit_norm": 0.10498449028862847
+  }
+}
