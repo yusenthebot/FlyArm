@@ -173,6 +173,9 @@ This protocol's teacher mislabels some lifted states (E23); the clean and final 
 
 ## Engineering that the paper relies on
 
+- Live progress clips (commit cca0ed7): `flyarm rl watch --run RUN` polls a PPO run and, whenever it saves a newer checkpoint, re-renders two labelled test episodes into RUN/progress/latest.mp4, replacing the previous clip and writing latest.json with the iteration, the episode outcomes and that iteration's curve row; the dashboard's Live tab shows every such clip and refreshes every 30 seconds.
+
+
 - Batched MuJoCo (mjbatch 0.1.1, MuJoCo 3.13.0) with a step-for-step equivalence test against the single environment (tests/test_batched_pick_place.py).
 - Local dashboard of every run, curve, log and rollout (flyarm dashboard, port 8780).
 - Control-network figure (docs/figures/control_network-figure.png), QA-gated.
