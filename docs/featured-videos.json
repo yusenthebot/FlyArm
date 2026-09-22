@@ -1,44 +1,50 @@
 [
-  {
-    "root": "main",
-    "path": "ppo-pick-place-randomized-001/videos/heavier_6_10x-before-after.mp4",
-    "title": "RL on the fly brain: cubes heavier than any it trained on",
-    "note": "Cube mass 6 to 10x, never seen in training. Left, imitation only: grasps but cannot lift (3 of 3). Right, after PPO tuned only the motor decoder with the connectome frozen: placed 3 of 3."
-  },
-  {
-    "root": "main",
-    "path": "ppo-pick-place-001/videos/nominal-before-after.mp4",
-    "title": "RL on the fly brain: the standard pick-and-place task",
-    "note": "Same seeds before and after PPO: 1 placed and 2 only grasped before, 1 placed and 2 lifted after. Over 24 test episodes PPO raised lifting from 18 to 24; placing did not improve reliably."
-  },
-  {
-    "root": "main",
-    "path": "overnight/videos/pick-place-connectome-seed2.mp4",
-    "title": "Complete MaleCNS picks and places a cube (imitation, seed 2)",
-    "note": "166,700 frozen neurons between 1,846 ascending inputs and 2,022 descending and motor outputs."
-  },
-  {
-    "root": "main",
-    "path": "overnight/videos/pick-place-shuffled-seed2.mp4",
-    "title": "The same training on a shuffled connectome (seed 2)",
-    "note": "Degree-preserving shuffle of the same CNS, identical data and budget."
-  },
-  {
-    "root": "main",
-    "path": "milestone/videos/kitchen-chunk/kitchen-complete-comparison-seed0-episode0.mp4",
-    "title": "Kitchen protocol v2: fly CNS, shuffled CNS, MLP, GRU and ACT on one episode",
-    "note": "The Franka as the fly's left front leg; the fly controller opens the microwave."
-  },
-  {
-    "root": "main",
-    "path": "overnight/videos/proprio/kitchen-complete-lesions-seed2-episode0.mp4",
-    "title": "Kitchen: the fly leg opens the slide cabinet, and every lesion removes it",
-    "note": "Proprioception-only interface, seed 2: intact, leg deafferented, edges off, direct synapses only."
-  },
-  {
-    "root": "main",
-    "path": "ppo-pick-place-randomized-001/videos/train_distribution-before-after.mp4",
-    "title": "RL on the fly brain: randomized cube mass and grip friction",
-    "note": "Training distribution (mass 1 to 4x, friction 0.15 to 1x). On these three seeds PPO lifts every cube but places none; over 24 test episodes placement doubled (5 to 10)."
-  }
+ {
+  "root": "dexterous-hand",
+  "path": "hand-dexterous-001/connectome-0/rollout.mp4",
+  "title": "Fly brain spins a cube with a four-finger hand",
+  "note": "LEAP hand, four fly legs as fingers, complete MaleCNS frozen. Seed 0 on 64 test episodes: 62 successes, 2 drops, 38 rad mean rotation (teacher 64, 0, 49.7). With the connectome's edges off: 0 of 64. Shuffled-connectome and GRU controls are still training."
+ },
+ {
+  "root": "main",
+  "path": "ppo-pick-place-randomized-001/videos/heavier_6_10x-before-after.mp4",
+  "title": "RL on the fly brain: cubes heavier than any it trained on",
+  "note": "Cube mass 6 to 10x, never seen in training. Left, imitation only: grasps but cannot lift (3 of 3). Right, after PPO tuned only the motor decoder with the connectome frozen: placed 3 of 3."
+ },
+ {
+  "root": "main",
+  "path": "ppo-pick-place-001/videos/nominal-before-after.mp4",
+  "title": "RL on the fly brain: the standard pick-and-place task",
+  "note": "Same seeds before and after PPO: 1 placed and 2 only grasped before, 1 placed and 2 lifted after. Over 24 test episodes PPO raised lifting from 18 to 24; placing did not improve reliably."
+ },
+ {
+  "root": "main",
+  "path": "overnight/videos/pick-place-connectome-seed2.mp4",
+  "title": "Complete MaleCNS picks and places a cube (imitation, seed 2)",
+  "note": "166,700 frozen neurons between 1,846 ascending inputs and 2,022 descending and motor outputs."
+ },
+ {
+  "root": "main",
+  "path": "overnight/videos/pick-place-shuffled-seed2.mp4",
+  "title": "The same training on a shuffled connectome (seed 2)",
+  "note": "Degree-preserving shuffle of the same CNS, identical data and budget."
+ },
+ {
+  "root": "main",
+  "path": "milestone/videos/kitchen-chunk/kitchen-complete-comparison-seed0-episode0.mp4",
+  "title": "Kitchen protocol v2: fly CNS, shuffled CNS, MLP, GRU and ACT on one episode",
+  "note": "The Franka as the fly's left front leg; the fly controller opens the microwave."
+ },
+ {
+  "root": "main",
+  "path": "overnight/videos/proprio/kitchen-complete-lesions-seed2-episode0.mp4",
+  "title": "Kitchen: the fly leg opens the slide cabinet, and every lesion removes it",
+  "note": "Proprioception-only interface, seed 2: intact, leg deafferented, edges off, direct synapses only."
+ },
+ {
+  "root": "main",
+  "path": "ppo-pick-place-randomized-001/videos/train_distribution-before-after.mp4",
+  "title": "RL on the fly brain: randomized cube mass and grip friction",
+  "note": "Training distribution (mass 1 to 4x, friction 0.15 to 1x). On these three seeds PPO lifts every cube but places none; over 24 test episodes placement doubled (5 to 10)."
+ }
 ]
