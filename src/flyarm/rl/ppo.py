@@ -165,6 +165,53 @@ def evaluate(
     }
 
 
+def encoder_pass(
+    policy: BrainPolicy,
+    head: MotorHead,
+    optimizer: optim.Optimizer,
+    observations: np.ndarray,
+    actions: np.ndarray,
+    advantages: np.ndarray,
+    done: np.ndarray,
+    state: mx.array,
+    max_grad_norm: float,
+) -> float:
+    """One on-policy REINFORCE-with-baseline pass over the rollout for the encoder.
+
+    Gradients through the recurrent connectome are truncated to the current control step: the
+    incoming state is a constant, so only that step's 3 neural updates are differentiated and
+    just one step's graph is alive at a time. The rollout's observations replay the same states
+    (the dynamics are deterministic), so nothing extra has to be stored during the rollout.
+    """
+    if policy.channels is not None:
+        raise ValueError("Encoder training expects the single-encoder B1a interface")
+
+    def loss_fn(
+        encoder: nn.Module, state: mx.array, obs: mx.array, action: mx.array, weight: mx.array
+    ) -> tuple[mx.array, mx.array]:
+        current = encoder(policy.normalize(obs))
+        state, pooled = policy.dynamics.advance(state, current, policy.neural_steps)
+        log_prob = gaussian_log_prob(action, head.mean(policy.readout(pooled)), head.log_std)
+        return -(weight * log_prob).mean(), state
+
+    gradient_fn = nn.value_and_grad(policy.encoder, loss_fn)
+    total = 0.0
+    for step in range(len(observations)):
+        (loss, state), grads = gradient_fn(
+            policy.encoder,
+            mx.stop_gradient(state),
+            mx.array(observations[step]),
+            mx.array(actions[step]),
+            mx.array(advantages[step]),
+        )
+        grads, _ = optim.clip_grad_norm(grads, max_grad_norm)
+        optimizer.update(policy.encoder, grads)
+        state = state * mx.array(1.0 - done[step])[None, :]
+        mx.eval(policy.encoder.parameters(), optimizer.state, state)
+        total += float(loss)
+    return total / max(len(observations), 1)
+
+
 def train_ppo(
     policy: BrainPolicy,
     model_path: Path,
@@ -186,6 +233,7 @@ def train_ppo(
     critic = Critic()
     head_optimizer = optim.Adam(learning_rate=settings.decoder_lr)
     critic_optimizer = optim.Adam(learning_rate=settings.critic_lr)
+    encoder_optimizer = optim.Adam(learning_rate=settings.encoder_lr)
     env = BatchedPickPlace(
         model_path,
         settings.num_envs,
@@ -237,6 +285,8 @@ def train_ppo(
     best: dict[str, Any] = {"success_rate": -1.0}
     for iteration in range(settings.iterations):
         feats_buf = np.zeros((horizon, n, policy.dynamics.output_count), np.float32)
+        obs_buf = np.zeros((horizon, n, OBS_DIM), np.float32)
+        rollout_state = brain.state
         critic_buf = np.zeros((horizon, n, OBS_DIM + 1), np.float32)
         action_buf = np.zeros((horizon, n, ACTION_DIM), np.float32)
         logp_buf = np.zeros((horizon, n), np.float32)
@@ -252,6 +302,7 @@ def train_ppo(
             log_prob = gaussian_log_prob(actions, mean, head.log_std)
             mx.eval(actions, log_prob)
             feats_buf[t] = np.asarray(feats)
+            obs_buf[t] = obs
             critic_buf[t] = _critic_input(privileged, env.steps, settings.horizon)
             action_buf[t] = np.asarray(actions)
             logp_buf[t] = np.asarray(log_prob)
@@ -290,6 +341,19 @@ def train_ppo(
             "ret": mx.array(returns.reshape(samples)),
         }
         train_policy = iteration >= settings.critic_warmup
+        encoder_loss = None
+        if settings.encoder_lr > 0 and train_policy:
+            encoder_loss = encoder_pass(
+                policy,
+                head,
+                encoder_optimizer,
+                obs_buf,
+                action_buf,
+                np.asarray(data["adv"]).reshape(horizon, n),
+                done_buf,
+                rollout_state,
+                settings.max_grad_norm,
+            )
         stats: list[tuple[float, float, float]] = []
         for _ in range(settings.epochs):
             order = generator.permutation(samples)
@@ -323,6 +387,7 @@ def train_ppo(
             "policy_loss": float(np.mean([s[0] for s in stats])),
             "value_loss": float(np.mean([s[1] for s in stats])),
             "ratio_deviation": float(np.mean([s[2] for s in stats])),
+            "encoder_loss": encoder_loss,
             "action_std": np.exp(np.asarray(head.log_std)).round(4).tolist(),
             "policy_trained": train_policy,
             "steps_per_second": n * horizon / rollout_seconds,

@@ -83,3 +83,63 @@ def test_ppo_changes_only_the_motor_decoder(tmp_path) -> None:
     assert not np.array_equal(np.asarray(policy.decoder.weight), decoder)
     assert policy.dynamics.matrix is not None  # the connectome itself is untouched and frozen
     assert (tmp_path / "ppo" / "policy-0002.safetensors").is_file()
+
+
+def _scratch_pair(obs_dim: int):
+    import mlx.optimizers as optim
+
+    from flyarm.rl.ppo import MotorHead
+    from flyarm.whole_brain.backend_mlx import RateDynamics
+    from flyarm.whole_brain.policy import BrainPolicy
+
+    pack = ConnectomePack.from_graph(random_graph(n=48, edges=400))
+    policy = BrainPolicy(
+        "connectome",
+        RateDynamics(pack, interface_for(pack)),
+        obs_dim=obs_dim,
+        action_dim=4,
+        seed=0,
+    )
+    return policy, MotorHead(policy.decoder, -1.0), optim.Adam(learning_rate=1e-2)
+
+
+def test_encoder_pass_trains_the_encoder_from_advantages_only() -> None:
+    from flyarm.rl.ppo import OBS_DIM, encoder_pass
+
+    steps, envs = 4, 3
+    generator = np.random.default_rng(0)
+    observations = generator.standard_normal((steps, envs, OBS_DIM)).astype(np.float32)
+    actions = generator.uniform(-1, 1, (steps, envs, 4)).astype(np.float32)
+    done = np.zeros((steps, envs), np.float32)
+
+    policy, head, optimizer = _scratch_pair(OBS_DIM)
+    before = np.asarray(policy.encoder.weight).copy()
+    loss = encoder_pass(
+        policy,
+        head,
+        optimizer,
+        observations,
+        actions,
+        generator.standard_normal((steps, envs)).astype(np.float32),
+        done,
+        policy.initial_state(envs),
+        0.5,
+    )
+    assert np.isfinite(loss)
+    assert not np.allclose(np.asarray(policy.encoder.weight), before)
+
+    # With zero advantages every gradient is zero, so the encoder must not move.
+    policy, head, optimizer = _scratch_pair(OBS_DIM)
+    unchanged = np.asarray(policy.encoder.weight).copy()
+    encoder_pass(
+        policy,
+        head,
+        optimizer,
+        observations,
+        actions,
+        np.zeros((steps, envs), np.float32),
+        done,
+        policy.initial_state(envs),
+        0.5,
+    )
+    assert np.array_equal(np.asarray(policy.encoder.weight), unchanged)

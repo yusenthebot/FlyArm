@@ -287,6 +287,11 @@ class PPOConfig(BaseModel):
     lam: float = Field(default=0.95, ge=0, le=1)
     clip: float = Field(default=0.2, gt=0, le=1)
     decoder_lr: float = Field(default=3e-4, gt=0, le=0.1)
+    # Learning rate for the encoder (the linear map into the ascending neurons); 0 keeps it
+    # frozen, as in every run before research log E38. Above 0, each PPO iteration also
+    # replays its rollout to train the encoder from reward with one-step truncated
+    # gradients through the connectome, which costs about three extra forward passes.
+    encoder_lr: float = Field(default=0.0, ge=0, le=0.1)
     critic_lr: float = Field(default=1e-3, gt=0, le=0.1)
     value_coef: float = Field(default=0.5, ge=0)
     entropy_coef: float = Field(default=0.0, ge=0)
