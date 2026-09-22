@@ -163,8 +163,8 @@ def test_privileged_observation_adds_velocities_and_task_state() -> None:
     assert obs.shape == (2, kitchen.FEATURE_DIM)
     assert privileged.shape == (2, env.privileged_dim)
     assert np.array_equal(privileged[:, : kitchen.FEATURE_DIM], obs)
-    assert np.allclose(privileged[:, -5:-1], 0.0)  # no task completed yet
-    assert np.allclose(privileged[:, -1], 0.0)  # episode fraction
+    assert np.allclose(privileged[:, -4:], 0.0)  # no task completed yet
+    assert np.allclose(privileged[:, 30:39], 0.0)  # the robot starts at rest
 
 
 def test_variant_perturbs_the_start_and_leaves_the_nominal_episode_alone() -> None:

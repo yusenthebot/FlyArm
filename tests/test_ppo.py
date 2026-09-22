@@ -54,7 +54,7 @@ def test_running_norm_tracks_scale_with_a_floor() -> None:
 def test_ppo_changes_only_the_motor_decoder(tmp_path) -> None:
     from flyarm.config import PPOConfig
     from flyarm.rl.batched_pick_place import OBS_DIM
-    from flyarm.rl.ppo import train_ppo
+    from flyarm.rl.ppo import PickPlaceTask, train_ppo
     from flyarm.whole_brain.backend_mlx import RateDynamics
     from flyarm.whole_brain.policy import BrainPolicy
 
@@ -74,7 +74,8 @@ def test_ppo_changes_only_the_motor_decoder(tmp_path) -> None:
         eval_episodes=2,
         horizon=20,
     )
-    run = train_ppo(policy, Path(MODEL), tmp_path / "ppo", config, [60000, 60001], [50000])
+    task = PickPlaceTask(Path(MODEL), config)
+    run = train_ppo(policy, task, tmp_path / "ppo", config, [60000, 60001], [50000])
     assert len(run["curves"]) == 2 and run["curves"][1]["policy_trained"]
     # The kept checkpoint is chosen on validation seeds; its reported score is on test seeds.
     assert run["best"]["selected_on"] == "validation seeds"

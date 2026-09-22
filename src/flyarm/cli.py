@@ -175,6 +175,12 @@ def main() -> None:
         "--model", type=Path, default=Path("assets/menagerie/franka_emika_panda/scene.xml")
     )
     ppo.add_argument("--output", type=Path, required=True)
+    kitchen_ppo = rl_sub.add_parser(
+        "kitchen", help="PPO on the batched FrankaKitchen benchmark (reward, not demonstrations)"
+    )
+    kitchen_ppo.add_argument("--config", type=Path, required=True)
+    kitchen_ppo.add_argument("--pack", type=Path, default=Path(DEFAULT_PACK))
+    kitchen_ppo.add_argument("--output", type=Path, required=True)
     rl_record = rl_sub.add_parser("record", help="Before/after videos of a PPO run")
     rl_record.add_argument("--run", type=Path, required=True)
     rl_record.add_argument("--variant", default="nominal")
@@ -245,6 +251,13 @@ def main() -> None:
         from flyarm.dashboard.server import serve_dashboard
 
         serve_dashboard(Path.cwd(), args.host, args.port)
+    elif args.command == "rl" and args.rl_command == "kitchen":
+        from flyarm.config import KitchenPPOConfig
+        from flyarm.rl.ppo_kitchen import run_kitchen_ppo
+
+        kitchen_config = KitchenPPOConfig.model_validate_json(args.config.read_text())
+        kitchen_outcome = run_kitchen_ppo(kitchen_config, args.pack, args.output)
+        print(json.dumps({k: kitchen_outcome[k] for k in ("base", "best")}, indent=2))
     elif args.command == "rl" and args.rl_command == "watch":
         from flyarm.progress import watch
 

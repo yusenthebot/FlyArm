@@ -325,3 +325,91 @@ class PPOConfig(BaseModel):
         if self.best_on not in self.eval_variants:
             raise ValueError("best_on must name one of eval_variants")
         return self
+
+
+class KitchenVariantConfig(BaseModel):
+    """Harder kitchen conditions (see flyarm.rl.batched_kitchen.KitchenVariant)."""
+
+    model_config = ConfigDict(extra="forbid")
+    initial_joint_offset: float = Field(default=0.0, ge=0, le=0.5)
+    kettle_mass_scale: tuple[float, float] = (1.0, 1.0)
+    robot_noise_ratio: float = Field(default=0.0, ge=0, le=1)
+    object_noise_ratio: float = Field(default=0.0, ge=0, le=1)
+
+
+def default_kitchen_eval_variants() -> dict[str, KitchenVariantConfig]:
+    return {"nominal": KitchenVariantConfig()}
+
+
+class KitchenPPOConfig(BaseModel):
+    """PPO on the batched FrankaKitchen benchmark (flyarm.rl.batched_kitchen).
+
+    Mirrors PPOConfig field for field; only the reward constants and the checkpoint source
+    differ. ``base_run`` always supplies the frozen interface (interface.json); unless
+    ``from_scratch``, it also supplies the trained checkpoint that PPO starts from.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+    base_run: str = "runs/whole-brain-pick-place-push2-s3"
+    base_kind: Literal["flyleg", "flyleg_shuffled", "gru"] = "flyleg"
+    base_seed: int = Field(default=0, ge=0, le=999)
+    # Neuron annotations, needed only to rebuild a trained front-leg kitchen checkpoint.
+    annotations: str = "data/malecns/annotations.json"
+    # Reward only: ignore any trained weights and start from a random encoder and decoder,
+    # with both frozen normalizations measured from random-action rollouts, so that no
+    # demonstration touches the controller (research log E36).
+    from_scratch: bool = False
+    scratch_envs: int = Field(default=32, ge=1, le=512)
+    scratch_steps: int = Field(default=200, ge=20, le=2000)
+    # Frozen output normalization measured on those rollouts; "unit_norm" keeps a wide readout
+    # from saturating the decoder under Adam (research log E32).
+    readout_calibration: Literal["scale", "standardize", "unit_norm"] = "scale"
+    num_envs: int = Field(default=128, ge=1, le=4096)
+    rollout_steps: int = Field(default=64, ge=8, le=1024)
+    iterations: int = Field(default=2000, ge=1, le=100_000)
+    epochs: int = Field(default=4, ge=1, le=50)
+    minibatch: int = Field(default=2048, ge=32, le=1_000_000)
+    gamma: float = Field(default=0.99, gt=0, le=1)
+    lam: float = Field(default=0.95, ge=0, le=1)
+    clip: float = Field(default=0.2, gt=0, le=1)
+    decoder_lr: float = Field(default=3e-4, gt=0, le=0.1)
+    # 0 keeps the encoder frozen; above 0 the encoder is trained from reward too, with the
+    # one-step truncated gradients through the connectome of research log E38. The kitchen
+    # needs it, because the scene reaches the readout only through the encoder.
+    encoder_lr: float = Field(default=0.0, ge=0, le=0.1)
+    critic_lr: float = Field(default=1e-3, gt=0, le=0.1)
+    value_coef: float = Field(default=0.5, ge=0)
+    entropy_coef: float = Field(default=0.0, ge=0)
+    max_grad_norm: float = Field(default=0.5, gt=0)
+    log_std: float = Field(default=-0.7, ge=-5, le=1)
+    critic_warmup: int = Field(default=5, ge=0)
+    # Reward per newly completed task. The shaped per-step terms are bounded by 1.0, so at
+    # gamma 0.99 stalling forever is worth 100; a bonus at or below that teaches the policy to
+    # hover at an element instead of completing it (research log E34).
+    completion_bonus: float = Field(default=200.0, gt=0, le=100_000)
+    # Decay of the approach term with the gripper-to-handle distance.
+    approach_slope: float = Field(default=3.0, gt=0, le=100)
+    neural_steps: int = Field(default=3, ge=1, le=8)
+    eval_every: int = Field(default=50, ge=1)
+    eval_episodes: int = Field(default=20, ge=1, le=256)
+    horizon: int = Field(default=280, ge=20, le=2000)
+    seed: int = Field(default=0, ge=0, le=999)
+    train_variant: KitchenVariantConfig = Field(default_factory=KitchenVariantConfig)
+    eval_variants: dict[str, KitchenVariantConfig] = Field(
+        default_factory=default_kitchen_eval_variants
+    )
+    best_on: str = "nominal"
+
+    @model_validator(mode="after")
+    def bonus_outweighs_stalling(self) -> KitchenPPOConfig:
+        if self.best_on not in self.eval_variants:
+            raise ValueError("best_on must name one of self.eval_variants")
+        # flyarm.rl.batched_kitchen.MAX_STEP_REWARD; kept as a literal so that validating a
+        # config never imports MuJoCo.
+        max_step_reward = 1.0
+        if self.gamma < 1 and self.completion_bonus <= max_step_reward / (1 - self.gamma):
+            raise ValueError(
+                "completion_bonus must exceed the value of stalling on the per-step maximum, "
+                f"{max_step_reward / (1 - self.gamma):.1f} at gamma {self.gamma} (log E34)"
+            )
+        return self

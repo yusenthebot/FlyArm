@@ -276,7 +276,7 @@ class BatchedKitchen:
         return np.linalg.norm(handle - gripper, axis=1)
 
     def observation(self, *, privileged: bool = False) -> np.ndarray:
-        """The controller's 30 position features, or the critic's privileged state."""
+        """The controller's 30 features, or the critic's (plus velocities and task state)."""
         robot_qpos, robot_qvel = self.qpos[:, :ROBOT_JOINTS], self.qvel[:, :ROBOT_JOINTS]
         object_qpos, object_qvel = self.qpos[:, ROBOT_JOINTS:], self.qvel[:, ROBOT_JOINTS:]
         variant = self.variant
@@ -297,14 +297,13 @@ class BatchedKitchen:
                 object_qvel,
                 self.goal_distance(),
                 self.completed.astype(np.float64),
-                (self.steps / self.horizon)[:, None],
             ),
             axis=1,
         ).astype(np.float32)
 
     @property
     def privileged_dim(self) -> int:
-        return OBS_DIM + self.model.nv + 2 * len(self.tasks) + 1
+        return OBS_DIM + self.model.nv + 2 * len(self.tasks)
 
     def _draw_noise(self, ratio: float, amplitude: np.ndarray) -> np.ndarray:
         draws = np.stack([rng.uniform(-1.0, 1.0, len(amplitude)) for rng in self._noise])
