@@ -296,6 +296,11 @@ class PPOConfig(BaseModel):
     value_coef: float = Field(default=0.5, ge=0)
     entropy_coef: float = Field(default=0.0, ge=0)
     max_grad_norm: float = Field(default=0.5, gt=0)
+    # Clip standardized advantages to this many standard deviations before the PPO epochs.
+    # A rare terminal bonus that dwarfs the per-step terms leaves a few samples tens of sigma
+    # out, and the first update after critic warmup then lands the policy on a dead fixed
+    # point (research log E39); 0, the default, leaves them unclipped as in every earlier run.
+    advantage_clip: float = Field(default=0.0, ge=0, le=100)
     log_std: float = Field(default=-1.2, ge=-5, le=1)
     critic_warmup: int = Field(default=5, ge=0)
     # Terminal reward for a stable placement. Holding the cube earns up to 4 per step, worth
@@ -384,6 +389,11 @@ class KitchenPPOConfig(BaseModel):
     value_coef: float = Field(default=0.5, ge=0)
     entropy_coef: float = Field(default=0.0, ge=0)
     max_grad_norm: float = Field(default=0.5, gt=0)
+    # Clip standardized advantages to this many standard deviations before the PPO epochs.
+    # A rare terminal bonus that dwarfs the per-step terms leaves a few samples tens of sigma
+    # out, and the first update after critic warmup then lands the policy on a dead fixed
+    # point (research log E39); 0, the default, leaves them unclipped as in every earlier run.
+    advantage_clip: float = Field(default=0.0, ge=0, le=100)
     log_std: float = Field(default=-0.7, ge=-5, le=1)
     critic_warmup: int = Field(default=5, ge=0)
     # Reward per newly completed task. The shaped per-step terms are bounded by 1.0, so at

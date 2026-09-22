@@ -63,6 +63,22 @@ def gaussian_log_prob(actions: mx.array, mean: mx.array, log_std: mx.array) -> m
     return (-((actions - mean) ** 2) / (2 * variance) - log_std - 0.5 * np.log(2 * np.pi)).sum(-1)
 
 
+def normalized_advantages(advantages: np.ndarray, clip: float = 0.0) -> np.ndarray:
+    """Standardize advantages, optionally clipping the tail to ``clip`` standard deviations.
+
+    A sparse terminal bonus that is rare and far larger than the per-step terms leaves a few
+    samples tens of standard deviations out, and the first policy update after critic warmup
+    then moves the policy far outside the trust region and lands it on a dead fixed point
+    (research log E39: one update with a mean ratio deviation of 0.94 against a clip of 0.2).
+    Clipping the standardized advantages bounds that update; 0 leaves them unclipped, as in
+    every run before E39.
+    """
+    if clip < 0:
+        raise ValueError("advantage_clip must be non-negative")
+    standardized = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+    return np.clip(standardized, -clip, clip) if clip else standardized
+
+
 def gae(
     rewards: np.ndarray,
     values: np.ndarray,
@@ -401,7 +417,7 @@ def train_ppo(
             "actions": mx.array(action_buf.reshape(samples, task.action_dim)),
             "logp": mx.array(logp_buf.reshape(samples)),
             "adv": mx.array(
-                ((advantages - advantages.mean()) / (advantages.std() + 1e-8)).reshape(samples)
+                normalized_advantages(advantages, settings.advantage_clip).reshape(samples)
             ),
             "ret": mx.array(returns.reshape(samples)),
         }
