@@ -42,6 +42,30 @@ worth 100 r, so a bonus below ``MAX_STEP_REWARD / (1 - gamma) = 100`` would make
 the completion threshold of one element worth more than completing it and moving on; the
 default 200 is twice that floor. ``minimum_completion_bonus`` states the rule for other
 discounts, and the constructor rejects a bonus below it.
+
+Reference tracking (optional, ``tracking_weight``, default 0 so every earlier run is
+unchanged). In the spirit of DeepMimic and AMP, the reward can carry a dense term that pays
+for staying near a reference joint trajectory:
+``tracking_weight * exp(-||q - q_ref||^2 / tracking_sigma^2)`` over the 9 robot joints, with
+``q_ref = reference[min(step, len - 1)]`` from one benchmark demonstration chosen by index.
+
+**Only the reference's states are used, never its actions**, so nothing is cloned and a run
+that uses it is still reward-only; ``reference_joints`` reads the demonstration's joint
+positions and never touches ``KitchenData.actions``.
+
+Indexing the reference by time is defensible on this benchmark and only on this benchmark:
+every kitchen episode starts from the same physical state (research log E29), so step t of any
+episode is comparable to step t of any demonstration. It would not be defensible for
+pick-and-place, where the cube and the goal move every episode and step t means nothing.
+
+The term is the whole per-step budget's third member, so it raises the per-step maximum to
+``MAX_STEP_REWARD + tracking_weight`` and the E34 floor with it: at gamma 0.99 and the default
+bonus of 200 the weight must stay below 1.0, and the constructor's check enforces exactly that.
+
+Because a time-indexed reference could in principle be maximised by replaying it open loop,
+which E29 shows the clean kitchen rewards, a run that uses this term should train from
+perturbed starts and select on perturbed validation episodes (E30: blind replay falls to 16
+to 19 from 0.2 to 0.3 rad starts while closed-loop control still scores 100).
 """
 
 from __future__ import annotations
@@ -87,13 +111,33 @@ MAX_STEP_REWARD = APPROACH_WEIGHT + PROGRESS_WEIGHT  # 1.0
 APPROACH_SLOPE = 3.0  # 1 - tanh(slope d); research log E38 on starving a far-away policy
 COMPLETION_BONUS = 200.0
 STALL_GAMMA = 0.99  # the discount the default bonus is sized against
+TRACKING_SIGMA = 0.6  # rad; see the module docstring and research log E41 for the measurement
+REFERENCE_SPLIT = "complete"
 
 
-def minimum_completion_bonus(gamma: float = STALL_GAMMA) -> float:
+def minimum_completion_bonus(
+    gamma: float = STALL_GAMMA, max_step_reward: float = MAX_STEP_REWARD
+) -> float:
     """Value of stalling forever on the per-step maximum; a bonus must exceed it (E34)."""
     if not 0 < gamma < 1:
         raise ValueError("gamma must be in (0, 1)")
-    return MAX_STEP_REWARD / (1.0 - gamma)
+    if max_step_reward <= 0:
+        raise ValueError("max_step_reward must be positive")
+    return max_step_reward / (1.0 - gamma)
+
+
+@functools.lru_cache(maxsize=4)
+def reference_joints(episode: int, split: str = REFERENCE_SPLIT) -> np.ndarray:
+    """The 9 robot joint positions of one benchmark demonstration, [steps, 9].
+
+    Only the demonstration's states are read; its actions are never touched, so a run that
+    tracks this reference clones nothing and stays reward-only.
+    """
+    data = kitchen.load(split, download=False)
+    if not 0 <= episode < len(data.obs):
+        raise ValueError(f"Reference episode {episode} is outside the {len(data.obs)} of {split}")
+    steps = int(data.mask[episode].sum())
+    return data.obs[episode, :steps, :ROBOT_JOINTS].astype(np.float64)
 
 
 @dataclass(frozen=True)
@@ -195,19 +239,32 @@ class BatchedKitchen:
         completion_bonus: float = COMPLETION_BONUS,
         approach_slope: float = APPROACH_SLOPE,
         gamma: float = STALL_GAMMA,
+        tracking_weight: float = 0.0,
+        tracking_sigma: float = TRACKING_SIGMA,
+        reference_episode: int = 0,
         terminate_on_all_tasks: bool = True,
         tasks: tuple[str, ...] = COMPLETE_TASKS,
     ) -> None:
         if num_envs < 1 or horizon < 20:
             raise ValueError("num_envs must be positive and horizon at least 20")
-        if completion_bonus <= minimum_completion_bonus(gamma):
+        if tracking_weight < 0 or tracking_sigma <= 0:
+            raise ValueError("tracking_weight must be non-negative and tracking_sigma positive")
+        self.tracking_weight = float(tracking_weight)
+        self.tracking_sigma = float(tracking_sigma)
+        # The reference term joins the per-step budget, so the E34 floor rises with it.
+        self.max_step_reward = MAX_STEP_REWARD + self.tracking_weight
+        floor = minimum_completion_bonus(gamma, self.max_step_reward)
+        if completion_bonus <= floor:
             raise ValueError(
                 f"completion_bonus {completion_bonus} must exceed the value of stalling on the "
-                f"per-step maximum, {minimum_completion_bonus(gamma):.1f} at gamma {gamma} "
-                "(research log E34)"
+                f"per-step maximum of {self.max_step_reward} (approach, progress and reference "
+                f"tracking), {floor:.1f} at gamma {gamma} (research log E34)"
             )
         if approach_slope <= 0:
             raise ValueError("approach_slope must be positive")
+        self.reference = (
+            reference_joints(int(reference_episode)) if self.tracking_weight > 0 else None
+        )
         unknown = [task for task in tasks if task not in OBS_ELEMENT_GOALS]
         if unknown or not tasks:
             raise ValueError(f"Unknown kitchen tasks {unknown}")
@@ -265,6 +322,14 @@ class BatchedKitchen:
         """[N] index of the first task of the split that is not yet completed (len when done)."""
         remaining = ~self.completed
         return np.where(remaining.any(1), remaining.argmax(1), len(self.tasks))
+
+    def tracking_reward(self) -> np.ndarray:
+        """[N] exp(-||q - q_ref||^2 / sigma^2) against the reference pose for the step index."""
+        if self.reference is None:
+            return np.zeros(self.num_envs)
+        index = np.minimum(self.steps, len(self.reference) - 1)
+        error = self.qpos[:, :ROBOT_JOINTS] - self.reference[index]
+        return np.exp(-(error**2).sum(1) / self.tracking_sigma**2)
 
     def approach_distance(self, target: np.ndarray) -> np.ndarray:
         """[N] gripper-to-handle distance for each environment's current target element."""
@@ -388,6 +453,8 @@ class BatchedKitchen:
             target < len(self.tasks),
             self.completion_bonus,
             self.approach_slope,
+            self.tracking_reward(),
+            self.tracking_weight,
         )
         tasks_completed = self.completed.sum(1)
         terminated = (tasks_completed == len(self.tasks)) & self.terminate_on_all_tasks
@@ -420,19 +487,25 @@ def shaped_reward(
     has_target: np.ndarray,
     completion_bonus: float = COMPLETION_BONUS,
     approach_slope: float = APPROACH_SLOPE,
+    tracking: np.ndarray | None = None,
+    tracking_weight: float = 0.0,
 ) -> np.ndarray:
     """Approach the current target element, move it toward its goal, complete tasks.
 
-    The per-step terms are bounded by ``MAX_STEP_REWARD`` and are paid for the first
-    uncompleted task of the split only, so completing a task never costs shaping reward: the
-    shaping simply moves on to the next element. ``completion_bonus`` must exceed
-    ``minimum_completion_bonus(gamma)``, otherwise stalling at the completion threshold of one
-    element is worth more than completing it (research log E34).
+    The approach and progress terms are bounded by ``MAX_STEP_REWARD`` and are paid for the
+    first uncompleted task of the split only, so completing a task never costs shaping reward:
+    the shaping simply moves on to the next element. The optional reference-tracking term adds
+    at most ``tracking_weight`` on top and is paid whether or not a target remains, because it
+    is about where the arm is, not about which element is next. ``completion_bonus`` must
+    exceed ``minimum_completion_bonus(gamma, MAX_STEP_REWARD + tracking_weight)``, otherwise
+    stalling is worth more than completing a task (research log E34).
     """
     approach = 1.0 - np.tanh(approach_slope * approach_distance)
     span = np.maximum(initial_goal_distance - BONUS_THRESH, 1e-6)
     progress = np.clip((initial_goal_distance - goal_distance) / span, 0.0, 1.0)
     per_step = has_target * (APPROACH_WEIGHT * approach + PROGRESS_WEIGHT * progress)
+    if tracking is not None and tracking_weight:
+        per_step = per_step + tracking_weight * tracking
     return (per_step + completion_bonus * newly_completed).astype(np.float32)
 
 

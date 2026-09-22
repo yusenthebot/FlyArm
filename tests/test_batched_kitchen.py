@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pytest
@@ -221,3 +222,96 @@ def test_the_scripted_teacher_completes_the_four_tasks_in_the_batched_env() -> N
     assert all(rate == 1.0 for rate in report["per_task_success"].values())
     # Four completions alone are worth four bonuses; anything less means a miscounted task.
     assert report["mean_episode_reward"] > 4 * env.completion_bonus
+
+
+def test_the_reference_term_raises_the_stalling_floor_and_the_check_fires() -> None:
+    """The tracking term joins the per-step budget, so the E34 invariant moves with it."""
+    from flyarm.rl.batched_kitchen import TRACKING_SIGMA
+
+    assert minimum_completion_bonus(0.99, MAX_STEP_REWARD + 0.5) == pytest.approx(150.0)
+    # A weight of 0.5 puts the floor at 150, which 200 clears; 1.5 puts it at 250, which 200
+    # does not, and the constructor refuses it.
+    env = BatchedKitchen(1, tracking_weight=0.5, completion_bonus=200.0)
+    assert env.max_step_reward == pytest.approx(1.5)
+    with pytest.raises(ValueError, match="research log E34"):
+        BatchedKitchen(1, tracking_weight=1.5, completion_bonus=200.0)
+    with pytest.raises(ValueError, match="tracking_weight"):
+        BatchedKitchen(1, tracking_weight=-0.1)
+    with pytest.raises(ValueError, match="tracking_sigma"):
+        BatchedKitchen(1, tracking_weight=0.5, tracking_sigma=0.0)
+
+    # Off by default: no reference is loaded and the term contributes nothing.
+    plain = BatchedKitchen(1)
+    assert plain.reference is None and plain.max_step_reward == pytest.approx(MAX_STEP_REWARD)
+    assert plain.tracking_reward().tolist() == [0.0]
+
+    # The term is exp(-||q - q_ref||^2 / sigma^2) over the 9 robot joints, 1 on the reference.
+    env.reset(seeds=np.array([0]))
+    env.qpos[0, :9] = env.reference[0]
+    assert env.tracking_reward()[0] == pytest.approx(1.0)
+    env.qpos[0, :9] = env.reference[0] + np.r_[TRACKING_SIGMA, np.zeros(8)]
+    assert env.tracking_reward()[0] == pytest.approx(np.exp(-1.0), rel=1e-5)
+
+
+def test_shaped_reward_adds_the_tracking_term_on_top_of_the_task_terms() -> None:
+    handle, start = np.full(2, 1.0), np.full(2, 1.0)
+    zeros, active = np.zeros(2, dtype=int), np.ones(2, bool)
+    without = shaped_reward(handle, start, start, zeros, active)
+    with_term = shaped_reward(handle, start, start, zeros, active, tracking=np.array([1.0, 0.25]))
+    assert with_term == pytest.approx(without, abs=1e-6)  # weight 0 changes nothing
+    weighted = shaped_reward(
+        handle, start, start, zeros, active, tracking=np.array([1.0, 0.25]), tracking_weight=0.5
+    )
+    assert weighted - without == pytest.approx([0.5, 0.125], abs=1e-5)
+    # It is paid even when every task is done, because it is about where the arm is.
+    done = shaped_reward(
+        handle,
+        start,
+        start,
+        zeros,
+        np.zeros(2, bool),
+        tracking=np.ones(2),
+        tracking_weight=0.5,
+    )
+    assert done == pytest.approx([0.5, 0.5], abs=1e-5)
+
+
+@pytest.mark.skipif(not _dataset_available(), reason="Minari kitchen-complete-v2 not downloaded")
+def test_the_reference_is_states_only_and_the_tracker_beats_a_random_policy_on_it() -> None:
+    from flyarm.rl.batched_kitchen import reference_joints
+
+    reference = reference_joints(0)
+    assert reference.ndim == 2 and reference.shape[1] == 9 and 100 < len(reference) < 280
+    data = kitchen.load("complete", download=False)
+    # States only: the reference is exactly the demonstration's joint positions, and the
+    # demonstration's actions never enter it.
+    steps = int(data.mask[0].sum())
+    assert np.allclose(reference, data.obs[0, :steps, :9])
+
+    from flyarm.benchmarks.kitchen_expert import DemonstrationTracker
+
+    tracker = DemonstrationTracker.from_data(data)
+    rows = 2
+    full = np.zeros((rows, kitchen.OBS_DIM), dtype=np.float32)
+
+    def teacher(observation: np.ndarray) -> np.ndarray:
+        full[:, kitchen.POLICY_FEATURES] = observation
+        return np.stack([tracker.label(full[row]) for row in range(rows)])
+
+    def measure(controller: Any) -> float:
+        env = BatchedKitchen(rows, tracking_weight=0.5, horizon=150)
+        obs = env.reset(seeds=np.arange(rows))
+        total = 0.0
+        for _ in range(150):
+            result = env.step(np.asarray(controller(obs), dtype=np.float64), auto_reset=False)
+            total += float(env.tracking_reward().mean())
+            obs = result.obs
+            if (result.terminated | result.truncated).all():
+                break
+        return total / 150
+
+    generator = np.random.default_rng(0)
+    tracked = measure(teacher)
+    random = measure(lambda _: generator.uniform(-1.0, 1.0, (rows, 9)))
+    # From the benchmark's own start the tracker reproduces the reference almost exactly.
+    assert tracked > 0.9 and random < 0.1 and tracked > 10 * random
