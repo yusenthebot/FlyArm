@@ -212,6 +212,7 @@ Method: on the E11 seed-0 train and validation split, a tanh of an affine map of
 Result (validation L1): linear policy 0.119; fly controllers 0.104 to 0.113 (E11 seeds 0 to 2, E22, E26); shuffled connectome 0.132 and 0.171; MLP, GRU and ACT 0.074 to 0.082; the probe's own MLP 0.072.
 Also: the decoder alone on the untrained seed-0 encoder reaches 0.106 (E26 probe), so end-to-end training of the encoder through the connectome adds almost nothing.
 Reading: in the default regime the fly controller is close to a linear policy; with E25 (near-linear, about five motor directions) this is why it learns one reaching skill (the microwave) and not the switch to a second task, which needs a nonlinear function of the scene.
+Check of the input side (scripts/input_regime_probe.py, docs/results/input-regime.json): after training, the sensory input neurons do use their nonlinearity (E11 seed 0: 42% of input-neuron states above 0.5, proprioceptive currents with standard deviation 1.1; E26: 51 to 64%), against 10 to 28% before training, so the near-linearity sits downstream of the sensory neurons, in the connectome's propagation to the readout.
 
 ### E28. Operating regime under L-p weight normalization (scripts/weight_normalization_probe.py, docs/results/weight-normalization.json, commit 2b4220b)
 Question: E25 and E27 place the default rate model in a quiet, near-linear regime; is there a weight normalization that keeps the connectome stable but makes it nonlinear and higher-dimensional?
