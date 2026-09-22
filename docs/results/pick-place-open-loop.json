@@ -1,0 +1,108 @@
+{
+  "test_seeds": [
+    60000,
+    60001,
+    60002,
+    60003,
+    60004,
+    60005,
+    60006,
+    60007,
+    60008,
+    60009,
+    60010,
+    60011,
+    60012,
+    60013,
+    60014,
+    60015,
+    60016,
+    60017,
+    60018,
+    60019,
+    60020,
+    60021,
+    60022,
+    60023
+  ],
+  "replay": {
+    "40000": {
+      "episodes": 24,
+      "placed": 0,
+      "lifted": 2,
+      "grasped": 5
+    },
+    "40001": {
+      "episodes": 24,
+      "placed": 0,
+      "lifted": 2,
+      "grasped": 5
+    },
+    "40002": {
+      "episodes": 24,
+      "placed": 0,
+      "lifted": 2,
+      "grasped": 6
+    },
+    "40003": {
+      "episodes": 24,
+      "placed": 0,
+      "lifted": 2,
+      "grasped": 5
+    },
+    "40004": {
+      "episodes": 24,
+      "placed": 1,
+      "lifted": 3,
+      "grasped": 7
+    },
+    "40005": {
+      "episodes": 24,
+      "placed": 0,
+      "lifted": 2,
+      "grasped": 11
+    },
+    "40006": {
+      "episodes": 24,
+      "placed": 0,
+      "lifted": 2,
+      "grasped": 9
+    },
+    "40007": {
+      "episodes": 24,
+      "placed": 0,
+      "lifted": 5,
+      "grasped": 9
+    },
+    "40008": {
+      "episodes": 24,
+      "placed": 0,
+      "lifted": 2,
+      "grasped": 8
+    },
+    "40009": {
+      "episodes": 24,
+      "placed": 0,
+      "lifted": 1,
+      "grasped": 14
+    }
+  },
+  "teacher": {
+    "episodes": 24,
+    "placed": 24,
+    "lifted": 24,
+    "grasped": 24
+  },
+  "zero": {
+    "episodes": 24,
+    "placed": 0,
+    "lifted": 0,
+    "grasped": 0
+  },
+  "replay_totals": {
+    "episodes": 240,
+    "placed": 1,
+    "lifted": 23,
+    "grasped": 79
+  }
+}
