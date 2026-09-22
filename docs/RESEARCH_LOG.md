@@ -361,6 +361,18 @@ Reading: the advantage clip is the right general guard and stays in, but it cann
 Rerun again (runs/ppo-kitchen-scratch-003, configs/ppo-kitchen-scratch-003.json and its README): the four changes above plus readout_calibration "scale" to "unit_norm".
 A warm-started run needs no such setting, because it loads the imitation checkpoint's own frozen readout_scale.
 
+### E41. A reference trajectory in the reward, without cloning any action (commits 57ca067, cfe70bb)
+Question: -003 learns, so keep the reward-only line and give it a dense reference, in the spirit of DeepMimic and AMP.
+Term (flyarm.rl.batched_kitchen): tracking_weight x exp(-||q - q_ref||^2 / tracking_sigma^2) over the 9 robot joints, with q_ref the joint positions of one benchmark demonstration at min(step, len - 1), the demonstration fixed by index so a run is reproducible; default weight 0, so every earlier run is unchanged.
+Only the demonstration's states are read and its actions are never touched, so a run that uses the term still clones nothing and stays reward-only.
+Time indexing is sound on this benchmark and only on this one: every kitchen episode starts from the same physical state (E29), so step t of an episode is comparable to step t of a demonstration; on pick-and-place, where the cube and goal move every episode, step t would mean nothing.
+Invariant (E34): the term joins the per-step budget, so the maximum becomes 1.0 + tracking_weight and the stalling floor rises with it; at gamma 0.99 and a bonus of 200 the weight has to stay below 1.0, and both the environment constructor and KitchenPPOConfig refuse a weight that breaks it (weight 1.5 puts the floor at 250).
+Measured joint error against the reference over 280-step episodes: the demonstration tracker is 0.003 rad from it at a nominal start and 0.584 from a 0.3 rad start, a random policy is 2.5 rad at either.
+Sigma trades discrimination against a usable gradient from the 0.3 rad starts the run trains on: a typical draw is 0.46 rad from the reference at step 0, so sigma 0.6 pays 0.56 immediately, against 0.095 at sigma 0.3, while the tracker-to-random ratio falls from 18.8x at sigma 0.6 to 4.8x at sigma 1.5; 0.6 was chosen.
+At weight 0.5 and sigma 0.6 the term is worth 1.000 to the tracker from a nominal start, 0.469 from a 0.3 rad start and 0.025 to a random policy, and it lifts the total shaping discrimination on the training distribution from 2.4x to 4.1x.
+Risk and guards: E29 shows the clean kitchen is solvable by blind replay, so a time-indexed reference could in principle be maximised open loop; the run trains from 0.3 rad starts, where E30 measures replay at 16 to 19 against 100 for closed-loop control, and selects on perturbed validation episodes only, so the nominal score is reported but never selected on.
+Run (runs/ppo-kitchen-scratch-004, configs/ppo-kitchen-scratch-004.json and its README): -003 plus the reference term, everything else identical, with -003 left running as the no-reference control.
+
 ### E40. Kitchen with the whole-body interface and eight times the data (runs/flyleg-kitchen-body-scale-001)
 Question: the kitchen dataset has 19 demonstrations while the tracker teacher can generate any number and scores 100, and E32 showed the whole-body interface fits the kitchen far better than the leg; does scaling the data on that interface move the fly past one task?
 Method: E11 protocol, whole-body interface, unit_norm calibration, 150 extra tracker episodes with action noise 0.02 from starts perturbed by up to 0.1 rad (169 episodes in total), 15 epochs, closed-loop selection every 3 epochs on 10 perturbed validation episodes, fly and a parameter-matched GRU on identical data, 20 test episodes.
