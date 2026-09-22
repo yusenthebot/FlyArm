@@ -144,3 +144,20 @@ def test_encoder_pass_trains_the_encoder_from_advantages_only() -> None:
         0.5,
     )
     assert np.array_equal(np.asarray(policy.encoder.weight), unchanged)
+
+
+def test_advantage_clip_bounds_the_tail_and_is_off_by_default() -> None:
+    from flyarm.rl.ppo import normalized_advantages
+
+    # One rare terminal bonus among many small per-step rewards: a 3-sigma-plus outlier.
+    advantages = np.array([0.0] * 15 + [100.0], dtype=np.float64)
+    unclipped = normalized_advantages(advantages)
+    assert unclipped.max() > 3.0 and abs(unclipped.mean()) < 1e-6
+    assert np.array_equal(normalized_advantages(advantages, 0.0), unclipped)
+
+    clipped = normalized_advantages(advantages, 2.0)
+    assert clipped.max() == pytest.approx(2.0) and clipped.min() >= -2.0
+    # Clipping only touches the tail; every other sample keeps its standardized value.
+    assert np.allclose(clipped[:15], unclipped[:15])
+    with pytest.raises(ValueError, match="advantage_clip"):
+        normalized_advantages(advantages, -1.0)
