@@ -116,3 +116,31 @@ def test_physics_variant_is_seeded_bounded_and_leaves_the_nominal_task_alone() -
     nominal = BatchedPickPlace(Path(MODEL), 3)
     nominal.reset(seeds=np.array([7, 8, 9]))
     assert np.allclose(nominal.goal, env.goal) and np.allclose(nominal.cube(), env.cube())
+
+
+def test_success_bonus_outweighs_holding_the_cube_forever() -> None:
+    from flyarm.rl.batched_pick_place import shaped_reward
+
+    ee = np.zeros((2, 3))
+    cube = np.array([[0.0, 0.0, 0.1], [0.0, 0.0, 0.1]])
+    goal = np.zeros((2, 3))
+    held = shaped_reward(
+        ee, cube, goal, np.array([1.0, 1.0]), np.array([True, True]), np.array([False, False])
+    )
+    placed = shaped_reward(
+        ee,
+        cube,
+        goal,
+        np.array([0.0, 0.0]),
+        np.array([True, True]),
+        np.array([True, True]),
+        success_bonus=450.0,
+    )
+    gamma = 0.99
+    assert held.max() <= 4.0
+    # Holding forever is worth at most 4 / (1 - gamma); a large enough bonus exceeds it.
+    assert placed.min() > held.max() / (1 - gamma)
+    old = shaped_reward(
+        ee, cube, goal, np.array([0.0, 0.0]), np.array([True, True]), np.array([True, True])
+    )
+    assert old.min() < held.max() / (1 - gamma)
