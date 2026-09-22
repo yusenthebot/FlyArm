@@ -291,6 +291,14 @@ Next: PPO on the decoder from the seed-3 checkpoint, runs/ppo-pick-place-push2-s
 Video: runs/whole-brain-pick-place-push2-s3/connectome-3/rollout.mp4 (first six test episodes, 3 placed), featured on the dashboard.
 The same collapse likely affected v2 and every earlier B1a run with DAgger, whose reported numbers are last-phase numbers; v2's rollouts (0 to 5 of 24 successes) were too weak for it to matter much there.
 
+### E34. PPO learned to hold the cube instead of placing it: the success bonus was too small (commit 0f722da)
+Run: runs/ppo-pick-place-push2-s3-001 (configs/ppo-pick-place-push2-s3.json), PPO on the decoder from the push2 seed-3 checkpoint (35/48 placed, 43 lifted on the 48 test seeds), 400 iterations, nominal physics.
+Result (test seeds, every 20 iterations): placed 26, 15, 4, 6, 2, 0, 1, 0, 0, 0, 0, 1, 0, 0, 2, 2, 2, 0, 0, 0 of 48, while lifting rose to 48/48; the validation-selected checkpoint is iteration 20 (26/48), worse than the start.
+Cause: the shaped reward pays up to 4 per step while the cube is grasped, lifted and over the goal (0.5 reach, 0.5 grasp, 1 height, 2 carry), and a stable placement pays 50 once and ends the episode; at gamma 0.99 holding the cube forever is worth up to 4 / (1 - 0.99) = 400, so the optimal policy never releases.
+This also explains E12 and E17, where PPO raised lifting to near ceiling but never raised placement.
+Fix: PPOConfig.success_bonus (default 50, the value of every earlier run); a bonus above 400 makes placement worth more than holding (test in tests/test_batched_pick_place.py).
+Rerun: runs/ppo-pick-place-push2-s3-bonus-001 (configs/ppo-pick-place-push2-s3-bonus.json: success bonus 500, 300 iterations), started 08:58.
+
 ### E23. Stateful-teacher labels in B1a DAgger (found by the multi-task agent, quantified here)
 Finding: the scripted pick-and-place teacher keeps its own stage machine, so while labelling learner-driven DAgger states it can still be in "approach" or "descend" after the learner has already grasped and lifted the cube, and it then labels those states "open the gripper".
 Quantification over every saved B1a DAgger set (runs/whole-brain-pick-place-001 to -003, 36 files): 337,014 labelled states, 6,353 with both fingers on a cube at least 6 cm above rest, 931 of those (15%) labelled with an open gripper, all in teacher stages 0 or 1.
