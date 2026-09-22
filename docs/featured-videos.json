@@ -1,5 +1,11 @@
 [
  {
+  "root": "main",
+  "path": "whole-brain-pick-place-push2-s3/connectome-3/rollout.mp4",
+  "title": "Fly brain pick-and-place, best overnight controller",
+  "note": "Frozen complete MaleCNS, only the linear input and output maps trained: 384 demonstrations, one DAgger round chosen on validation success. 35 of 48 held-out test episodes placed (72.9%), 43 lifted. This clip shows the first six test episodes: 3 placed, 3 not. Not yet the 90% target; PPO on the output map is running."
+ },
+ {
   "root": "dexterous-hand",
   "path": "hand-dexterous-001/connectome-0/rollout.mp4",
   "title": "Fly brain spins a cube with a four-finger hand",
