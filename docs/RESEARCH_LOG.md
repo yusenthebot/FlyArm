@@ -283,6 +283,10 @@ So round 1 helps and round 2 collapses the controller in two of three seeds whil
 The push seed 3 GRU on the same data, also last phase: placed 13/48 (27%), lifted 29/48.
 Fix: phase_selection "validation_success" saves every phase's weights, scores each phase by closed-loop stable-place success on the validation seeds (lift rate breaks ties) and restores the best; tested in tests/test_whole_brain_record.py.
 Runs: runs/whole-brain-pick-place-push2-s3, -s0 and -s1 (configs/whole-brain-pick-place-push2-sN.json): the push protocol with phase selection over 24 validation episodes and 2 DAgger rounds, started 2026-09-22 05:45; push-s0 and push-s1 were stopped (their final phase would be a collapsed one), and so was the fly part of the kitchen perturbed-DAgger run.
+Results (48 test episodes, selected phase restored): seed 3 selected dagger_1 (validation success 0.375, 0.417, 0.375 for behavior cloning, round 1, round 2) and placed 35/48 (72.9%), lifted 43/48, grasped 45/48; seed 1 selected behavior cloning (0.292, 0.250, 0.000) and placed 26/48 (54.2%), lifted 43/48; seed 0 selected dagger_1 (0.250, 0.542, 0.292), test running.
+Failures of seed 3: 8 end still holding the cube 4.5 to 20 cm from the goal, 5 never secure the grasp.
+Reading: phase selection recovers the good controllers (72.9% against 25% for the last phase of push-s3, and against 50% for the best v2 seed), but 90% is not reached by imitation and DAgger alone; round 2 again lowers or collapses validation success in every seed.
+Next: PPO on the decoder from the seed-3 checkpoint, runs/ppo-pick-place-push2-s3-001 (configs/ppo-pick-place-push2-s3.json, 400 iterations, selection on 48 validation seeds, 48 test seeds), started 08:28.
 The same collapse likely affected v2 and every earlier B1a run with DAgger, whose reported numbers are last-phase numbers; v2's rollouts (0 to 5 of 24 successes) were too weak for it to matter much there.
 
 ### E23. Stateful-teacher labels in B1a DAgger (found by the multi-task agent, quantified here)
