@@ -1,0 +1,183 @@
+{
+  "pack_fingerprint": "7aa88acd850bd908317d205edfaf53bbb65e17438d98112cca8722a521c172e6",
+  "protocol": {
+    "drive": "random +-0.5 on every input neuron, batch 8",
+    "control_steps": 10,
+    "neural_steps": 3,
+    "epsilon": 0.01,
+    "interface": "runs/whole-brain-pick-place-v2a/interface.json"
+  },
+  "settings": {
+    "L1 gain 0.8": {
+      "mean_abs_activity": 0.010006002150475979,
+      "share_above_0.1": 0.01815761847630474,
+      "motor_rms_under_drive": 0.02396576665341854,
+      "max_abs_after_drive_removed": {
+        "1": 0.2759113013744354,
+        "5": 0.017615748569369316,
+        "20": 8.140682439261582e-06,
+        "mean_abs_at_20": 1.0392254834457049e-09,
+        "neurons_above_0.1_at_20": 0
+      },
+      "motor_linear_response": {
+        "participation_ratio": 78.6767807562603,
+        "rank_90": 208,
+        "rank_99": 579,
+        "frobenius": 2.337235689163208
+      },
+      "linear_prediction_relative_error": 0.08951955288648605
+    },
+    "L2 gain 0.5": {
+      "mean_abs_activity": 0.06474963575601578,
+      "share_above_0.1": 0.18317861427714457,
+      "motor_rms_under_drive": 0.1487918496131897,
+      "max_abs_after_drive_removed": {
+        "1": 0.9992437362670898,
+        "5": 0.9993168711662292,
+        "20": 0.9992926716804504,
+        "mean_abs_at_20": 0.06850825250148773,
+        "neurons_above_0.1_at_20": 56300
+      },
+      "motor_linear_response": {
+        "participation_ratio": 1.1772095904163957,
+        "rank_90": 1,
+        "rank_99": 3,
+        "frobenius": 299.2850036621094
+      },
+      "linear_prediction_relative_error": 16.88714599609375
+    },
+    "L2 gain 0.8": {
+      "mean_abs_activity": 0.25718823075294495,
+      "share_above_0.1": 0.6716099280143971,
+      "motor_rms_under_drive": 0.4255240559577942,
+      "max_abs_after_drive_removed": {
+        "1": 0.9999998211860657,
+        "5": 1.0,
+        "20": 1.0,
+        "mean_abs_at_20": 0.2611757814884186,
+        "neurons_above_0.1_at_20": 154929
+      },
+      "motor_linear_response": {
+        "participation_ratio": 4.2554172541406174,
+        "rank_90": 7,
+        "rank_99": 31,
+        "frobenius": 24457.580078125
+      },
+      "linear_prediction_relative_error": 683.7613525390625
+    },
+    "L2 gain 0.95": {
+      "mean_abs_activity": 0.32748469710350037,
+      "share_above_0.1": 0.7793543791241752,
+      "motor_rms_under_drive": 0.5171489119529724,
+      "max_abs_after_drive_removed": {
+        "1": 1.0,
+        "5": 1.0,
+        "20": 1.0,
+        "mean_abs_at_20": 0.3454236090183258,
+        "neurons_above_0.1_at_20": 164268
+      },
+      "motor_linear_response": {
+        "participation_ratio": 5.6676999268711965,
+        "rank_90": 11,
+        "rank_99": 77,
+        "frobenius": 54986.23828125
+      },
+      "linear_prediction_relative_error": 1164.7122802734375
+    },
+    "L2 gain 0.2": {
+      "mean_abs_activity": 0.010803082026541233,
+      "share_above_0.1": 0.015000749850029993,
+      "motor_rms_under_drive": 0.03444904834032059,
+      "max_abs_after_drive_removed": {
+        "1": 0.22138243913650513,
+        "5": 0.006823449395596981,
+        "20": 0.0022926349192857742,
+        "mean_abs_at_20": 3.921891220670659e-06,
+        "neurons_above_0.1_at_20": 0
+      },
+      "motor_linear_response": {
+        "participation_ratio": 114.31093845010552,
+        "rank_90": 276,
+        "rank_99": 671,
+        "frobenius": 3.3849434852600098
+      },
+      "linear_prediction_relative_error": 0.09627753496170044
+    },
+    "L2 gain 0.3": {
+      "mean_abs_activity": 0.016092685982584953,
+      "share_above_0.1": 0.030212957408518298,
+      "motor_rms_under_drive": 0.05564744397997856,
+      "max_abs_after_drive_removed": {
+        "1": 0.7191438674926758,
+        "5": 0.8960328102111816,
+        "20": 0.901145339012146,
+        "mean_abs_at_20": 0.007878710515797138,
+        "neurons_above_0.1_at_20": 3704
+      },
+      "motor_linear_response": {
+        "participation_ratio": 95.36508466134471,
+        "rank_90": 273,
+        "rank_99": 681,
+        "frobenius": 5.568039894104004
+      },
+      "linear_prediction_relative_error": 0.11730602383613586
+    },
+    "L1.25 gain 0.8": {
+      "mean_abs_activity": 0.016445398330688477,
+      "share_above_0.1": 0.03529544091181764,
+      "motor_rms_under_drive": 0.053997401148080826,
+      "max_abs_after_drive_removed": {
+        "1": 0.5512195825576782,
+        "5": 0.48231351375579834,
+        "20": 0.6558313965797424,
+        "mean_abs_at_20": 0.0021417085081338882,
+        "neurons_above_0.1_at_20": 1111
+      },
+      "motor_linear_response": {
+        "participation_ratio": 80.99522636872605,
+        "rank_90": 238,
+        "rank_99": 640,
+        "frobenius": 5.4127020835876465
+      },
+      "linear_prediction_relative_error": 0.11969032138586044
+    },
+    "L1.5 gain 0.5": {
+      "mean_abs_activity": 0.015498067252337933,
+      "share_above_0.1": 0.0310872825434913,
+      "motor_rms_under_drive": 0.053409215062856674,
+      "max_abs_after_drive_removed": {
+        "1": 0.3942832946777344,
+        "5": 0.38638001680374146,
+        "20": 0.8027942776679993,
+        "mean_abs_at_20": 0.006205270532518625,
+        "neurons_above_0.1_at_20": 2817
+      },
+      "motor_linear_response": {
+        "participation_ratio": 91.04367770214866,
+        "rank_90": 259,
+        "rank_99": 665,
+        "frobenius": 5.3271098136901855
+      },
+      "linear_prediction_relative_error": 0.11279705911874771
+    },
+    "L1.5 gain 0.8": {
+      "mean_abs_activity": 0.05005642771720886,
+      "share_above_0.1": 0.13595830833833233,
+      "motor_rms_under_drive": 0.11282744258642197,
+      "max_abs_after_drive_removed": {
+        "1": 0.995308518409729,
+        "5": 0.9995166659355164,
+        "20": 0.9994628429412842,
+        "mean_abs_at_20": 0.04203491285443306,
+        "neurons_above_0.1_at_20": 22207
+      },
+      "motor_linear_response": {
+        "participation_ratio": 4.066932383158079,
+        "rank_90": 23,
+        "rank_99": 299,
+        "frobenius": 29.546457290649414
+      },
+      "linear_prediction_relative_error": 2.61686372756958
+    }
+  }
+}
