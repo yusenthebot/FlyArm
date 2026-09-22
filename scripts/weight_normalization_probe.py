@@ -16,10 +16,10 @@ For each normalization and recurrent gain, with the kitchen front-leg interface:
 - linear response of the 68 motor neurons (participation ratio, singular values for 90%,
   head-sensory energy share) and the error of the linear prediction at the training drive.
 
-Usage:
+Usage (an optional interface.json replaces the kitchen interface, e.g. the pick-and-place one):
 
     PYTHONPATH=src uv run python scripts/weight_normalization_probe.py \
-        docs/results/weight-normalization.json
+        docs/results/weight-normalization.json [runs/RUN/interface.json]
 """
 
 from __future__ import annotations
@@ -32,6 +32,7 @@ import mlx.core as mx
 import numpy as np
 
 from flyarm.flyleg.interface import front_leg_interface
+from flyarm.interfaces import NeuralInterface
 from flyarm.whole_brain.backend_mlx import RateDynamics
 from flyarm.whole_brain.compiler import ConnectomePack
 
@@ -80,24 +81,32 @@ def response(dynamics: RateDynamics, inputs: int) -> np.ndarray:
     return np.concatenate(columns, axis=0).T
 
 
-def spectrum(matrix: np.ndarray, split: int) -> dict:
+def spectrum(matrix: np.ndarray, split: int | None) -> dict:
     values = np.linalg.svd(matrix.astype(np.float64), compute_uv=False)
     energy = np.cumsum(values**2) / np.sum(values**2)
-    head, proprio = np.sum(matrix[:, split:] ** 2), np.sum(matrix[:, :split] ** 2)
-    return {
+    row = {
         "participation_ratio": float(np.sum(values**2) ** 2 / np.sum(values**4)),
         "rank_90": int(np.searchsorted(energy, 0.90) + 1),
         "rank_99": int(np.searchsorted(energy, 0.99) + 1),
-        "head_energy_share": float(head / (head + proprio)),
         "frobenius": float(np.linalg.norm(matrix)),
     }
+    if split is not None:
+        head, proprio = np.sum(matrix[:, split:] ** 2), np.sum(matrix[:, :split] ** 2)
+        row["head_energy_share"] = float(head / (head + proprio))
+    return row
 
 
-def main(output: Path) -> None:
+def main(output: Path, interface_path: Path | None = None) -> None:
     pack = ConnectomePack.load(PACK)
     pack.validate_b1a_provenance()
-    leg = front_leg_interface(pack, ANNOTATIONS)
-    split, inputs = len(leg.proprioceptors), len(leg.interface.input_body_ids)
+    if interface_path is None:
+        leg = front_leg_interface(pack, ANNOTATIONS)
+        interface, split = leg.interface, len(leg.proprioceptors)
+        described = "kitchen front leg: 23 proprioceptors + 4,868 head sensory in, 68 motor"
+    else:
+        interface, split = NeuralInterface.load(interface_path), None
+        described = str(interface_path)
+    inputs = len(interface.input_body_ids)
     weights = {power: lp_weights(pack, power) for power in sorted({p for p, _ in SETTINGS})}
     generator = np.random.default_rng(0)
     drive = generator.choice([-DRIVE, DRIVE], size=(8, inputs)).astype(np.float32)
@@ -105,7 +114,7 @@ def main(output: Path) -> None:
     rows = {}
     for power, gain in SETTINGS:
         name = f"L{power:g} gain {gain}"
-        dynamics = RateDynamics(pack, leg.interface, recurrent_gain=gain, weights=weights[power])
+        dynamics = RateDynamics(pack, interface, recurrent_gain=gain, weights=weights[power])
         state, driven = run(dynamics, drive, CONTROL_STEPS)
         activity = np.abs(np.asarray(state))
         persistence = {}
@@ -136,7 +145,7 @@ def main(output: Path) -> None:
             "control_steps": CONTROL_STEPS,
             "neural_steps": NEURAL_STEPS,
             "epsilon": EPSILON,
-            "interface": "kitchen front leg: 23 proprioceptors + 4,868 head sensory in, 68 motor",
+            "interface": described,
         },
         "settings": rows,
     }
@@ -145,4 +154,4 @@ def main(output: Path) -> None:
 
 
 if __name__ == "__main__":
-    main(Path(sys.argv[1]))
+    main(Path(sys.argv[1]), Path(sys.argv[2]) if len(sys.argv) > 2 else None)

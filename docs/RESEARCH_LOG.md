@@ -286,3 +286,10 @@ v2b was started by hand at 21:40 next to v2a instead of after it.
 The control-only protocol sweep (runs/protocol-sweep, 46 of 50 settings done, the 4 left are GRU with 10-step chunks, seeds 1 to 4) is paused with SIGSTOP to give the fly runs the GPU; resume with kill -CONT on its Python process, or rerun the script, which skips finished settings.
 The dashboard's rollout page now shows curated featured rollouts (docs/featured-videos.json) and groups every other video by area with readable titles; smoke tests and drafts are hidden by default.
 PPO before-and-after videos (flyarm rl record) render the imitation checkpoint and the final PPO checkpoint on the same seeds and task variant.
+
+## Overnight plan 2026-09-22 (user: keep optimizing, acceptance in the morning; kitchen and pick-and-place first)
+Running: v2a and v2b (B1a protocol v2, 6 seeds, the topology test); kitchen fly regime runs lp125 (E28) and lp150-g05 (L1.5 at gain 0.5); kitchen v2 seed 2 controls; open-loop replays under joint offsets (E29); the regime probe on the pick-and-place interface.
+Decision rule for the regime runs, against the E26 68-motor unit_norm run (validation L1 0.104, microwave 19/20, 0.1 rad offset score recorded there): a regime counts as better if it completes a second task in any test episode, or lowers validation L1 below 0.095, or raises the 0.1 rad joint-offset score; kettle completions are checked on video (E22).
+If one is better: run it on kitchen seeds 0 to 2 with the fly and a shuffle, same protocol as E11 (kitchen protocol v3 candidate).
+If neither is: widen the proprioceptive channel from 23 to all 41 left front-leg proprioceptive neurons (class mechanosensory_proprioceptive on the ProLN; the current rule misses 18 labelled subclass "leg").
+Morning deliverables: updated tables, labelled videos of the best new checkpoints (v2 connectome seeds 0 and 3, the best kitchen run), dashboard featured entries, a summary for the user.
