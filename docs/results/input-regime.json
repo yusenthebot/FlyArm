@@ -1,0 +1,62 @@
+{
+  "runs/flyleg-kitchen-complete-chunk-001": {
+    "trained_seed_0": {
+      "proprioceptive": {
+        "current_std": 1.1095250844955444,
+        "share_abs_current_above_1": 0.26401159420289855,
+        "state_mean_abs": 0.44790202379226685,
+        "share_abs_state_above_0.5": 0.41683478260869566
+      },
+      "head_sensory": {
+        "current_std": 0.666079580783844,
+        "share_abs_current_above_1": 0.1089860312243221,
+        "state_mean_abs": 0.4421098828315735,
+        "share_abs_state_above_0.5": 0.41929109832922484
+      }
+    },
+    "untrained_seed_0": {
+      "proprioceptive": {
+        "current_std": 0.5286603569984436,
+        "share_abs_current_above_1": 0.057727536231884057,
+        "state_mean_abs": 0.35105717182159424,
+        "share_abs_state_above_0.5": 0.2804289855072464
+      },
+      "head_sensory": {
+        "current_std": 0.33703485131263733,
+        "share_abs_current_above_1": 0.008272911531087373,
+        "state_mean_abs": 0.24742408096790314,
+        "share_abs_state_above_0.5": 0.10466973431936456
+      }
+    }
+  },
+  "runs/flyleg-kitchen-leg-unitnorm-dev-001": {
+    "trained_seed_0": {
+      "proprioceptive": {
+        "current_std": 1.5753949880599976,
+        "share_abs_current_above_1": 0.43653333333333333,
+        "state_mean_abs": 0.6203281879425049,
+        "share_abs_state_above_0.5": 0.644359420289855
+      },
+      "head_sensory": {
+        "current_std": 0.7998861074447632,
+        "share_abs_current_above_1": 0.1654890167077513,
+        "state_mean_abs": 0.5015193819999695,
+        "share_abs_state_above_0.5": 0.512022514379622
+      }
+    },
+    "untrained_seed_0": {
+      "proprioceptive": {
+        "current_std": 0.5286603569984436,
+        "share_abs_current_above_1": 0.057727536231884057,
+        "state_mean_abs": 0.35105717182159424,
+        "share_abs_state_above_0.5": 0.2804289855072464
+      },
+      "head_sensory": {
+        "current_std": 0.33703485131263733,
+        "share_abs_current_above_1": 0.008272911531087373,
+        "state_mean_abs": 0.24742408096790314,
+        "share_abs_state_above_0.5": 0.10466973431936456
+      }
+    }
+  }
+}
