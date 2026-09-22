@@ -1,0 +1,90 @@
+{
+  "test_seeds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19
+  ],
+  "offsets": {
+    "0.0": {
+      "tracker": 100.0,
+      "tracker_per_task": {
+        "microwave": 1.0,
+        "kettle": 1.0,
+        "light switch": 1.0,
+        "slide cabinet": 1.0
+      },
+      "replay": 100.0,
+      "replay_per_task": {
+        "microwave": 1.0,
+        "kettle": 1.0,
+        "light switch": 1.0,
+        "slide cabinet": 1.0
+      }
+    },
+    "0.1": {
+      "tracker": 100.0,
+      "tracker_per_task": {
+        "microwave": 1.0,
+        "kettle": 1.0,
+        "light switch": 1.0,
+        "slide cabinet": 1.0
+      },
+      "replay": 30.0,
+      "replay_per_task": {
+        "microwave": 0.55,
+        "kettle": 0.5,
+        "light switch": 0.1,
+        "slide cabinet": 0.05
+      }
+    },
+    "0.2": {
+      "tracker": 100.0,
+      "tracker_per_task": {
+        "microwave": 1.0,
+        "kettle": 1.0,
+        "light switch": 1.0,
+        "slide cabinet": 1.0
+      },
+      "replay": 16.25,
+      "replay_per_task": {
+        "microwave": 0.25,
+        "kettle": 0.35,
+        "light switch": 0.05,
+        "slide cabinet": 0.0
+      }
+    },
+    "0.3": {
+      "tracker": 100.0,
+      "tracker_per_task": {
+        "microwave": 1.0,
+        "kettle": 1.0,
+        "light switch": 1.0,
+        "slide cabinet": 1.0
+      },
+      "replay": 18.75,
+      "replay_per_task": {
+        "microwave": 0.1,
+        "kettle": 0.4,
+        "light switch": 0.1,
+        "slide cabinet": 0.15
+      }
+    }
+  }
+}

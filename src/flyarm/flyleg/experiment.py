@@ -298,7 +298,10 @@ def _train(
 
     def closed_loop(candidate: SequencePolicy) -> float:
         controller = kitchen.PositionFeatures(MlxController(candidate))
-        return float(kitchen.evaluate(env, controller, selection_seeds)["mean_tasks"])
+        result = kitchen.evaluate(
+            env, controller, selection_seeds, initial_joint_offset=config.selection_joint_offset
+        )
+        return float(result["mean_tasks"])
 
     selector = closed_loop if config.selection == "closed_loop" else None
     try:
@@ -481,7 +484,12 @@ def _run(pack_root: Path, annotations: Path, output: Path, config: FlyLegConfig)
         env = kitchen.recover_env(config.split)
         try:
             dart, dart_stats = noisy_teacher_episodes(
-                expert, env, config.dart_episodes, config.dart_noise, DART_SEED
+                expert,
+                env,
+                config.dart_episodes,
+                config.dart_noise,
+                DART_SEED,
+                start_offset=config.dart_start_offset,
             )
         finally:
             env.close()
