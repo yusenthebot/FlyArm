@@ -3,7 +3,7 @@
   "root": "main",
   "path": "ppo-pick-place-push2-s3-bonus-001/videos/nominal-before-after.mp4",
   "title": "Fly brain pick-and-place above 90% after PPO",
-  "note": "Frozen complete MaleCNS. Left: imitation (384 demonstrations, one DAgger round), 35/48 test episodes placed. Right: after PPO on the linear output map only, with a success bonus larger than the value of holding the cube; checkpoint chosen on validation seeds: 46/48 test episodes placed (95.8%). Training seed 3; seeds 0 and 1 are running."
+  "note": "Frozen complete MaleCNS, three test episodes the imitation controller failed. Left: imitation only (384 demonstrations, one DAgger round), which lifts but does not place. Right: after PPO on the linear output map alone, all three placed. Over the 48 held-out test episodes the validation-selected controller places 46 (95.8%), against 35 (72.9%) before PPO; seeds 0 and 1 reach 97.9% and 91.7%."
  },
  {
   "root": "main",
