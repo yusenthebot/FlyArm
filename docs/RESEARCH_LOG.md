@@ -252,6 +252,7 @@ Reading: negative for this recipe; with offline perturbed-start demonstrations n
 ### E31. Pick-and-place performance push toward 90% (user goal 2026-09-22 01:10)
 Failure analysis of the first v2 checkpoints (runs/whole-brain-pick-place-v2a/connectome-0, v2b/connectome-3, 24 test episodes): seed 0 is bimodal, 12 placed with goal errors of 0.7 to 2.6 cm and 11 never touching the cube, so it fails at finding and grasping; seed 3 lifts all 24 but releases 17 of them 1.5 to 8.3 cm from the goal, so it fails at transport precision.
 Both are imitation-precision failures, so the first lever is data: runs/whole-brain-pick-place-push-s0 and -push-s3 (configs/whole-brain-pick-place-push-s0.json, -s3.json) keep the v2 protocol and resync teacher but use 384 instead of 96 demonstrations, 3 DAgger rounds of 48 episodes (6 epochs each) and 48 test episodes (seeds 60000 to 60047, a superset of v2's 24); connectome and parameter-matched GRU; started 2026-09-22 01:22.
+Interim: behavior-cloning validation MSE 0.019 (seed 0, epoch 15) and 0.017 (seed 3, epoch 16), against about 0.03 to 0.035 for v2 at the same epochs.
 Planned second lever: PPO on the motor decoder from the push checkpoint (E12, E17), nominal physics, validation-seed selection, if the push leaves placement short of 90%.
 To make room: the E28 regime runs were stopped at epochs 65 and 58 of 100, with validation L1 0.110 and 0.112, the same as the default weights at those epochs (0.110 at epoch 50 to 60), so they gave no fit gain; v2b is paused with SIGSTOP (resume with kill -CONT); v2a was paused the same way at 01:25.
 
@@ -260,6 +261,7 @@ Method: decoder-only fits (as E26) on the frozen, untrained seed-0 features of t
 Result (training L1 after 3,000 Adam steps): front leg (23 proprioceptors and 4,868 head sensory neurons in, 68 motor out) 0.111; whole body (the B1a interface, all 30 features into the 1,846 ascending neurons, 1,314 descending and 708 VNC motor neurons out) 0.093 and still falling; leg senses with the whole-body readout 0.123.
 Reading: the entry point matters more than the readout width; features that enter through the ascending neurons give the connectome a much better linear readout of the kitchen policy than head sensory neurons do, while widening only the readout makes it worse.
 Test: runs/flyleg-kitchen-v3-body-dev-001 (configs/flyleg-kitchen-v3-body-dev.json: the v3 protocol of E30 with interface whole_body and unit_norm calibration), fly only, seed 0, started 2026-09-22 01:28; its GRU reference is the v3 dev run's GRU on identical data.
+Interim (epoch 25 of 30, validation L1): whole-body fly 0.087, against 0.113 for the front-leg fly and 0.082 for the GRU of the v3 dev run on identical data; training L1 0.075 against 0.097 and 0.060.
 Overnight goal and rules: docs/OVERNIGHT_GOAL.md.
 
 ### E23. Stateful-teacher labels in B1a DAgger (found by the multi-task agent, quantified here)
