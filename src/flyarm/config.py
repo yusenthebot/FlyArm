@@ -402,6 +402,15 @@ class KitchenPPOConfig(BaseModel):
     completion_bonus: float = Field(default=200.0, gt=0, le=100_000)
     # Decay of the approach term with the gripper-to-handle distance.
     approach_slope: float = Field(default=3.0, gt=0, le=100)
+    # Dense reference-tracking term, in the spirit of DeepMimic and AMP: the reward pays
+    # tracking_weight * exp(-||q - q_ref||^2 / tracking_sigma^2) against the joint positions of
+    # one benchmark demonstration, indexed by step. Only the demonstration's states are used,
+    # never its actions, so a run with this on is still reward-only and clones nothing.
+    # 0, the default, leaves every earlier run unchanged. The term joins the per-step budget,
+    # so at gamma 0.99 and the default bonus of 200 the weight has to stay below 1.0.
+    tracking_weight: float = Field(default=0.0, ge=0, le=10)
+    tracking_sigma: float = Field(default=0.6, gt=0, le=10)
+    reference_episode: int = Field(default=0, ge=0, le=1000)
     neural_steps: int = Field(default=3, ge=1, le=8)
     eval_every: int = Field(default=50, ge=1)
     eval_episodes: int = Field(default=20, ge=1, le=256)
@@ -417,12 +426,13 @@ class KitchenPPOConfig(BaseModel):
     def bonus_outweighs_stalling(self) -> KitchenPPOConfig:
         if self.best_on not in self.eval_variants:
             raise ValueError("best_on must name one of self.eval_variants")
-        # flyarm.rl.batched_kitchen.MAX_STEP_REWARD; kept as a literal so that validating a
-        # config never imports MuJoCo.
-        max_step_reward = 1.0
+        # flyarm.rl.batched_kitchen.MAX_STEP_REWARD plus the reference-tracking term; kept as
+        # a literal so that validating a config never imports MuJoCo.
+        max_step_reward = 1.0 + self.tracking_weight
         if self.gamma < 1 and self.completion_bonus <= max_step_reward / (1 - self.gamma):
             raise ValueError(
-                "completion_bonus must exceed the value of stalling on the per-step maximum, "
+                "completion_bonus must exceed the value of stalling on the per-step maximum of "
+                f"{max_step_reward} (approach, progress and reference tracking), "
                 f"{max_step_reward / (1 - self.gamma):.1f} at gamma {self.gamma} (log E34)"
             )
         return self

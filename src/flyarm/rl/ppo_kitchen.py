@@ -51,6 +51,9 @@ def evaluate_kitchen(
         completion_bonus=settings.completion_bonus,
         approach_slope=settings.approach_slope,
         gamma=settings.gamma,
+        tracking_weight=settings.tracking_weight,
+        tracking_sigma=settings.tracking_sigma,
+        reference_episode=settings.reference_episode,
     )
     obs = env.reset(seeds=np.array(seeds))
     brain = BrainRollout(policy, len(seeds))
@@ -103,6 +106,9 @@ class KitchenTask:
             completion_bonus=self.settings.completion_bonus,
             approach_slope=self.settings.approach_slope,
             gamma=self.settings.gamma,
+            tracking_weight=self.settings.tracking_weight,
+            tracking_sigma=self.settings.tracking_sigma,
+            reference_episode=self.settings.reference_episode,
         )
 
     def score(
@@ -153,6 +159,9 @@ def scratch_kitchen_policy(config: KitchenPPOConfig, pack_root: Path) -> BrainPo
         completion_bonus=config.completion_bonus,
         approach_slope=config.approach_slope,
         gamma=config.gamma,
+        tracking_weight=config.tracking_weight,
+        tracking_sigma=config.tracking_sigma,
+        reference_episode=config.reference_episode,
     )
     generator = np.random.default_rng(config.seed)
     rows = [env.reset()]
