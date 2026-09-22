@@ -213,6 +213,8 @@ class FlyLegConfig(BaseModel):
     # dagger_beta * dagger_beta_decay**i (per step), the learner's otherwise; every visited
     # state is labelled by the teacher either way. 0 is pure learner rollouts.
     dagger_beta: float = Field(default=0.0, ge=0, le=1)
+    # DAgger rollouts from arm starts perturbed like the joint-offset evaluation (0: clean).
+    dagger_start_offset: float = Field(default=0.0, ge=0, le=0.5)
     # Start every controller from {init_from}/{kind}-{seed}/policy.safetensors of an earlier
     # run with the same interface and action chunk, and skip behavior cloning.
     init_from: str | None = None

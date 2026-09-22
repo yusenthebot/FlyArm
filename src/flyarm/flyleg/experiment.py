@@ -191,11 +191,13 @@ def _dagger_rollouts(
     seed: int,
     iteration: int,
     beta: float = 0.0,
+    start_offset: float = 0.0,
 ) -> tuple[dict[str, np.ndarray], dict[str, Any]]:
     """Episodes from clean starts, every visited state labelled by the tracker.
 
     Each step executes the teacher's action with probability ``beta`` and the learner's
     otherwise; the learner sees every observation either way, so its state stays in step.
+    With ``start_offset`` the arm starts perturbed as in the joint-offset evaluation.
     """
     horizon = env.spec.max_episode_steps
     obs = np.zeros((episodes, horizon, kitchen.FEATURE_DIM), np.float32)
@@ -206,7 +208,10 @@ def _dagger_rollouts(
     completed: list[int] = []
     teacher_steps = 0
     for episode in range(episodes):
-        observation, info = env.reset(seed=DAGGER_SEED + 10_000 * seed + 100 * iteration + episode)
+        reset_seed = DAGGER_SEED + 10_000 * seed + 100 * iteration + episode
+        observation, info = env.reset(seed=reset_seed)
+        if start_offset:
+            observation = kitchen._offset_initial_joints(env, reset_seed, start_offset)
         controller.reset()
         info = {}
         for step in range(horizon):
@@ -225,6 +230,7 @@ def _dagger_rollouts(
     stats = {
         "rollout_episodes": episodes,
         "beta": beta,
+        "start_offset_rad": start_offset,
         "teacher_step_fraction": teacher_steps / max(int(mask.sum()), 1),
         "rollout_mean_tasks": float(np.mean(completed)),
         "labelled_states": int(mask.sum()),
@@ -360,7 +366,14 @@ def _train(
             assert expert is not None
             beta = config.dagger_beta * config.dagger_beta_decay**iteration
             rollouts, stats = _dagger_rollouts(
-                policy, expert, env, config.dagger_episodes, seed, iteration, beta
+                policy,
+                expert,
+                env,
+                config.dagger_episodes,
+                seed,
+                iteration,
+                beta,
+                start_offset=config.dagger_start_offset,
             )
             aggregate = {
                 key: np.concatenate((aggregate[key], rollouts[key]))
