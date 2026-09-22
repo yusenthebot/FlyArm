@@ -106,6 +106,9 @@ class WholeBrainConfig(BaseModel):
     dagger_episodes: int = Field(default=16, ge=4, le=128)
     dagger_epochs: int = Field(default=10, ge=1, le=100)
     noise_std_m: float = Field(default=0.01, ge=0, le=0.05)
+    # Which training phase the evaluated checkpoint comes from: the last one (every run before
+    # research log E33) or the one with the best closed-loop success on the validation seeds.
+    phase_selection: Literal["last", "validation_success"] = "last"
     seeds: list[int] = Field(default_factory=lambda: [0], min_length=1, max_length=10)
     policies: list[WholeBrainPolicyKind] = Field(
         default_factory=default_whole_brain_policies, min_length=1

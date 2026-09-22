@@ -323,6 +323,8 @@ def _train(
         policy, train, task.weights(train), validation, validation_weights, budget, seed
     )
     phases = [{"phase": "behavior_cloning", **summary}]
+    selected = _PhaseSelector(policy, task, config, run)
+    selected.score(phases[-1])
     dagger_sets: list[list[int]] = []
     aggregate = train
     for iteration in range(config.dagger_iterations):
@@ -356,7 +358,46 @@ def _train(
         )
         curves.extend(more)
         phases.append({"phase": phase, **summary})
+        selected.score(phases[-1])
+    selected.restore(phases)
     return curves, phases, dagger_sets
+
+
+class _PhaseSelector:
+    """Closed-loop choice among training phases (config.phase_selection).
+
+    With "validation_success" every phase's weights are saved and scored by stable-place
+    success (lift as tie-break) on the validation seeds, and the best phase is restored at the
+    end: DAgger rounds can collapse the controller while lowering the imitation loss (research
+    log E33). With "last" the final phase is kept, as in every run before E33.
+    """
+
+    def __init__(self, policy: SequencePolicy, task: Task, config: WholeBrainConfig, run: Path):
+        self.policy, self.task, self.run = policy, task, run
+        self.active = config.phase_selection == "validation_success"
+        self.seeds = task.seeds("validation", config.val_episodes)
+        self.best: tuple[float, float] | None = None
+        self.best_phase: str | None = None
+
+    def score(self, phase: dict[str, Any]) -> None:
+        if not self.active:
+            return
+        result = self.task.evaluate(MlxController(self.policy), self.seeds)
+        key = (float(result["success_rate"]), float(result["lift_rate"]))
+        phase["validation_success_rate"], phase["validation_lift_rate"] = key
+        path = self.run / f"policy-{phase['phase']}.safetensors"
+        self.policy.save(path)
+        print(f"  {phase['phase']}: validation success {key[0]:.3f} lift {key[1]:.3f}", flush=True)
+        if self.best is None or key > self.best:
+            self.best, self.best_phase = key, str(phase["phase"])
+
+    def restore(self, phases: list[dict[str, Any]]) -> None:
+        if not self.active or self.best_phase is None:
+            return
+        self.policy.load(self.run / f"policy-{self.best_phase}.safetensors")
+        for phase in phases:
+            phase["selected"] = phase["phase"] == self.best_phase
+        print(f"  selected phase {self.best_phase}", flush=True)
 
 
 def _provenance(
