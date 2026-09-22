@@ -192,6 +192,7 @@ def train_ppo(
         horizon=settings.horizon,
         first_seed=TRAIN_SEED + 100_000 * settings.seed,
         variant=task_variant(settings.train_variant),
+        success_bonus=settings.success_bonus,
     )
     obs = env.reset()
     privileged = env.observation(privileged=True)

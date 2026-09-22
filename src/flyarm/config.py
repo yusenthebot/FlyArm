@@ -293,6 +293,10 @@ class PPOConfig(BaseModel):
     max_grad_norm: float = Field(default=0.5, gt=0)
     log_std: float = Field(default=-1.2, ge=-5, le=1)
     critic_warmup: int = Field(default=5, ge=0)
+    # Terminal reward for a stable placement. Holding the cube earns up to 4 per step, worth
+    # 4 / (1 - gamma) = 400 at gamma 0.99, so a bonus below that teaches PPO not to release
+    # (research log E34); 50 is the value of every run before E34.
+    success_bonus: float = Field(default=50.0, ge=0, le=100_000)
     eval_every: int = Field(default=20, ge=1)
     eval_episodes: int = Field(default=24, ge=1, le=256)
     horizon: int = Field(default=400, ge=20, le=2000)

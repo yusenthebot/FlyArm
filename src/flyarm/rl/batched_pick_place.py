@@ -83,9 +83,11 @@ class BatchedPickPlace:
         first_seed: int = 0,
         num_threads: int = 0,
         variant: TaskVariant | None = None,
+        success_bonus: float = 50.0,
     ) -> None:
         if num_envs < 1 or horizon < 20:
             raise ValueError("num_envs must be positive and horizon at least 20")
+        self.success_bonus = float(success_bonus)
         spec = build_pick_place_spec(Path(model_path))
         for side in ("left", "right"):
             spec.add_sensor(
@@ -309,7 +311,9 @@ class BatchedPickPlace:
         )
         self.stable = np.where(release_ready, self.stable + 1, 0)
         success = self.stable >= 10
-        reward = shaped_reward(self.ee(), cube, self.goal, grasped, self.ever_lifted, success)
+        reward = shaped_reward(
+            self.ee(), cube, self.goal, grasped, self.ever_lifted, success, self.success_bonus
+        )
         truncated = self.steps >= self.horizon
         lifted = self.ever_lifted.copy()
         done = success | truncated
@@ -334,11 +338,14 @@ def shaped_reward(
     grasped: np.ndarray,
     ever_lifted: np.ndarray,
     success: np.ndarray,
+    success_bonus: float = 50.0,
 ) -> np.ndarray:
     """Staged dense reward: reach the cube, hold it, carry it over the goal, place it.
 
-    Terms are bounded per step; stable placement pays a large terminal bonus. The reward
-    shapes training only; evaluation reports the benchmark's own success rule.
+    Terms are bounded per step (at most 4); stable placement pays a terminal bonus and ends the
+    episode. A bonus below 4 / (1 - gamma), 400 at gamma 0.99, makes holding the cube forever
+    worth more than placing it, and PPO then learns not to release (research log E34).
+    The reward shapes training only; evaluation reports the benchmark's own success rule.
     """
     reach = 1.0 - np.tanh(10.0 * np.linalg.norm(ee - (cube + [0.0, 0.0, 0.045]), axis=1))
     height = np.clip((cube[:, 2] - CUBE_HALF) / 0.06, 0.0, 1.0)
@@ -348,5 +355,5 @@ def shaped_reward(
         + 0.5 * grasped
         + 1.0 * grasped * height
         + 2.0 * ever_lifted * carry
-        + 50.0 * success
+        + success_bonus * success
     ).astype(np.float32)
