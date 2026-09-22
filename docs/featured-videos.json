@@ -9,7 +9,7 @@
   "root": "main",
   "path": "ppo-pick-place-randomized-001/videos/heavier_6_10x-before-after.mp4",
   "title": "RL on the fly brain: cubes heavier than any it trained on",
-  "note": "Cube mass 6 to 10x, never seen in training. Left, imitation only: grasps but cannot lift (3 of 3). Right, after PPO tuned only the motor decoder with the connectome frozen: placed 3 of 3."
+  "note": "Cube mass 6 to 10x, never seen in training. Left, imitation only: grasps but cannot lift (3 of 3). Right, after PPO tuned only the motor decoder with the connectome frozen: placed 3 of 3. Control: PPO through a shuffled connectome also learns to lift, but places fewer heavy cubes late in training (6 vs 15 of 24 on average); one run each."
  },
  {
   "root": "main",
