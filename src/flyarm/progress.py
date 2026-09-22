@@ -51,6 +51,34 @@ def _curve(run: Path, iteration: int) -> dict[str, Any]:
     return {key: row[key] for key in keys if key in row}
 
 
+def _kitchen_frames(
+    run: Path, pack_root: Path, checkpoint: Path, seeds: list[int], title: str
+) -> tuple[list[list[np.ndarray]], list[str]]:
+    """Labelled kitchen episodes of one PPO checkpoint, rendered in the benchmark env."""
+    from flyarm.benchmarks import kitchen
+    from flyarm.config import KitchenPPOConfig
+    from flyarm.flyleg.record import rollout_frames
+    from flyarm.rl.ppo_kitchen import scratch_kitchen_policy
+
+    config = KitchenPPOConfig.model_validate_json((run / "config.json").read_text())
+    policy = scratch_kitchen_policy(config, pack_root)
+    policy.load(checkpoint)
+    env = (
+        kitchen._minari()
+        .load_dataset(kitchen.DATASETS["complete"])
+        .recover_environment(render_mode="rgb_array")
+    )
+    clips, outcomes = [], []
+    try:
+        for seed in seeds:
+            frames, completed = rollout_frames(env, policy, seed, title)
+            clips.append(frames)
+            outcomes.append(", ".join(completed) if completed else "no task")
+    finally:
+        env.close()
+    return clips, outcomes
+
+
 def record_progress(
     run: Path,
     pack_root: Path,
@@ -61,6 +89,12 @@ def record_progress(
     variant: str = "nominal",
 ) -> dict[str, Any]:
     """Render ``seeds`` episodes of one checkpoint into run/progress/latest.mp4."""
+    settings = json.loads((run / "config.json").read_text())
+    iteration = _iteration(checkpoint)
+    if "completion_bonus" in settings:  # a kitchen run (KitchenPPOConfig)
+        title = f"{run.name} · iteration {iteration}"
+        clips, outcomes = _kitchen_frames(run, pack_root, checkpoint, seeds, title)
+        return _write_clip(run, checkpoint, seeds, clips, outcomes, iteration, variant="kitchen")
     config = PPOConfig.model_validate_json((run / "config.json").read_text())
     task, policy = load_trained_policy(
         Path(config.base_run), config.base_kind, config.base_seed, pack_root, model_path
@@ -69,9 +103,22 @@ def record_progress(
     if not isinstance(policy, BrainPolicy):
         raise ValueError("Progress clips are defined for brain policies")
     policy.load(checkpoint)
-    iteration = _iteration(checkpoint)
     title = f"{run.name} · iteration {iteration}"
     clips, outcomes = _episodes(policy, model_path, seeds, config, variant, title)
+    return _write_clip(run, checkpoint, seeds, clips, outcomes, iteration, variant=variant)
+
+
+def _write_clip(
+    run: Path,
+    checkpoint: Path,
+    seeds: list[int],
+    clips: list[list[np.ndarray]],
+    outcomes: list[str],
+    iteration: int,
+    *,
+    variant: str,
+) -> dict[str, Any]:
+    """Stack the episodes into one clip and replace the run's single progress file."""
     frames = [
         np.concatenate([clip[min(index, len(clip) - 1)] for clip in clips], axis=0)
         for index in range(max(len(clip) for clip in clips))
