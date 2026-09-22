@@ -22,7 +22,7 @@ from typing import Any
 
 import numpy as np
 
-from flyarm.config import KitchenPPOConfig, KitchenVariantConfig
+from flyarm.config import FlyLegConfig, KitchenPPOConfig, KitchenVariantConfig
 from flyarm.rl.batched_kitchen import ACTION_DIM, OBS_DIM, BatchedKitchen, KitchenVariant
 from flyarm.rl.ppo import BrainRollout, MotorHead, train_ppo, trainable_count
 from flyarm.whole_brain.policy import BrainPolicy
@@ -176,17 +176,52 @@ def scratch_kitchen_policy(config: KitchenPPOConfig, pack_root: Path) -> BrainPo
     return policy
 
 
+def kitchen_base_config(run_root: Path) -> FlyLegConfig:
+    """The imitation run's own config, checked for the three properties PPO depends on.
+
+    A warm start only makes sense from a run that speaks the same interface, the same action
+    layout and the same split as the batched environment, so each is refused by name rather
+    than failing later inside the trainer.
+    """
+    path = run_root / "config.json"
+    if not path.is_file():
+        raise FileNotFoundError(f"{run_root} is not a kitchen imitation run: no config.json")
+    config = FlyLegConfig.model_validate_json(path.read_text())
+    if config.interface != "whole_body":
+        raise ValueError(
+            f"{run_root} trained the '{config.interface}' interface; kitchen PPO warm starts "
+            "from the whole-body B1a interface, whose ascending encoder is the only path the "
+            "scene has into the connectome (research log E32)"
+        )
+    if config.action_chunk != 1:
+        raise ValueError(
+            f"{run_root} emits chunks of {config.action_chunk} actions; the PPO head maps the "
+            f"readout straight to the {ACTION_DIM} joint velocities, so the base run needs "
+            "action_chunk 1"
+        )
+    if config.split != "complete":
+        raise ValueError(
+            f"{run_root} was trained on the '{config.split}' split; the batched environment "
+            "scores the four tasks of 'complete'"
+        )
+    return config
+
+
 def load_kitchen_policy(config: KitchenPPOConfig, pack_root: Path) -> BrainPolicy:
     """Rebuild a trained B2 kitchen checkpoint as the PPO starting point."""
     from flyarm.flyleg.record import load_flyleg_policy
 
+    run_root = Path(config.base_run)
+    kitchen_base_config(run_root)
+    checkpoint = run_root / f"{config.base_kind}-{config.base_seed}" / "policy.safetensors"
+    if not checkpoint.is_file():
+        raise FileNotFoundError(
+            f"No {config.base_kind} seed-{config.base_seed} checkpoint: {checkpoint}"
+        )
     policy = load_flyleg_policy(
-        Path(config.base_run),
-        config.base_kind,
-        config.base_seed,
-        pack_root,
-        Path(config.annotations),
+        run_root, config.base_kind, config.base_seed, pack_root, Path(config.annotations)
     )
+    # Backstops: the config above already rules these out, but the checkpoint decides.
     if not isinstance(policy, BrainPolicy):
         raise ValueError("Kitchen PPO fine-tuning is defined for brain policies")
     if policy.chunk != 1:
@@ -235,6 +270,8 @@ def run_kitchen_ppo(config: KitchenPPOConfig, pack_root: Path, output: Path) -> 
         ),
         "from_scratch": config.from_scratch,
         "encoder_trained": config.encoder_lr > 0,
+        "base_run": config.base_run,
+        "base_kind": None if config.from_scratch else config.base_kind,
     }
     save_json(output / "results.json", results)
     try:
@@ -251,6 +288,7 @@ def run_kitchen_ppo(config: KitchenPPOConfig, pack_root: Path, output: Path) -> 
 __all__ = [
     "KitchenTask",
     "evaluate_kitchen",
+    "kitchen_base_config",
     "kitchen_variant",
     "load_kitchen_policy",
     "run_kitchen_ppo",

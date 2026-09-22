@@ -351,10 +351,13 @@ class KitchenPPOConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
     base_run: str = "runs/whole-brain-pick-place-push2-s3"
-    base_kind: Literal["flyleg", "flyleg_shuffled", "gru"] = "flyleg"
+    # Only brain policies can be warm-started: the trainer runs the encoder, the frozen
+    # connectome and the readout, which the MLP and GRU controls do not have.
+    base_kind: Literal["flyleg", "flyleg_shuffled"] = "flyleg"
     base_seed: int = Field(default=0, ge=0, le=999)
-    # Neuron annotations, needed only to rebuild a trained front-leg kitchen checkpoint.
-    annotations: str = "data/malecns/annotations.json"
+    # Neuron annotations; the whole-body interface is built from the pack alone, so this is
+    # read only when a base run declares the front-leg interface.
+    annotations: str = "data/raw/body-annotations-male-cns-v1.0-minconf-0.5.feather"
     # Reward only: ignore any trained weights and start from a random encoder and decoder,
     # with both frozen normalizations measured from random-action rollouts, so that no
     # demonstration touches the controller (research log E36).
