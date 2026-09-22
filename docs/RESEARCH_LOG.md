@@ -10,7 +10,7 @@ Numbers marked exploratory come from scratch probes that were later superseded b
 | Claim | Status | Evidence |
 |---|---|---|
 | The complete MaleCNS (166,700 neurons, 10.5 M edges) runs as a frozen real-time controller on a laptop | supported | E1 |
-| Control is graph-mediated: removing every edge removes the skill | supported (pick-place, kitchen, dexterous seed 0: 0/64) | E3, E11, E22, dexterous track |
+| Control is graph-mediated: removing every edge removes the skill | supported for pick-place and dexterous seed 0 (0/64); kitchen mixed: seeds 0 and 1 yes, seed 2 no, because a constant action opens the microwave (40/40) | E3, E11, E22, dexterous track |
 | The skill needs the connectome's own state across control steps | supported for pick-place and dexterous seed 0 (0/64); kitchen depends on the run (E11 yes, standardized readout 23.8 of 25 without state) | E3, E11, E22, dexterous track |
 | Measured wiring beats a degree-preserving shuffle | not established: pick-place first protocol over 6 seeds trends ahead (lift 72% vs 56%, seed-level p 0.125) after seeds 3 to 5 failed to replicate seeds 0 to 2; kitchen fly above shuffle in 2 of 2 seeds; dexterous seed 0 tie (62 vs 63 of 64); v2 (E24) and dexterous seeds 1 and 2 running | E3, E11, E21, E24, dexterous track |
 | The fly controller solves more than one kitchen task | not yet: one task (microwave); not fixed by longer memory (E20) or tracker DAgger (E19); the 68 leg motor neurons carry about 5 independent signals (E25); the wide readout's failure was an Adam effect (E26), now retested | E4, E11, E19, E20, E22, E25, E26 |
@@ -82,6 +82,9 @@ Fly lesions, seed 0: edges off 0, direct synapses only 0, deafferented leg 0, he
 Fly OOD, seed 0: robot noise 8.75, object noise 25, joint offsets 21.25 and 11.25.
 Reading: the protocol now separates controllers; the fly skill is graph-mediated and uses both senses and its own state, but it stops after the first task.
 Seed 1: ACT 98.1, GRU 39.4, MLP 21.9, fly 21.25 (microwave), shuffle 15.0; the fly is above the shuffle in both seeds (25 vs 0, 21.25 vs 15) and close to the MLP, and seed 2 is running (fly training at 21:30).
+Seed 2, fly: 25.0 (microwave in all 40 episodes); lesions edges off 25.0, direct synapses only 0, deafferented leg 0, head senses removed 22.5, state reset 0; the shuffle, MLP, GRU and ACT of seed 2 are running.
+Open-loop caveat: with every edge removed the readout is exactly constant, so the policy emits one constant action for the whole episode, and in seed 2 that constant action opens the microwave in 40 of 40 episodes.
+The first kitchen task can therefore be solved without perception or feedback, so a score of 25 is not by itself evidence of closed-loop control; seeds 0 and 1 lose the skill with edges off (0), seed 2 does not, and the paper must report an open-loop (constant-action) baseline next to every kitchen score.
 
 ## 2026-09-21: reinforcement learning on the frozen connectome
 
