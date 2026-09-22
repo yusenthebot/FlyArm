@@ -323,6 +323,9 @@ Method: gradients through the recurrent connectome are truncated to one control 
 Cost: about three extra forward passes per step; measured throughput falls from about 870 to about 750 environment steps per second on a contended GPU.
 Option: PPOConfig.encoder_lr (0 keeps the encoder frozen, as in every earlier run); tests in tests/test_ppo.py check that the encoder moves under nonzero advantages and does not move when every advantage is zero.
 Runs: runs/ppo-pick-place-scratch-002 (reward only, encoder frozen at its random draw) and runs/ppo-pick-place-scratch-encoder-002 (reward only, encoder trained at 1e-4), both from random weights with no demonstration anywhere, started 14:25.
+Both hit the saturation of E39: with the scale-only readout calibration the first trained iteration had ratio deviation 0.985 against a 0.2 clip, because one PPO iteration shifts the decoder's pre-activation by about 2 when it reads 2,022 outputs.
+The frozen-encoder arm was stopped at iteration 200 (it reached contact and grasps but never a lift) and the trained-encoder arm at iteration 439 (mean step reward recovered from 0.09 to 0.2-0.4, still no lift).
+Fix: scratch policies now calibrate with unit_norm (commit after b86e615), and the rerun runs/ppo-pick-place-scratch-encoder-003 adds the advantage clip at 10 and critic warmup 50; its first trained iterations stay inside the clip.
 
 ### E37. Complex pick-and-place and long-horizon runs restarted (2026-09-22 13:44)
 Hard physics: runs/ppo-pick-place-hard-push2-s3-001 (configs/ppo-pick-place-hard-push2-s3.json) repeats the E17 randomized-physics PPO from the push2 seed-3 checkpoint with the corrected success bonus, evaluated on nominal, training distribution, cubes 6 to 10x heavier, friction 0.08 to 0.12x and goals within 18 cm; E17's numbers came from the broken reward, so this is the honest version of that experiment.
