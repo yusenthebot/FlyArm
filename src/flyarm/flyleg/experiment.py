@@ -43,6 +43,7 @@ from flyarm.whole_brain.backend_mlx import RateDynamics
 from flyarm.whole_brain.compiler import ConnectomePack
 from flyarm.whole_brain.diagnostics import direct_only_weights
 from flyarm.whole_brain.experiment import ResetEveryStep
+from flyarm.whole_brain.interface import annotation_interface, interface_report
 from flyarm.whole_brain.policy import (
     ACTPolicy,
     BrainPolicy,
@@ -115,13 +116,34 @@ def leg_dynamics(
     return RateDynamics(pack, interface, recurrent_gain=config.recurrent_gain, **options)
 
 
+def fly_interface(
+    config: FlyLegConfig, pack: ConnectomePack, annotations: Path
+) -> tuple[NeuralInterface, list[Channel] | None, dict[str, Any]]:
+    """The run's fly interface, its sensory channels (None: one encoder) and its report.
+
+    "front_leg": the Franka as the left front leg (leg proprioceptors and head senses in,
+    leg motor neurons out). "whole_body": the B1a interface, every observation feature into
+    the 1,846 ascending neurons and the 1,314 descending plus 708 VNC motor neurons read out.
+    """
+    if config.interface == "whole_body":
+        body = annotation_interface(pack)
+        return body, None, interface_report(pack, body)
+    leg = front_leg_interface(
+        pack,
+        annotations,
+        include_head=config.sensory_channels == "proprioception+head",
+        include_descending=config.readout == "leg_motor+descending",
+    )
+    return leg.interface, leg_channels(leg), front_leg_report(pack, leg, annotations)
+
+
 def make_policy(
     kind: str,
     config: FlyLegConfig,
     seed: int,
     *,
     dynamics: RateDynamics | None,
-    channels: list[Channel],
+    channels: list[Channel] | None,
     fly_budget: int,
 ) -> SequencePolicy:
     """Untrained controller of one kind; the same constructor serves training and replay."""
@@ -411,25 +433,20 @@ def run_flyleg_experiment(
 def _run(pack_root: Path, annotations: Path, output: Path, config: FlyLegConfig) -> dict[str, Any]:
     pack = ConnectomePack.load(pack_root)
     pack.validate_b1a_provenance()
-    leg = front_leg_interface(
-        pack,
-        annotations,
-        include_head=config.sensory_channels == "proprioception+head",
-        include_descending=config.readout == "leg_motor+descending",
-    )
+    interface, channels, report = fly_interface(config, pack, annotations)
     data = kitchen.load(config.split)
     output.mkdir(parents=True)
     started = time.monotonic()
     deadline = started + config.max_seconds
-    leg.interface.save(output / "interface.json")
-    save_json(output / "interface_report.json", front_leg_report(pack, leg, annotations))
+    interface.save(output / "interface.json")
+    save_json(output / "interface_report.json", report)
     save_json(output / "config.json", config.model_dump())
     package = Path(__file__).resolve().parent.parent
     save_json(
         output / "provenance.json",
         {
             "pack_fingerprint": pack.fingerprint(),
-            "interface_fingerprint": leg.interface.fingerprint,
+            "interface_fingerprint": interface.fingerprint,
             "annotations_sha256": digest_file(annotations),
             "dataset": data.provenance,
             "source_files_sha256": {
@@ -513,8 +530,7 @@ def _run(pack_root: Path, annotations: Path, output: Path, config: FlyLegConfig)
         ):
             raise ValueError("init_from must share the action chunk, senses and split")
 
-    channels = leg_channels(leg)
-    measured = leg_dynamics(config, pack, leg.interface)
+    measured = leg_dynamics(config, pack, interface)
     fly_budget = make_policy(
         "flyleg", config, 0, dynamics=measured, channels=channels, fly_budget=0
     ).trainable_parameter_count()
@@ -525,9 +541,9 @@ def _run(pack_root: Path, annotations: Path, output: Path, config: FlyLegConfig)
             shuffled = shuffle_pack(pack, seed + 17000)
             rebound = NeuralInterface.bind(
                 shuffled,
-                leg.interface.input_body_ids,
-                leg.interface.output_body_ids,
-                label=leg.interface.label,
+                interface.input_body_ids,
+                interface.output_body_ids,
+                label=interface.label,
             )
             dynamics["flyleg_shuffled"] = leg_dynamics(config, shuffled, rebound)
             save_json(
@@ -576,22 +592,21 @@ def _run(pack_root: Path, annotations: Path, output: Path, config: FlyLegConfig)
             if isinstance(policy, BrainPolicy) and kind == "flyleg":
                 lesions: dict[str, SequencePolicy] = {
                     "edges_off": policy.with_dynamics(
-                        "edges_off", leg_dynamics(config, pack, leg.interface, edges=False)
+                        "edges_off", leg_dynamics(config, pack, interface, edges=False)
                     ),
                     "direct_only": policy.with_dynamics(
                         "direct_only",
                         leg_dynamics(
                             config,
                             pack,
-                            leg.interface,
-                            weights=direct_only_weights(
-                                pack, leg.interface, config.weight_norm_power
-                            ),
+                            interface,
+                            weights=direct_only_weights(pack, interface, config.weight_norm_power),
                         ),
                     ),
-                    "deafferented_leg": policy.silence_channel("deafferented_leg", 0),
                 }
-                if len(channels) > 1:
+                if channels is not None:
+                    lesions["deafferented_leg"] = policy.silence_channel("deafferented_leg", 0)
+                if channels is not None and len(channels) > 1:
                     lesions["head_sensory_deprived"] = policy.silence_channel(
                         "head_sensory_deprived", 1
                     )
