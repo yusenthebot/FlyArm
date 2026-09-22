@@ -1,6 +1,12 @@
 [
  {
   "root": "main",
+  "path": "ppo-pick-place-hard-push2-s3-001/videos/heavier_6_10x-before-after.mp4",
+  "title": "Harder physics: cubes 6 to 10x heavier, before and after PPO",
+  "note": "Frozen complete MaleCNS, PPO on the linear output map with randomized mass and friction and the corrected success bonus. On the 24 held-out test episodes of this variant the validation-selected checkpoint places 17 (from 1 before PPO) and lifts all 24; nominal goes 19 to 24 of 24 and goals within 18 cm 12 to 19. Three episodes shown: before, all three end holding the cube; after, two placed."
+ },
+ {
+  "root": "main",
   "path": "ppo-pick-place-push2-s3-bonus-001/videos/nominal-before-after.mp4",
   "title": "Fly brain pick-and-place above 90% after PPO",
   "note": "Frozen complete MaleCNS, three test episodes the imitation controller failed. Left: imitation only (384 demonstrations, one DAgger round), which lifts but does not place. Right: after PPO on the linear output map alone, all three placed. Over the 48 held-out test episodes the validation-selected controller places 46 (95.8%), against 35 (72.9%) before PPO; seeds 0 and 1 reach 97.9% and 91.7%."
