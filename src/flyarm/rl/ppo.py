@@ -558,8 +558,11 @@ def scratch_policy(
     observations = np.stack(rows, axis=1).astype(np.float32)
     flat = observations.reshape(-1, obs_dim)
     policy.set_normalization(flat.mean(0), np.maximum(flat.std(0), 0.05))
+    # unit_norm, not scale: with 2,022 readout outputs one PPO iteration shifts the decoder's
+    # pre-activation by about 2, which saturates the tanh on the first trained iteration and
+    # freezes the policy (research log E26, E32, E39).
     calibration = policy.calibrate_readout(
-        observations, np.ones(observations.shape[:2], dtype=np.float32)
+        observations, np.ones(observations.shape[:2], dtype=np.float32), unit_norm=True
     )
     print(
         f"fresh policy calibrated on {observations.shape[0]} random rollouts of "
