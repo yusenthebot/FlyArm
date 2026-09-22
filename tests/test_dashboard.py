@@ -131,3 +131,29 @@ def test_gallery_skips_archives_hides_smoke_and_titles_files(tmp_path: Path) -> 
     assert (
         readable("pick-place-shuffled-seed5-r1") == "pick place shuffled CNS · seed 5 · shuffle #2"
     )
+
+
+def test_live_endpoint_lists_the_newest_progress_clip_of_each_run(tmp_path: Path) -> None:
+    from flyarm.dashboard.catalog import Root, live
+
+    run = tmp_path / "runs" / "ppo-demo"
+    (run / "progress").mkdir(parents=True)
+    (run / "results.json").write_text(json.dumps({"status": "running"}))
+    (run / "progress" / "latest.mp4").write_bytes(b"not really a video")
+    (run / "progress" / "latest.json").write_text(
+        json.dumps(
+            {
+                "iteration": 120,
+                "outcomes": ["placed", "lifted"],
+                "recorded_at": "2026-09-22 15:00:00",
+                "curve": {"mean_reward": 1.5, "success_rate": 0.25},
+            }
+        )
+    )
+    quiet = tmp_path / "runs" / "no-clip"
+    quiet.mkdir()
+    clips = live([Root(label="main", path=tmp_path / "runs")])["clips"]
+    assert [clip["run"] for clip in clips] == ["ppo-demo"]
+    assert clips[0]["path"] == "ppo-demo/progress/latest.mp4"
+    assert clips[0]["iteration"] == 120 and clips[0]["status"] == "running"
+    assert clips[0]["curve"]["mean_reward"] == 1.5
