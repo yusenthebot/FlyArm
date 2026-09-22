@@ -13,10 +13,10 @@ The fly brain stays the protagonist: the controller is W_in -> frozen complete M
 
 ## Levers, in order
 
-1. Data and DAgger (running): runs/whole-brain-pick-place-push-s0 and -push-s3, 384 demonstrations, 3 DAgger rounds, resync teacher (E31).
-2. If placement stays below 90%: PPO on the motor decoder from the push checkpoint (flyarm rl ppo, config like configs/ppo-pick-place.json with base_run set to the push run, nominal physics, validation-seed selection), then evaluate the selected checkpoint on the 48 test seeds.
+1. Data and DAgger (running): runs/whole-brain-pick-place-push-s0, -push-s3 and -push-s1, 384 demonstrations, 3 DAgger rounds, resync teacher (E31).
+2. If placement stays below 90%: PPO on the motor decoder from the push checkpoint, ready as configs/ppo-pick-place-push-s0.json and -s3.json (400 iterations, nominal physics, 48 validation seeds for selection, 48 test seeds), run with `PYTHONPATH=src nohup uv run --no-sync flyarm rl ppo --config configs/ppo-pick-place-push-sN.json --output runs/ppo-pick-place-push-sN-001`; the selected (validation) checkpoint's test score is the one to report.
 3. If the failure mode is grasping (cube never touched): more DAgger rounds or more demonstrations from the starts that fail.
-4. Kitchen: runs/flyleg-kitchen-v3-dev-001 (front leg, fly and GRU) and runs/flyleg-kitchen-v3-body-dev-001 (whole-body interface, E32 probe: decoder-only fit 0.093 against 0.111).
+4. Kitchen: v3 dev (front leg) and v3 body (whole-body interface) are done and negative closed loop (E30, E32); runs/flyleg-kitchen-v3-dagger-dev-001 (DAgger from perturbed starts, GRU then fly) is running; the kitchen is not on a path to 90% tonight.
 
 ## Paused on purpose (resume with kill -CONT, progress is kept)
 
