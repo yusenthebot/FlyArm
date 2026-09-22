@@ -193,6 +193,12 @@ class FlyLegConfig(BaseModel):
     # action noise and every visited state is labelled with its clean action.
     dart_episodes: int = Field(default=0, ge=0, le=2000)
     dart_noise: float = Field(default=0.1, gt=0, le=1)
+    # DART episodes may also start from a perturbed arm: each of the 7 arm joints offset
+    # uniformly in [-dart_start_offset, dart_start_offset] rad (seeded), so the data covers the
+    # recoveries that a perturbed-start evaluation needs (research log E29, E30).
+    dart_start_offset: float = Field(default=0.0, ge=0, le=0.5)
+    # Closed-loop checkpoint selection from starts perturbed the same way (0: clean starts).
+    selection_joint_offset: float = Field(default=0.0, ge=0, le=0.5)
     # Interactive imitation: after behavior cloning, each iteration rolls out the learner from
     # clean starts (seeds disjoint from evaluation), labels the visited states with the
     # demonstration tracker and retrains on demonstrations plus every labelled rollout.

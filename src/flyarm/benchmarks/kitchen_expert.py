@@ -56,11 +56,23 @@ class DemonstrationTracker:
 
 
 def noisy_teacher_episodes(
-    tracker: DemonstrationTracker, env: Any, episodes: int, noise: float, first_seed: int
+    tracker: DemonstrationTracker,
+    env: Any,
+    episodes: int,
+    noise: float,
+    first_seed: int,
+    *,
+    start_offset: float = 0.0,
 ) -> tuple[dict[str, np.ndarray], dict[str, Any]]:
-    """DART data: the tracker acts with Gaussian action noise; labels are its clean actions."""
+    """DART data: the tracker acts with Gaussian action noise; labels are its clean actions.
+
+    With ``start_offset`` each episode starts with the 7 arm joints offset uniformly in
+    [-start_offset, start_offset] rad, as in the benchmark's perturbed-start evaluation.
+    """
     if episodes < 1 or noise <= 0:
         raise ValueError("DART needs at least one episode and positive noise")
+    if start_offset < 0:
+        raise ValueError("start_offset must be non-negative")
     horizon = env.spec.max_episode_steps
     obs = np.zeros((episodes, horizon, kitchen.FEATURE_DIM), np.float32)
     actions = np.zeros((episodes, horizon, kitchen.ACTION_DIM), np.float32)
@@ -69,6 +81,8 @@ def noisy_teacher_episodes(
     completed: list[int] = []
     for episode in range(episodes):
         observation, info = env.reset(seed=first_seed + episode)
+        if start_offset:
+            observation = kitchen._offset_initial_joints(env, first_seed + episode, start_offset)
         for step in range(horizon):
             full = np.asarray(observation["observation"], dtype=np.float32)
             label = tracker.label(full)
@@ -83,6 +97,7 @@ def noisy_teacher_episodes(
     stats = {
         "episodes": episodes,
         "noise": noise,
+        "start_offset_rad": start_offset,
         "first_seed": first_seed,
         "teacher_mean_tasks_under_noise": float(np.mean(completed)),
         "labelled_states": int(mask.sum()),

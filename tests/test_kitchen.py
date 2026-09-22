@@ -172,6 +172,23 @@ def test_dart_episodes_label_noisy_teacher_states_with_clean_actions() -> None:
 
 
 @pytest.mark.skipif(not _dataset_available(), reason="Minari kitchen-complete-v2 not downloaded")
+def test_dart_start_offset_perturbs_the_first_arm_state_within_bounds() -> None:
+    from flyarm.benchmarks.kitchen_expert import DemonstrationTracker, noisy_teacher_episodes
+
+    tracker = DemonstrationTracker.from_data(kitchen.load("complete", download=False))
+    env = kitchen.recover_env("complete")
+    try:
+        clean, _ = noisy_teacher_episodes(tracker, env, 1, 0.05, 300_000)
+        shifted, stats = noisy_teacher_episodes(tracker, env, 1, 0.05, 300_000, start_offset=0.3)
+    finally:
+        env.close()
+    assert stats["start_offset_rad"] == 0.3
+    difference = np.abs(shifted["obs"][0, 0, :7] - clean["obs"][0, 0, :7])
+    # Observation noise is about 0.01 of the joint range; the offset is up to 0.3 rad.
+    assert difference.max() > 0.05 and difference.max() < 0.3 + 0.05
+
+
+@pytest.mark.skipif(not _dataset_available(), reason="Minari kitchen-complete-v2 not downloaded")
 def test_beta_one_rollouts_follow_the_teacher() -> None:
     mx = pytest.importorskip("mlx.core")
     if not mx.metal.is_available():
