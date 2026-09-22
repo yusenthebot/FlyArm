@@ -56,3 +56,37 @@ def test_recorded_rollout_has_real_frames_and_output_activity(tmp_path: Path) ->
     assert all(len(row["action"]) == 3 and "distance" in row for row in trace)
     with pytest.raises(FileExistsError):
         record_rollouts(task, policy, [30000], tmp_path / "rollout.mp4")
+
+
+def test_phase_selector_saves_every_phase_and_restores_the_best(tmp_path: Path) -> None:
+    from mlx.utils import tree_flatten
+
+    from flyarm.whole_brain.experiment import _PhaseSelector
+
+    graph = make_random_graph(n=40, edges=300)
+    pack = ConnectomePack.from_graph(graph)
+    ids = graph.ids
+    interface = NeuralInterface.bind(pack, ids[:6], ids[-4:])
+    config = WholeBrainConfig(
+        task="pick-place", horizon=200, val_episodes=4, phase_selection="validation_success"
+    )
+    task = Task(config, Path(str(MODEL)))
+    policy = BrainPolicy("connectome", RateDynamics(pack, interface), obs_dim=37, action_dim=4)
+    first = {key: np.asarray(value) for key, value in tree_flatten(policy.parameters())}
+    try:
+        selector = _PhaseSelector(policy, task, config, tmp_path)
+        phases = [{"phase": "behavior_cloning"}]
+        selector.score(phases[0])
+        policy.decoder.weight = policy.decoder.weight + 1.0
+        phases.append({"phase": "dagger_1"})
+        selector.score(phases[1])
+        selector.restore(phases)
+    finally:
+        task.close()
+    assert (tmp_path / "policy-behavior_cloning.safetensors").is_file()
+    assert (tmp_path / "policy-dagger_1.safetensors").is_file()
+    assert all("validation_success_rate" in phase for phase in phases)
+    # An untrained controller places nothing, so the tie keeps the earlier phase.
+    assert [phase["selected"] for phase in phases] == [True, False]
+    restored = dict(tree_flatten(policy.parameters()))
+    assert np.array_equal(np.asarray(restored["decoder.weight"]), first["decoder.weight"])
