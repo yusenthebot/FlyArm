@@ -222,7 +222,7 @@ L2, gain 0.2: nearly the default (error 0.09, 5 values, head 19%, lingering 0); 
 L1.25, gain 0.8: error 0.21, participation ratio 5.1, 9 values for 90% and 23 for 99%, head share 48%, lingering 2,137 neurons (1.3%).
 L1.5, gain 0.5: error 0.16, 8 values for 90%, head share 46%, lingering 3,637; L1.5 at gain 0.8 runs away (23,075 lingering).
 Reading: between the default and runaway activity there is a narrow band (L1.25 at 0.8, L1.5 at 0.5) where the leg's motor interface carries about twice as many directions, receives six times more of its signal from the head, is measurably nonlinear, and keeps a small subpopulation active after the input stops.
-Test: runs/flyleg-kitchen-lp125-dev-001 (configs/flyleg-kitchen-lp125-dev.json: E26's 68-motor unit_norm run with weight_norm_power 1.25 and nothing else changed), started 2026-09-22 00:35.
+Test: runs/flyleg-kitchen-lp125-dev-001 (configs/flyleg-kitchen-lp125-dev.json: E26's 68-motor unit_norm run with weight_norm_power 1.25 and nothing else changed), started 2026-09-22 00:24.
 
 ### E29. Open-loop baselines on the kitchen (scripts/kitchen_open_loop.py, running)
 Motivation: E11 seed 2 keeps the microwave with every edge removed, that is with one constant action.
@@ -279,8 +279,8 @@ The obsolete live views on ports 8769, 8770 and 8771 were stopped; only the dash
 Stale waiters were stopped: one on the stopped E18 run and five duplicate waiters of the long-horizon agent.
 User decision 2026-09-21 21:45: the dexterous hand waits; the kitchen and pick-and-place come first.
 Paused with SIGSTOP (resume with kill -CONT, progress kept): the dexterous run (connectome seed 1 in evaluation) and its follow-up script, the long-horizon brain queue and its no-cue controls run, and the multi-task launcher.
-The multi-task main run (runs/multitask-001) had started at 21:47, in the few minutes between the end of run 003 and the start of v2a, just before its launcher was paused; it was noticed and paused at 00:38 after 2 h 50 min (connectome seed 0 in DAgger round 2).
-v2b was started by hand at 21:53 next to v2a instead of after it.
+The multi-task main run (runs/multitask-001) had started at 21:34, the moment run 003 finished and before v2a started at 21:35, a few minutes before its launcher was paused; it was noticed and paused at about 00:24 after 2 h 50 min (connectome seed 0 in DAgger round 2).
+v2b was started by hand at 21:40 next to v2a instead of after it.
 The control-only protocol sweep (runs/protocol-sweep, 46 of 50 settings done, the 4 left are GRU with 10-step chunks, seeds 1 to 4) is paused with SIGSTOP to give the fly runs the GPU; resume with kill -CONT on its Python process, or rerun the script, which skips finished settings.
 The dashboard's rollout page now shows curated featured rollouts (docs/featured-videos.json) and groups every other video by area with readable titles; smoke tests and drafts are hidden by default.
 PPO before-and-after videos (flyarm rl record) render the imitation checkpoint and the final PPO checkpoint on the same seeds and task variant.
