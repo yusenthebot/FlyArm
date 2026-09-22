@@ -308,6 +308,17 @@ Seed 1, 500 iterations (complete 10:19): the first 300 iterations repeat the 300
 Final, validation-selected, 48 test episodes each: seed 3 95.8% (300 iterations), seed 0 97.9% (300), seed 1 91.7% (500; 81.3% at 300); mean 95.1%, every seed above 90%.
 Open for the paper: the same pipeline on a degree-preserving shuffle and on the GRU, to know how much of the 95.8% needs the measured wiring.
 
+### E36. Reward only: PPO from a random controller, no demonstrations (commit after 0f722da)
+Question: everything so far starts from the scripted teacher's demonstrations; can the frozen connectome learn pick-and-place from reward alone in the batched environment?
+Setup (runs/ppo-pick-place-scratch-001, configs/ppo-pick-place-scratch.json): the B1a interface and rate model of the push2 seed-3 run, but the encoder and decoder are random and the two frozen normalizations (observation statistics, readout scale) are measured from random-action rollouts, so no demonstration touches the controller; PPO with the corrected success bonus (E34), 128 environments, 3,000 iterations (24.6 M environment steps), exploration std raised to 0.41.
+Scope: PPO trains the linear motor decoder; the encoder stays at its random draw, because training it would need gradients through the recurrent connectome for every stored sample, whose state is 166,700 numbers per step.
+Started 2026-09-22 13:55; the first iterations have mean step reward 0.002 to 0.004, no grasp yet.
+
+### E37. Complex pick-and-place and long-horizon runs restarted (2026-09-22 13:44)
+Hard physics: runs/ppo-pick-place-hard-push2-s3-001 (configs/ppo-pick-place-hard-push2-s3.json) repeats the E17 randomized-physics PPO from the push2 seed-3 checkpoint with the corrected success bonus, evaluated on nominal, training distribution, cubes 6 to 10x heavier, friction 0.08 to 0.12x and goals within 18 cm; E17's numbers came from the broken reward, so this is the honest version of that experiment.
+Long-horizon: runs/long-horizon-001-brain-seed0 (tower, sort and clear with four colour-coded cubes, 600 to 1,000 control steps, test splits iid, four objects, unseen order, unseen placement, heavier) resumed by hand because its queue waits for fewer than three other full-connectome jobs; its trainer already keeps the best checkpoint over all phases, so E33 does not affect it.
+Multi-task: runs/multitask-001 (pick and place, side push, lift and hold, stack, with interpolation, extrapolation, compositional and unseen-object splits) resumed from the DAgger round it was paused in; its trainer also selects across phases.
+
 ### E23. Stateful-teacher labels in B1a DAgger (found by the multi-task agent, quantified here)
 Finding: the scripted pick-and-place teacher keeps its own stage machine, so while labelling learner-driven DAgger states it can still be in "approach" or "descend" after the learner has already grasped and lifted the cube, and it then labels those states "open the gripper".
 Quantification over every saved B1a DAgger set (runs/whole-brain-pick-place-001 to -003, 36 files): 337,014 labelled states, 6,353 with both fingers on a cube at least 6 cm above rest, 931 of those (15%) labelled with an open gripper, all in teacher stages 0 or 1.
