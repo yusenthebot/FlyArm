@@ -1,9 +1,15 @@
 [
  {
   "root": "main",
+  "path": "ppo-pick-place-push2-s3-bonus-001/videos/nominal-before-after.mp4",
+  "title": "Fly brain pick-and-place above 90% after PPO",
+  "note": "Frozen complete MaleCNS. Left: imitation (384 demonstrations, one DAgger round), 35/48 test episodes placed. Right: after PPO on the linear output map only, with a success bonus larger than the value of holding the cube; checkpoint chosen on validation seeds: 46/48 test episodes placed (95.8%). Training seed 3; seeds 0 and 1 are running."
+ },
+ {
+  "root": "main",
   "path": "whole-brain-pick-place-push2-s3/connectome-3/rollout.mp4",
-  "title": "Fly brain pick-and-place, best overnight controller",
-  "note": "Frozen complete MaleCNS, only the linear input and output maps trained: 384 demonstrations, one DAgger round chosen on validation success. 35 of 48 held-out test episodes placed (72.9%), 43 lifted. This clip shows the first six test episodes: 3 placed, 3 not. Not yet the 90% target; PPO on the output map is running."
+  "title": "Fly brain pick-and-place, imitation only",
+  "note": "Frozen complete MaleCNS, only the linear input and output maps trained: 384 demonstrations, one DAgger round chosen on validation success. 35 of 48 held-out test episodes placed (72.9%). This clip shows the first six test episodes: 3 placed, 3 not. PPO on the output map then reaches 46/48."
  },
  {
   "root": "dexterous-hand",
