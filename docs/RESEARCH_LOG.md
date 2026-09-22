@@ -200,6 +200,15 @@ Mechanism: early Adam steps move every decoder weight by about the learning rate
 Fix: calibration "unit_norm", the same frozen per-neuron standardization divided by sqrt(outputs); the model class is unchanged, and in the replay the pre-activation spread stays below 0.3 (PCA whitening to 57 components also works, below 1.3).
 Runs (fly only, seed 0, 20 test episodes, otherwise as E22): runs/flyleg-kitchen-leg-unitnorm-dev-001 and runs/flyleg-kitchen-descending-unitnorm-dev-001, started 2026-09-21 21:57; the wide readout now trains (epoch 2 L1 0.21, against 0.95 with standardize).
 Question they answer: with the optimizer fixed, does reading the brain's 1,314 descending command neurons let the fly controller do more than one kitchen task?
+Result (both complete 2026-09-22 00:00): 68 motor neurons, unit_norm: best validation L1 0.104, microwave in 19 of 20 test episodes and no other task, OOD 6 to 13 of 20, every lesion 0.
+68 motor plus 1,314 descending neurons, unit_norm: best validation L1 0.105, 0 tasks in all 20 test episodes (no validation check ever reached a task; the checkpoint was chosen by validation loss at epoch 75), OOD 0 to 2 of 20.
+Reading: with the optimizer fixed the wide readout trains, but to the same loss as 68 neurons, and closed loop it is worse; 70 more readout dimensions do not improve the fit, so the output side is not the binding limit.
+
+### E27. The fly controller fits the kitchen demonstrations about as well as a linear policy (scripts/linear_policy_probe.py, docs/results/linear-policy.json)
+Method: on the E11 seed-0 train and validation split, a tanh of an affine map of the 30 normalized position features and a 2 x 256 ReLU MLP, both fitted to the 10-step chunk targets with L1 and Adam, compared with the best validation L1 of every run.
+Result (validation L1): linear policy 0.119; fly controllers 0.104 to 0.113 (E11 seeds 0 to 2, E22, E26); shuffled connectome 0.132 and 0.171; MLP, GRU and ACT 0.074 to 0.082; the probe's own MLP 0.072.
+Also: the decoder alone on the untrained seed-0 encoder reaches 0.106 (E26 probe), so end-to-end training of the encoder through the connectome adds almost nothing.
+Reading: in the default regime the fly controller is close to a linear policy; with E25 (near-linear, about five motor directions) this is why it learns one reaching skill (the microwave) and not the switch to a second task, which needs a nonlinear function of the scene.
 
 ### E23. Stateful-teacher labels in B1a DAgger (found by the multi-task agent, quantified here)
 Finding: the scripted pick-and-place teacher keeps its own stage machine, so while labelling learner-driven DAgger states it can still be in "approach" or "descend" after the learner has already grasped and lifted the cube, and it then labels those states "open the gripper".
