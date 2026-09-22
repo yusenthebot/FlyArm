@@ -257,7 +257,7 @@ To make room: the E28 regime runs were stopped at epochs 65 and 58 of 100, with 
 Method: decoder-only fits (as E26) on the frozen, untrained seed-0 features of three interfaces over every kitchen demonstration step.
 Result (training L1 after 3,000 Adam steps): front leg (23 proprioceptors and 4,868 head sensory neurons in, 68 motor out) 0.111; whole body (the B1a interface, all 30 features into the 1,846 ascending neurons, 1,314 descending and 708 VNC motor neurons out) 0.093 and still falling; leg senses with the whole-body readout 0.123.
 Reading: the entry point matters more than the readout width; features that enter through the ascending neurons give the connectome a much better linear readout of the kitchen policy than head sensory neurons do, while widening only the readout makes it worse.
-Test: runs/flyleg-kitchen-v3-body-dev-001 (configs/flyleg-kitchen-v3-body-dev.json: the v3 protocol of E30 with interface whole_body and unit_norm calibration), fly only, seed 0, started 2026-09-22 01:30; its GRU reference is the v3 dev run's GRU on identical data.
+Test: runs/flyleg-kitchen-v3-body-dev-001 (configs/flyleg-kitchen-v3-body-dev.json: the v3 protocol of E30 with interface whole_body and unit_norm calibration), fly only, seed 0, started 2026-09-22 01:28; its GRU reference is the v3 dev run's GRU on identical data.
 Overnight goal and rules: docs/OVERNIGHT_GOAL.md.
 
 ### E23. Stateful-teacher labels in B1a DAgger (found by the multi-task agent, quantified here)
