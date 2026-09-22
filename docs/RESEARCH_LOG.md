@@ -15,7 +15,7 @@ Numbers marked exploratory come from scratch probes that were later superseded b
 | Measured wiring beats a degree-preserving shuffle | open: strong in pick-place seeds 0 to 2, reversed in seeds 3 and 4; dexterous seed 0 tie on the training object (62 vs 63 of 64), connectome ahead on transfer (251 vs 216 of 512); v2 and dexterous seeds 1 and 2 running | E3, E21, E24, dexterous track |
 | The fly controller solves more than one kitchen task | not yet: one task (microwave); not fixed by longer memory (E20), tracker DAgger (E19) or a wider standardized readout (E22, whose kettle scores are shoves) | E4, E11, E19, E20, E22 |
 | RL on the frozen connectome improves a skill | supported for lifting (18/24 to 24/24), not for placing | E12 |
-| RL on the frozen connectome generalizes to unseen physics | partly: lifting generalizes to heavier cubes; placement gains on heavy cubes are partly physical; at mid-training the shuffled connectome gains as much, final comparison pending | E17 |
+| RL on the frozen connectome generalizes to unseen physics | partly: lifting generalizes to heavier cubes, but equally through a shuffled connectome; heavy-cube placement favours the measured wiring late in training (15.1 vs 6.3 of 24), nominal and far goals favour the shuffle; one PPO run per wiring | E17 |
 | The frozen connectome controls a dexterous hand | supported for seed 0: in-hand rotation 62/64 (teacher 64/64); a matched GRU does better (64/64, faster, 331 vs 251 of 512 on transfer) | dexterous track |
 | The rate model holds information for seconds | only near critical recurrent gain (0.99); about 0.2 s at the default 0.8 | E15, E16 |
 
@@ -80,7 +80,7 @@ Seed 0 result: ACT 100, GRU 57.5, MLP 31.2, fly 25.0 (microwave in every episode
 Fly lesions, seed 0: edges off 0, direct synapses only 0, deafferented leg 0, head senses removed 0, state reset every step 0.
 Fly OOD, seed 0: robot noise 8.75, object noise 25, joint offsets 21.25 and 11.25.
 Reading: the protocol now separates controllers; the fly skill is graph-mediated and uses both senses and its own state, but it stops after the first task.
-Seed 1: fly 21.25 (microwave), shuffle 15.0; seed 2 is running.
+Seed 1: ACT 98.1, GRU 39.4, MLP 21.9, fly 21.25 (microwave), shuffle 15.0; the fly is above the shuffle in both seeds (25 vs 0, 21.25 vs 15) and close to the MLP, and seed 2 is running (fly training at 21:30).
 
 ## 2026-09-21: reinforcement learning on the frozen connectome
 
@@ -123,6 +123,11 @@ This run predates validation-seed selection, so only final-iteration numbers are
 Control: the same run on the degree-preserving shuffle (runs/ppo-pick-place-randomized-shuffled-001) started after it, with validation-seed selection.
 Interim control, same test seeds at matched iterations 300 to 375 (place of 24, connectome then shuffle): nominal 2-4 vs 4-6, training distribution 3-7 vs 3-8, heavy 4-8 vs 6-9, far goals 2-3 vs 4-7; lifting is 15 to 24 of 24 for both.
 Interim reading: at mid-training the shuffled connectome gains from PPO at least as much as the measured one, so the E17 gains are not yet evidence for the topology; the comparison at iteration 800 decides.
+Final, shuffle (runs/ppo-pick-place-randomized-shuffled-001, complete): start checkpoint place / lift nominal 3/11, training distribution 7/21, heavy 2/4, far goals 1/13; iteration 800 nominal 5/24, training distribution 5/24, heavy 5/22, far goals 2/22, low friction 0/0.
+Late-training means over the 9 evaluations from iteration 600 to 800 (place of 24, connectome vs shuffle; the evaluations reuse the test seeds, so they are not independent): heavy 15.1 vs 6.3 (connectome 11 to 18 in every one, shuffle 4 to 9), training distribution 7.7 vs 3.3, nominal 2.7 vs 4.9, far goals 2.0 vs 4.4.
+The shuffle's validation-selected checkpoint (iteration 75, training distribution) places 13/24 on the test seeds, above anything the connectome run reached, and then the shuffle's placement on the training distribution declines.
+Reading: PPO through a shuffled connectome also turns lifting to near ceiling (lift 22 to 24 of 24), so that part is not topology-specific; the measured wiring keeps a consistent late advantage on heavy cubes and the training distribution while the shuffle is better on nominal and far goals.
+With one PPO run per wiring this is not a topology claim; it needs PPO replicates (several PPO seeds and both shuffles) before the paper states any difference.
 
 ### E18. Beta-mixed DAgger with the tracker on the kitchen, MLP probe (runs/flyleg-kitchen-dagger-dev-001, commit 90cadbf, stopped)
 Method: from behavior cloning, four DAgger rounds of 20 episodes in which the teacher acts with probability 0.5, 0.25, 0.125, 0.0625, every visited state labelled by the tracker.
