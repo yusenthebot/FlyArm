@@ -239,6 +239,13 @@ Pick-and-place, same test (scripts/pick_place_open_loop.py, docs/results/pick-pl
 So pick-and-place does need perception: the cube and goal positions change every episode and blind replay fails.
 Consequence for the paper: kitchen scores cannot serve as evidence of closed-loop control and must be reported next to this open-loop replay floor; the closed-loop evidence has to come from pick-and-place, where the cube and goal positions change every episode, and from the dexterous hand; a kitchen protocol that rewards feedback would need physical perturbations larger than the replay tolerates (for example 0.2 rad starts or pushes during the episode) together with training data that covers them.
 
+### E30. A kitchen protocol that needs feedback: perturbed starts (scripts/kitchen_perturbation_probe.py, docs/results/kitchen-perturbation.json, commit 753fad0)
+Question: E29 shows the kitchen rewards trajectory replay; is there a start perturbation under which closed-loop control still succeeds and replay does not?
+Result on 20 test seeds (arm joints offset uniformly in [-m, m] rad): the closed-loop demonstration tracker scores 100 at m = 0, 0.1, 0.2 and 0.3; the replay of one demonstration scores 100, 30.0, 16.25 and 18.75.
+Reading: from starts perturbed by 0.2 to 0.3 rad the kitchen separates feedback control (100) from blind replay (16 to 19), and the tracker, which stays at 100, can label recovery data there.
+Kitchen protocol v3 (candidate), dev run runs/flyleg-kitchen-v3-dev-001 (configs/flyleg-kitchen-v3-dev.json): E11 protocol plus 64 DART episodes of the tracker from starts perturbed by up to 0.3 rad with action noise 0.05, closed-loop checkpoint selection from 0.2 rad starts, test at clean, 0.1, 0.2 and 0.3 rad; 30 epochs because the data grows about fivefold; fly and GRU, seed 0; started 2026-09-22 00:50.
+Reading rule: the 0.2 and 0.3 rad scores are primary, against the replay floor (16 to 19) and the tracker ceiling (100).
+
 ### E23. Stateful-teacher labels in B1a DAgger (found by the multi-task agent, quantified here)
 Finding: the scripted pick-and-place teacher keeps its own stage machine, so while labelling learner-driven DAgger states it can still be in "approach" or "descend" after the learner has already grasped and lifted the cube, and it then labels those states "open the gripper".
 Quantification over every saved B1a DAgger set (runs/whole-brain-pick-place-001 to -003, 36 files): 337,014 labelled states, 6,353 with both fingers on a cube at least 6 cm above rest, 931 of those (15%) labelled with an open gripper, all in teacher stages 0 or 1.
