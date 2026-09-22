@@ -151,6 +151,10 @@ class FlyLegConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
     split: Literal["complete", "partial", "mixed"]
+    # "front_leg": the arm as the fly's left front leg (the options below apply);
+    # "whole_body": the B1a pick-and-place interface, every feature into the 1,846 ascending
+    # neurons and the 1,314 descending plus 708 VNC motor neurons read out (research log E32).
+    interface: Literal["front_leg", "whole_body"] = "front_leg"
     # "proprioception" wires only the front-leg proprioceptors; scene state is then unused.
     sensory_channels: Literal["proprioception+head", "proprioception"] = "proprioception+head"
     # What the decoder reads: the 68 left front-leg motor neurons, or those plus the brain's
@@ -241,6 +245,10 @@ class FlyLegConfig(BaseModel):
             raise ValueError("init_from skips behavior cloning, so it needs DAgger iterations")
         if self.dagger_iterations and any(not 0 <= seed < 10 for seed in self.seeds):
             raise ValueError("DAgger needs training seeds in [0, 10) to keep env seeds disjoint")
+        if self.interface == "whole_body" and (
+            self.sensory_channels != "proprioception+head" or self.readout != "leg_motor"
+        ):
+            raise ValueError("sensory_channels and readout describe the front-leg interface only")
         return self
 
 

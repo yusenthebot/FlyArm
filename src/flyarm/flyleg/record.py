@@ -11,8 +11,7 @@ import numpy as np
 from flyarm.benchmarks import kitchen
 from flyarm.config import FlyLegConfig
 from flyarm.experiment import save_json
-from flyarm.flyleg.experiment import leg_dynamics, make_policy
-from flyarm.flyleg.interface import front_leg_interface, leg_channels
+from flyarm.flyleg.experiment import fly_interface, leg_dynamics, make_policy
 from flyarm.interfaces import NeuralInterface
 from flyarm.video import annotate, tile, write_video
 from flyarm.whole_brain.backend_mlx import RateDynamics
@@ -42,16 +41,10 @@ def load_flyleg_policy(
     config = FlyLegConfig.model_validate_json((run_root / "config.json").read_text())
     pack = ConnectomePack.load(pack_root)
     pack.validate_b1a_provenance()
-    leg = front_leg_interface(
-        pack,
-        annotations,
-        include_head=config.sensory_channels == "proprioception+head",
-        include_descending=config.readout == "leg_motor+descending",
-    )
-    if NeuralInterface.load(run_root / "interface.json") != leg.interface:
+    fly, channels, _ = fly_interface(config, pack, annotations)
+    if NeuralInterface.load(run_root / "interface.json") != fly:
         raise ValueError("Saved interface differs from the one regenerated from annotations")
-    channels = leg_channels(leg)
-    measured = leg_dynamics(config, pack, leg.interface)
+    measured = leg_dynamics(config, pack, fly)
     dynamics: RateDynamics | None = measured
     if kind == "flyleg_shuffled":
         graph_pack = shuffle_pack(pack, seed + 17000)
@@ -60,9 +53,9 @@ def load_flyleg_policy(
             raise ValueError("Regenerated shuffle differs from the one used in training")
         interface = NeuralInterface.bind(
             graph_pack,
-            leg.interface.input_body_ids,
-            leg.interface.output_body_ids,
-            label=leg.interface.label,
+            fly.input_body_ids,
+            fly.output_body_ids,
+            label=fly.label,
         )
         dynamics = leg_dynamics(config, graph_pack, interface)
     fly_budget = make_policy(

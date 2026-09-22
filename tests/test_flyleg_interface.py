@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import pyarrow as pa
 import pyarrow.feather as feather
+import pytest
 from graph_fixtures import make_random_graph
 
 from flyarm.flyleg.interface import front_leg_interface, front_leg_report
@@ -81,3 +82,11 @@ def test_descending_readout_appends_every_descending_neuron_after_the_motor_neur
     assert wide.descending.tolist() == ids[[10, 11]].tolist()
     assert wide.interface.output_body_ids.tolist() == ids[[7, 10, 11]].tolist()
     assert wide.interface.input_body_ids.tolist() == plain.interface.input_body_ids.tolist()
+
+
+def test_whole_body_kitchen_interface_rejects_front_leg_options() -> None:
+    from flyarm.config import FlyLegConfig
+
+    assert FlyLegConfig(split="complete", interface="whole_body").interface == "whole_body"
+    with pytest.raises(ValueError, match="front-leg interface only"):
+        FlyLegConfig(split="complete", interface="whole_body", readout="leg_motor+descending")
