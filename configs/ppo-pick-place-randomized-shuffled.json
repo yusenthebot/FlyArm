@@ -37,14 +37,14 @@
         10.0
       ]
     },
-    "slipperier_0.08_0.12x": {
-      "friction_scale": [
-        0.08,
-        0.12
-      ]
-    },
     "far_goals_0.18m": {
       "goal_reach": 0.18
+    },
+    "slipperier_0.25_0.5x": {
+      "friction_scale": [
+        0.25,
+        0.5
+      ]
     }
   },
   "best_on": "train_distribution"

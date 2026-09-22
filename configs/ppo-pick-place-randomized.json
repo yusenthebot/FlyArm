@@ -7,13 +7,45 @@
   "iterations": 800,
   "eval_every": 25,
   "seed": 0,
-  "train_variant": {"mass_scale": [1.0, 4.0], "friction_scale": [0.15, 1.0], "goal_reach": 0.14},
+  "train_variant": {
+    "mass_scale": [
+      1.0,
+      4.0
+    ],
+    "friction_scale": [
+      0.15,
+      1.0
+    ],
+    "goal_reach": 0.14
+  },
   "eval_variants": {
     "nominal": {},
-    "train_distribution": {"mass_scale": [1.0, 4.0], "friction_scale": [0.15, 1.0], "goal_reach": 0.14},
-    "heavier_6_10x": {"mass_scale": [6.0, 10.0]},
-    "slipperier_0.08_0.12x": {"friction_scale": [0.08, 0.12]},
-    "far_goals_0.18m": {"goal_reach": 0.18}
+    "train_distribution": {
+      "mass_scale": [
+        1.0,
+        4.0
+      ],
+      "friction_scale": [
+        0.15,
+        1.0
+      ],
+      "goal_reach": 0.14
+    },
+    "heavier_6_10x": {
+      "mass_scale": [
+        6.0,
+        10.0
+      ]
+    },
+    "far_goals_0.18m": {
+      "goal_reach": 0.18
+    },
+    "slipperier_0.25_0.5x": {
+      "friction_scale": [
+        0.25,
+        0.5
+      ]
+    }
   },
   "best_on": "train_distribution"
 }
