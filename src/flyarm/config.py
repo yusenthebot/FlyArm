@@ -402,13 +402,22 @@ class KitchenPPOConfig(BaseModel):
     completion_bonus: float = Field(default=200.0, gt=0, le=100_000)
     # Decay of the approach term with the gripper-to-handle distance.
     approach_slope: float = Field(default=3.0, gt=0, le=100)
-    # Dense reference-tracking term, in the spirit of DeepMimic and AMP: the reward pays
-    # tracking_weight * exp(-||q - q_ref||^2 / tracking_sigma^2) against the joint positions of
-    # one benchmark demonstration, indexed by step. Only the demonstration's states are used,
-    # never its actions, so a run with this on is still reward-only and clones nothing.
-    # 0, the default, leaves every earlier run unchanged. The term joins the per-step budget,
-    # so at gamma 0.99 and the default bonus of 200 the weight has to stay below 1.0.
+    # Reference term built from the joint positions of one benchmark demonstration, indexed by
+    # step (in the spirit of DeepMimic and AMP). Only the demonstration's states are used, never
+    # its actions, so a run with this on is still reward-only and clones nothing. 0, the default,
+    # leaves every earlier run unchanged.
     tracking_weight: float = Field(default=0.0, ge=0, le=10)
+    # "potential": tracking_weight * (phi(s') - phi(s)) with phi = -||q - q_ref||, that is the
+    # distance closed this step. It telescopes exactly, standing still pays 0, and its total over
+    # an episode is bounded by tracking_weight * the starting distance, so it leaves the E34 floor
+    # alone.
+    # "potential_discounted": the literal gamma * phi(s') - phi(s). Kept for the record only:
+    # research log E41 measured its (1 - gamma) * distance residual paying a random policy more
+    # (+0.0250 per step) than the demonstration tracker (+0.0058), the wrong way round.
+    # "gaussian": tracking_weight * exp(-||q - q_ref||^2 / tracking_sigma^2). Kept for the
+    # record only: research log E41 measured it numerically dead at the 5.5 rad the learning
+    # policy occupies, and it raises the E34 floor for nothing in return.
+    tracking_form: Literal["potential", "potential_discounted", "gaussian"] = "potential"
     tracking_sigma: float = Field(default=0.6, gt=0, le=10)
     reference_episode: int = Field(default=0, ge=0, le=1000)
     neural_steps: int = Field(default=3, ge=1, le=8)
@@ -426,13 +435,15 @@ class KitchenPPOConfig(BaseModel):
     def bonus_outweighs_stalling(self) -> KitchenPPOConfig:
         if self.best_on not in self.eval_variants:
             raise ValueError("best_on must name one of self.eval_variants")
-        # flyarm.rl.batched_kitchen.MAX_STEP_REWARD plus the reference-tracking term; kept as
-        # a literal so that validating a config never imports MuJoCo.
-        max_step_reward = 1.0 + self.tracking_weight
+        # flyarm.rl.batched_kitchen.MAX_STEP_REWARD, plus the Gaussian reference term when it
+        # is in use; the potential-based form telescopes and adds nothing to a sustained
+        # trajectory. Kept as a literal so that validating a config never imports MuJoCo.
+        gaussian = self.tracking_weight if self.tracking_form == "gaussian" else 0.0
+        max_step_reward = 1.0 + gaussian
         if self.gamma < 1 and self.completion_bonus <= max_step_reward / (1 - self.gamma):
             raise ValueError(
                 "completion_bonus must exceed the value of stalling on the per-step maximum of "
-                f"{max_step_reward} (approach, progress and reference tracking), "
+                f"{max_step_reward}, "
                 f"{max_step_reward / (1 - self.gamma):.1f} at gamma {self.gamma} (log E34)"
             )
         return self

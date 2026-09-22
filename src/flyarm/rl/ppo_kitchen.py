@@ -52,6 +52,7 @@ def evaluate_kitchen(
         approach_slope=settings.approach_slope,
         gamma=settings.gamma,
         tracking_weight=settings.tracking_weight,
+        tracking_form=settings.tracking_form,
         tracking_sigma=settings.tracking_sigma,
         reference_episode=settings.reference_episode,
     )
@@ -107,6 +108,7 @@ class KitchenTask:
             approach_slope=self.settings.approach_slope,
             gamma=self.settings.gamma,
             tracking_weight=self.settings.tracking_weight,
+            tracking_form=self.settings.tracking_form,
             tracking_sigma=self.settings.tracking_sigma,
             reference_episode=self.settings.reference_episode,
         )
@@ -160,6 +162,7 @@ def scratch_kitchen_policy(config: KitchenPPOConfig, pack_root: Path) -> BrainPo
         approach_slope=config.approach_slope,
         gamma=config.gamma,
         tracking_weight=config.tracking_weight,
+        tracking_form=config.tracking_form,
         tracking_sigma=config.tracking_sigma,
         reference_episode=config.reference_episode,
     )

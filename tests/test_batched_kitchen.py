@@ -231,14 +231,16 @@ def test_the_reference_term_raises_the_stalling_floor_and_the_check_fires() -> N
     assert minimum_completion_bonus(0.99, MAX_STEP_REWARD + 0.5) == pytest.approx(150.0)
     # A weight of 0.5 puts the floor at 150, which 200 clears; 1.5 puts it at 250, which 200
     # does not, and the constructor refuses it.
-    env = BatchedKitchen(1, tracking_weight=0.5, completion_bonus=200.0)
+    env = BatchedKitchen(1, tracking_weight=0.5, tracking_form="gaussian", completion_bonus=200.0)
     assert env.max_step_reward == pytest.approx(1.5)
     with pytest.raises(ValueError, match="research log E34"):
-        BatchedKitchen(1, tracking_weight=1.5, completion_bonus=200.0)
+        BatchedKitchen(1, tracking_weight=1.5, tracking_form="gaussian", completion_bonus=200.0)
     with pytest.raises(ValueError, match="tracking_weight"):
         BatchedKitchen(1, tracking_weight=-0.1)
     with pytest.raises(ValueError, match="tracking_sigma"):
         BatchedKitchen(1, tracking_weight=0.5, tracking_sigma=0.0)
+    with pytest.raises(ValueError, match="tracking_form"):
+        BatchedKitchen(1, tracking_weight=0.5, tracking_form="cosine")
 
     # Off by default: no reference is loaded and the term contributes nothing.
     plain = BatchedKitchen(1)
@@ -301,7 +303,7 @@ def test_the_reference_is_states_only_and_the_tracker_beats_a_random_policy_on_i
         return np.stack([tracker.label(full[row]) for row in range(rows)])
 
     def measure(controller: Any) -> float:
-        env = BatchedKitchen(rows, tracking_weight=0.5, horizon=150)
+        env = BatchedKitchen(rows, tracking_weight=0.5, tracking_form="gaussian", horizon=150)
         obs = env.reset(seeds=np.arange(rows))
         total = 0.0
         for _ in range(150):
@@ -317,3 +319,87 @@ def test_the_reference_is_states_only_and_the_tracker_beats_a_random_policy_on_i
     random = measure(lambda _: generator.uniform(-1.0, 1.0, (rows, 9)))
     # From the benchmark's own start the tracker reproduces the reference almost exactly.
     assert tracked > 0.9 and random < 0.1 and tracked > 10 * random
+
+
+def test_the_potential_form_leaves_the_stalling_floor_untouched() -> None:
+    """Potential-based shaping telescopes, so it adds nothing to a sustained trajectory (E41)."""
+    env = BatchedKitchen(1, tracking_weight=0.5, completion_bonus=200.0)
+    assert env.tracking_form == "potential"
+    # The Gaussian form at the same weight would put the floor at 150; this one leaves it at 100,
+    # so the completion bonus keeps its full 2.0x headroom.
+    assert env.max_step_reward == pytest.approx(MAX_STEP_REWARD)
+    assert minimum_completion_bonus(0.99, env.max_step_reward) == pytest.approx(100.0)
+    # A weight that the Gaussian form could not afford is fine here.
+    assert BatchedKitchen(1, tracking_weight=5.0).max_step_reward == pytest.approx(MAX_STEP_REWARD)
+
+
+def test_the_potential_term_telescopes_over_an_episode_whatever_path_is_taken() -> None:
+    """The default form sums undiscounted to phi(s_T) - phi(s_0), so only the endpoints matter."""
+    length = 40
+    generator = np.random.default_rng(0)
+    for actions in (generator.uniform(-1.0, 1.0, (length, 9)), np.zeros((length, 9))):
+        env = BatchedKitchen(1, tracking_weight=1.0, horizon=length + 5, approach_slope=1.0)
+        env.reset(seeds=np.array([0]))
+        start = float(env.potential()[0])
+        paid = 0.0
+        for action in actions:
+            paid += float(env.step(action[None], auto_reset=False).tracking[0])
+        assert paid == pytest.approx(float(env.potential()[0]) - start, abs=1e-9)
+
+
+def test_the_discounted_potential_form_telescopes_only_under_the_discount() -> None:
+    """Kept for the record: its undiscounted residual is what made it the wrong choice (E41)."""
+    gamma, length = 0.99, 40
+    actions = np.random.default_rng(1).uniform(-1.0, 1.0, (length, 9))
+    env = BatchedKitchen(
+        1,
+        tracking_weight=1.0,
+        tracking_form="potential_discounted",
+        gamma=gamma,
+        horizon=length + 5,
+        approach_slope=1.0,
+    )
+    env.reset(seeds=np.array([0]))
+    start = float(env.potential()[0])
+    discounted = plain = 0.0
+    for step, action in enumerate(actions):
+        paid = float(env.step(action[None], auto_reset=False).tracking[0])
+        discounted += gamma**step * paid
+        plain += paid
+    end = float(env.potential()[0])
+    assert discounted == pytest.approx(gamma**length * end - start, abs=1e-9)
+    # Undiscounted it does not telescope: the gap is the (1 - gamma) * distance residual, which
+    # is positive and therefore pays for sitting far from the reference.
+    assert plain > end - start
+
+
+def test_standing_still_pays_zero_and_closing_the_distance_pays_the_metres_closed() -> None:
+    env = BatchedKitchen(3, tracking_weight=1.0, approach_slope=1.0)
+    env.reset(seeds=np.array([0, 1, 2]))
+    reference = env.reference
+    assert reference is not None
+    target = reference[min(1, len(reference) - 1)]
+    env.previous_potential[:] = -1.0  # all three were 1.0 rad from the reference
+    env.steps[:] = 1
+    env.qpos[0, :9] = target  # closed the whole 1.0 rad
+    env.qpos[1, :9] = target + 2.0  # opened to ||2 * ones(9)|| = 6.0 rad
+    env.qpos[2, :9] = target + 1.0 / 3.0  # ||ones(9) / 3|| = 1.0 rad, unchanged
+    term = env.tracking_reward()
+    assert term[0] == pytest.approx(1.0, abs=1e-6)
+    assert term[1] == pytest.approx(-5.0, abs=1e-6)
+    assert term[2] == pytest.approx(0.0, abs=1e-6)  # standing still is worth exactly nothing
+
+
+@pytest.mark.skipif(not _dataset_available(), reason="Minari kitchen-complete-v2 not downloaded")
+def test_the_potential_reference_is_still_states_only() -> None:
+    from flyarm.rl.batched_kitchen import reference_joints
+
+    data = kitchen.load("complete", download=False)
+    for episode in (0, 3):
+        reference = reference_joints(episode)
+        steps = int(data.mask[episode].sum())
+        assert np.allclose(reference, data.obs[episode, :steps, :9])
+        # The demonstration's actions are 9-D too, so check they are not what was loaded.
+        assert not np.allclose(reference, data.actions[episode, :steps])
+    env = BatchedKitchen(1, tracking_weight=0.5, reference_episode=3)
+    assert env.reference is not None and np.allclose(env.reference, reference_joints(3))

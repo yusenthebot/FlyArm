@@ -44,10 +44,42 @@ default 200 is twice that floor. ``minimum_completion_bonus`` states the rule fo
 discounts, and the constructor rejects a bonus below it.
 
 Reference tracking (optional, ``tracking_weight``, default 0 so every earlier run is
-unchanged). In the spirit of DeepMimic and AMP, the reward can carry a dense term that pays
-for staying near a reference joint trajectory:
-``tracking_weight * exp(-||q - q_ref||^2 / tracking_sigma^2)`` over the 9 robot joints, with
-``q_ref = reference[min(step, len - 1)]`` from one benchmark demonstration chosen by index.
+unchanged). In the spirit of DeepMimic and AMP, the reward can carry a term built from a
+reference joint trajectory, ``q_ref = reference[min(step, len - 1)]``, taken from one benchmark
+demonstration chosen by index. Two forms, selected by ``tracking_form``:
+
+``"potential"`` (the default and the one to use): ``tracking_weight * (phi(s') - phi(s))`` with
+``phi(s) = -||q - q_ref||``, that is ``tracking_weight`` times the distance closed this step, in
+radians. It pays for *closing* the distance rather than for *being* close, so it is scale-free
+and alive at any distance: shaving 0.1 rad pays the same at 5 rad as at 0.5 rad. It telescopes
+exactly and without discounting to ``phi(s_T) - phi(s_0)``, so its total over an episode is
+bounded by ``tracking_weight * ||q_0 - q_ref,0||`` (about 0.45 rad from a 0.3 rad start),
+standing still pays exactly 0, and the E34 floor below is untouched. Strict policy invariance
+(Ng, Harada and Russell 1999) holds for the undiscounted objective; at gamma 0.99 the shaped
+optimum can differ, but by at most ``tracking_weight * ||q_0 - q_ref,0||`` in return, which is
+about 0.2% of a single completion bonus.
+
+``"potential_discounted"`` (kept for the record, do not reach for it): the literal Ng, Harada
+and Russell form ``tracking_weight * (gamma * phi(s') - phi(s))``. Its discounted sum telescopes
+to ``gamma^T phi(s_T) - phi(s_0)``, but the undiscounted reward the agent collects carries a
+``(1 - gamma) * ||q - q_ref||`` residual per step that **pays more for being far from the
+reference than for tracking it**: measured at weight 1.0, gamma 0.99 and 0.3 rad starts, the
+demonstration tracker earns +0.0058 per step and a random policy +0.0250, the wrong way round.
+Standing still far from the reference pays ``(1 - gamma) * d`` forever instead of 0.
+
+Either way, the time index has to count as part of the state for the invariance argument, which
+it does: the reference is a function of the step and the critic reads the episode fraction.
+
+``"gaussian"`` (kept for the record, do not reach for it):
+``tracking_weight * exp(-||q - q_ref||^2 / tracking_sigma^2)``. **This form produced a negative
+result (research log E41, runs/ppo-kitchen-scratch-004).** A learning policy sits about 5.5 rad
+from the reference in joint space, where ``exp(-d^2 / 0.6^2)`` is about ``e^-85`` and its
+derivative is exactly 0, so the term is numerically dead where it would have to do its work; it
+earned 0.017 per step against 0.025 for a random policy. Its only live effect was to raise the
+per-step maximum and with it the E34 floor, cutting the completion bonus's headroom from 2.0x
+to 1.33x. Widening sigma enough to reach 5.5 rad makes it nearly constant instead. Any sigma
+for it must be chosen from the distance the *learning* policy occupies, never from how well it
+separates an expert from a random policy.
 
 **Only the reference's states are used, never its actions**, so nothing is cloned and a run
 that uses it is still reward-only; ``reference_joints`` reads the demonstration's joint
@@ -111,7 +143,8 @@ MAX_STEP_REWARD = APPROACH_WEIGHT + PROGRESS_WEIGHT  # 1.0
 APPROACH_SLOPE = 3.0  # 1 - tanh(slope d); research log E38 on starving a far-away policy
 COMPLETION_BONUS = 200.0
 STALL_GAMMA = 0.99  # the discount the default bonus is sized against
-TRACKING_SIGMA = 0.6  # rad; see the module docstring and research log E41 for the measurement
+TRACKING_SIGMA = 0.6  # rad, "gaussian" form only; see the module docstring and research log E41
+TRACKING_FORMS = ("potential", "potential_discounted", "gaussian")
 REFERENCE_SPLIT = "complete"
 
 
@@ -183,6 +216,7 @@ class StepResult:
     newly_completed: np.ndarray  # [N] int completed at this step
     target: np.ndarray  # [N] index of the task being shaped for, 4 when all are done
     goal_distance: np.ndarray  # [N, 4] element distance to its goal
+    tracking: np.ndarray  # [N] the reference term actually paid this step, before its weight
 
 
 @dataclass(frozen=True)
@@ -240,6 +274,7 @@ class BatchedKitchen:
         approach_slope: float = APPROACH_SLOPE,
         gamma: float = STALL_GAMMA,
         tracking_weight: float = 0.0,
+        tracking_form: str = "potential",
         tracking_sigma: float = TRACKING_SIGMA,
         reference_episode: int = 0,
         terminate_on_all_tasks: bool = True,
@@ -249,10 +284,17 @@ class BatchedKitchen:
             raise ValueError("num_envs must be positive and horizon at least 20")
         if tracking_weight < 0 or tracking_sigma <= 0:
             raise ValueError("tracking_weight must be non-negative and tracking_sigma positive")
+        if tracking_form not in TRACKING_FORMS:
+            raise ValueError(f"tracking_form must be one of {TRACKING_FORMS}")
         self.tracking_weight = float(tracking_weight)
+        self.tracking_form = tracking_form
         self.tracking_sigma = float(tracking_sigma)
-        # The reference term joins the per-step budget, so the E34 floor rises with it.
-        self.max_step_reward = MAX_STEP_REWARD + self.tracking_weight
+        self.gamma = float(gamma)
+        # Potential-based shaping telescopes, so it adds nothing to a sustained trajectory and
+        # leaves the E34 floor alone; the Gaussian form joins the per-step budget and raises it.
+        self.max_step_reward = MAX_STEP_REWARD + (
+            self.tracking_weight if tracking_form == "gaussian" else 0.0
+        )
         floor = minimum_completion_bonus(gamma, self.max_step_reward)
         if completion_bonus <= floor:
             raise ValueError(
@@ -299,6 +341,7 @@ class BatchedKitchen:
         self.completed = np.zeros((n, t), dtype=bool)
         self.initial_goal_distance = np.ones((n, t))
         self.last_robot_qpos = np.zeros((n, ROBOT_JOINTS))
+        self.previous_potential = np.zeros(n)
         self.episode_seed = np.zeros(n, dtype=np.int64)
         self._noise = [np.random.default_rng(0) for _ in range(n)]
         self._next_seed = first_seed
@@ -323,13 +366,28 @@ class BatchedKitchen:
         remaining = ~self.completed
         return np.where(remaining.any(1), remaining.argmax(1), len(self.tasks))
 
-    def tracking_reward(self) -> np.ndarray:
-        """[N] exp(-||q - q_ref||^2 / sigma^2) against the reference pose for the step index."""
+    def potential(self) -> np.ndarray:
+        """[N] phi(s) = -||q - q_ref|| at the current step index; the shaping potential."""
         if self.reference is None:
             return np.zeros(self.num_envs)
         index = np.minimum(self.steps, len(self.reference) - 1)
-        error = self.qpos[:, :ROBOT_JOINTS] - self.reference[index]
-        return np.exp(-(error**2).sum(1) / self.tracking_sigma**2)
+        return -np.linalg.norm(self.qpos[:, :ROBOT_JOINTS] - self.reference[index], axis=1)
+
+    def tracking_reward(self) -> np.ndarray:
+        """[N] the reference term for the current state.
+
+        The potential forms read ``previous_potential``, which ``step`` advances once per step
+        right after paying the term, so after a step this returns 0 rather than what was paid;
+        ``StepResult.tracking`` carries the value that was actually paid.
+        """
+        if self.reference is None:
+            return np.zeros(self.num_envs)
+        if self.tracking_form == "gaussian":
+            index = np.minimum(self.steps, len(self.reference) - 1)
+            error = self.qpos[:, :ROBOT_JOINTS] - self.reference[index]
+            return np.exp(-(error**2).sum(1) / self.tracking_sigma**2)
+        discount = self.gamma if self.tracking_form == "potential_discounted" else 1.0
+        return discount * self.potential() - self.previous_potential
 
     def approach_distance(self, target: np.ndarray) -> np.ndarray:
         """[N] gripper-to-handle distance for each environment's current target element."""
@@ -407,6 +465,7 @@ class BatchedKitchen:
         observation = self.observation()
         # As in FrankaRobot.reset_model, the control law's reference is the observed position.
         self.last_robot_qpos[ids] = observation[ids, :ROBOT_JOINTS]
+        self.previous_potential[ids] = self.potential()[ids]
         return observation
 
     def _randomize_physics(self, ids: np.ndarray, seeds: np.ndarray) -> None:
@@ -445,6 +504,7 @@ class BatchedKitchen:
         self.completed |= distance < BONUS_THRESH
         newly = (self.completed & ~was_completed).sum(1)
         rows, shaped = np.arange(self.num_envs), np.minimum(target, len(self.tasks) - 1)
+        tracking = self.tracking_reward()
         reward = shaped_reward(
             self.approach_distance(target),
             distance[rows, shaped],
@@ -453,9 +513,10 @@ class BatchedKitchen:
             target < len(self.tasks),
             self.completion_bonus,
             self.approach_slope,
-            self.tracking_reward(),
+            tracking,
             self.tracking_weight,
         )
+        self.previous_potential = self.potential()
         tasks_completed = self.completed.sum(1)
         terminated = (tasks_completed == len(self.tasks)) & self.terminate_on_all_tasks
         truncated = self.steps >= self.horizon
@@ -469,6 +530,7 @@ class BatchedKitchen:
             newly_completed=newly,
             target=target,
             goal_distance=distance,
+            tracking=tracking,
         )
         done = terminated | truncated
         if auto_reset and done.any():
@@ -494,11 +556,17 @@ def shaped_reward(
 
     The approach and progress terms are bounded by ``MAX_STEP_REWARD`` and are paid for the
     first uncompleted task of the split only, so completing a task never costs shaping reward:
-    the shaping simply moves on to the next element. The optional reference-tracking term adds
-    at most ``tracking_weight`` on top and is paid whether or not a target remains, because it
-    is about where the arm is, not about which element is next. ``completion_bonus`` must
-    exceed ``minimum_completion_bonus(gamma, MAX_STEP_REWARD + tracking_weight)``, otherwise
-    stalling is worth more than completing a task (research log E34).
+    the shaping simply moves on to the next element. The optional reference term is added
+    whether or not a target remains, because it is about where the arm is, not about which
+    element is next, and in its potential-based form it may be negative when the arm moves away
+    from the reference.
+
+    ``completion_bonus`` must exceed ``minimum_completion_bonus(gamma, max_step_reward)``,
+    otherwise stalling is worth more than completing a task (research log E34). The
+    potential-based reference term does not enter ``max_step_reward``, because its discounted
+    sum telescopes: over any trajectory, however long, it contributes at most
+    ``tracking_weight * ||q_0 - q_ref,0||`` in total. The Gaussian form does enter it, because
+    it can be collected every step forever.
     """
     approach = 1.0 - np.tanh(approach_slope * approach_distance)
     span = np.maximum(initial_goal_distance - BONUS_THRESH, 1e-6)
