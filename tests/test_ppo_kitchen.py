@@ -65,3 +65,13 @@ def test_the_config_refuses_a_tracking_weight_that_breaks_the_stalling_floor() -
     # Raising the bonus with the weight keeps it valid.
     assert KitchenPPOConfig(tracking_weight=1.5, completion_bonus=400.0).tracking_weight == 1.5
     assert KitchenPPOConfig().tracking_weight == 0.0  # off by default
+
+
+def test_the_potential_form_is_the_default_and_keeps_the_bonus_headroom() -> None:
+    """Only the Gaussian form enters the E34 budget, so the potential one takes any weight."""
+    assert KitchenPPOConfig().tracking_weight == 0.0  # off by default
+    assert KitchenPPOConfig().tracking_form == "potential"
+    # A weight the Gaussian form cannot afford at bonus 200 is fine for the potential form.
+    assert KitchenPPOConfig(tracking_weight=1.5).completion_bonus == 200.0
+    with pytest.raises(ValueError, match="log E34"):
+        KitchenPPOConfig(tracking_weight=1.5, tracking_form="gaussian")
