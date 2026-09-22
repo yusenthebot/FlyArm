@@ -36,3 +36,7 @@ The fly brain stays the protagonist: the controller is W_in -> frozen complete M
 Pick-and-place: push2 test placement 72.9% (seed 3), 64.6% (seed 0), 54.2% (seed 1); 90% not reached; PPO from the seed-3 checkpoint running (runs/ppo-pick-place-push2-s3-001).
 Kitchen: every closed-loop recipe tried overnight was negative (E29, E30, E32).
 Still paused: v2a, v2b, dexterous, long-horizon, multi-task, protocol sweep.
+
+## Result 2026-09-22 10:20
+
+Goal met on pick-and-place: validation-selected fly controllers place 95.8%, 97.9% and 91.7% of 48 held-out test episodes (training seeds 3, 0, 1; mean 95.1%), research log E33 to E35.
