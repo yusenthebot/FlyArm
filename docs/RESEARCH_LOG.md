@@ -243,7 +243,7 @@ Consequence for the paper: kitchen scores cannot serve as evidence of closed-loo
 Question: E29 shows the kitchen rewards trajectory replay; is there a start perturbation under which closed-loop control still succeeds and replay does not?
 Result on 20 test seeds (arm joints offset uniformly in [-m, m] rad): the closed-loop demonstration tracker scores 100 at m = 0, 0.1, 0.2 and 0.3; the replay of one demonstration scores 100, 30.0, 16.25 and 18.75.
 Reading: from starts perturbed by 0.2 to 0.3 rad the kitchen separates feedback control (100) from blind replay (16 to 19), and the tracker, which stays at 100, can label recovery data there.
-Kitchen protocol v3 (candidate), dev run runs/flyleg-kitchen-v3-dev-001 (configs/flyleg-kitchen-v3-dev.json): E11 protocol plus 64 DART episodes of the tracker from starts perturbed by up to 0.3 rad with action noise 0.05, closed-loop checkpoint selection from 0.2 rad starts, test at clean, 0.1, 0.2 and 0.3 rad; 30 epochs because the data grows about fivefold; fly and GRU, seed 0; started 2026-09-22 00:50.
+Kitchen protocol v3 (candidate), dev run runs/flyleg-kitchen-v3-dev-001 (configs/flyleg-kitchen-v3-dev.json): E11 protocol plus 64 DART episodes of the tracker from starts perturbed by up to 0.3 rad with action noise 0.05, closed-loop checkpoint selection from 0.2 rad starts, test at clean, 0.1, 0.2 and 0.3 rad; 30 epochs because the data grows about fivefold; fly and GRU, seed 0; started 2026-09-22 00:45.
 Reading rule: the 0.2 and 0.3 rad scores are primary, against the replay floor (16 to 19) and the tracker ceiling (100).
 
 ### E23. Stateful-teacher labels in B1a DAgger (found by the multi-task agent, quantified here)
