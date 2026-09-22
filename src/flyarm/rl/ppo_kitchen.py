@@ -1,0 +1,258 @@
+"""PPO against the batched FrankaKitchen benchmark, reusing the pick-and-place trainer.
+
+flyarm.rl.ppo.train_ppo is task-agnostic: it takes a TaskAdapter that supplies the batched
+environment, the observation and action dimensions and the benchmark's own evaluation.
+KitchenTask is that adapter for flyarm.rl.batched_kitchen, so the same loop, the same critic,
+the same clipped updates and the same optional encoder training (research log E38) run on the
+kitchen with no change to the trainer.
+
+Evaluation always reports the benchmark's score: the number of the "complete" split's four
+tasks an episode completes, and 25 x that number as the D4RL normalized score. The kept
+checkpoint is chosen on validation seeds and reported on disjoint test seeds. Note that the
+benchmark's episodes all start from the same physical state (research log E29), so under a
+deterministic policy every nominal seed gives the same episode; seeds separate episodes only
+under a variant that randomizes, such as the perturbed starts of research log E30, which is
+why a run that wants an honest selection evaluates one.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any
+
+import numpy as np
+
+from flyarm.config import KitchenPPOConfig, KitchenVariantConfig
+from flyarm.rl.batched_kitchen import ACTION_DIM, OBS_DIM, BatchedKitchen, KitchenVariant
+from flyarm.rl.ppo import BrainRollout, MotorHead, train_ppo, trainable_count
+from flyarm.whole_brain.policy import BrainPolicy
+
+TEST_SEED = 0  # the kitchen benchmark's evaluation seeds (flyarm.flyleg.experiment)
+SELECTION_SEED = 50_000  # disjoint validation seeds, also from flyarm.flyleg.experiment
+SCRATCH_SEED = 2_000_000  # random-action rollouts that calibrate a fresh policy
+
+
+def kitchen_variant(config: KitchenVariantConfig) -> KitchenVariant:
+    return KitchenVariant(**config.model_dump())
+
+
+def evaluate_kitchen(
+    policy: BrainPolicy,
+    head: MotorHead,
+    seeds: list[int],
+    settings: KitchenPPOConfig,
+    variant: KitchenVariant | None = None,
+) -> dict[str, Any]:
+    """Deterministic mean actions on fixed seeds; the benchmark's own completion count."""
+    env = BatchedKitchen(
+        len(seeds),
+        horizon=settings.horizon,
+        variant=variant,
+        completion_bonus=settings.completion_bonus,
+        approach_slope=settings.approach_slope,
+        gamma=settings.gamma,
+    )
+    obs = env.reset(seeds=np.array(seeds))
+    brain = BrainRollout(policy, len(seeds))
+    completed = np.zeros((len(seeds), len(env.tasks)), dtype=bool)
+    reward = np.zeros(len(seeds))
+    active = np.ones(len(seeds), dtype=bool)
+    for _ in range(settings.horizon):
+        action = np.asarray(head.mean(brain.features(obs)), dtype=np.float64)
+        result = env.step(action, auto_reset=False)
+        completed |= active[:, None] & result.completed
+        reward += active * result.reward
+        active &= ~(result.terminated | result.truncated)
+        obs = result.obs
+        if not active.any():
+            break
+    counts = completed.sum(1)
+    return {
+        "seeds": seeds,
+        "tasks": list(env.tasks),
+        # The fraction of the split completed; train_ppo selects checkpoints on this key.
+        "success_rate": float(counts.mean() / len(env.tasks)),
+        "mean_tasks": float(counts.mean()),
+        "normalized_score": float(25.0 * counts.mean()),
+        "completed_all": int((counts == len(env.tasks)).sum()),
+        "mean_episode_reward": float(reward.mean()),
+        "per_task_success": {
+            task: float(completed[:, index].mean()) for index, task in enumerate(env.tasks)
+        },
+    }
+
+
+class KitchenTask:
+    """The FrankaKitchen adapter for flyarm.rl.ppo.train_ppo."""
+
+    obs_dim = OBS_DIM
+    action_dim = ACTION_DIM
+    extra_key = "tasks_per_episode"
+    extra_label = "tasks"
+
+    def __init__(self, settings: KitchenPPOConfig) -> None:
+        self.settings = settings
+        self.privileged_dim = self.make_env(1, 0).privileged_dim
+
+    def make_env(self, num_envs: int, first_seed: int) -> BatchedKitchen:
+        return BatchedKitchen(
+            num_envs,
+            horizon=self.settings.horizon,
+            first_seed=first_seed,
+            variant=kitchen_variant(self.settings.train_variant),
+            completion_bonus=self.settings.completion_bonus,
+            approach_slope=self.settings.approach_slope,
+            gamma=self.settings.gamma,
+        )
+
+    def score(
+        self, policy: BrainPolicy, head: MotorHead, seeds: list[int]
+    ) -> dict[str, dict[str, Any]]:
+        return {
+            name: evaluate_kitchen(policy, head, seeds, self.settings, kitchen_variant(variant))
+            for name, variant in self.settings.eval_variants.items()
+        }
+
+    def extra(self, result: Any, done: np.ndarray) -> int:
+        return int(result.tasks_completed[done].sum())
+
+    def describe(self, name: str, scored: dict[str, Any], episodes: int) -> str:
+        return (
+            f"{name} score {scored['normalized_score']:.1f} "
+            f"({scored['mean_tasks']:.2f} tasks, all four in {scored['completed_all']}/{episodes})"
+        )
+
+
+def scratch_kitchen_policy(config: KitchenPPOConfig, pack_root: Path) -> BrainPolicy:
+    """A fresh brain policy for reward-only kitchen training: no demonstrations anywhere.
+
+    The interface is the base run's frozen one; the encoder and decoder are random, and both
+    frozen normalizations (observation statistics and readout scale) are measured from
+    random-action rollouts, which carry no task information (research log E36).
+    """
+    from flyarm.interfaces import NeuralInterface
+    from flyarm.whole_brain.backend_mlx import RateDynamics
+    from flyarm.whole_brain.compiler import ConnectomePack
+
+    pack = ConnectomePack.load(pack_root)
+    pack.validate_b1a_provenance()
+    interface = NeuralInterface.load(Path(config.base_run) / "interface.json")
+    policy = BrainPolicy(
+        "connectome",
+        RateDynamics(pack, interface),
+        obs_dim=OBS_DIM,
+        action_dim=ACTION_DIM,
+        neural_steps=config.neural_steps,
+        seed=config.seed,
+    )
+    env = BatchedKitchen(
+        config.scratch_envs,
+        horizon=config.horizon,
+        first_seed=SCRATCH_SEED + 10_000 * config.seed,
+        variant=kitchen_variant(config.train_variant),
+        completion_bonus=config.completion_bonus,
+        approach_slope=config.approach_slope,
+        gamma=config.gamma,
+    )
+    generator = np.random.default_rng(config.seed)
+    rows = [env.reset()]
+    for _ in range(config.scratch_steps - 1):
+        action = generator.uniform(-1.0, 1.0, (config.scratch_envs, ACTION_DIM))
+        rows.append(env.step(action, auto_reset=True).obs)
+    observations = np.stack(rows, axis=1).astype(np.float32)
+    flat = observations.reshape(-1, OBS_DIM)
+    policy.set_normalization(flat.mean(0), np.maximum(flat.std(0), 0.05))
+    calibration = policy.calibrate_readout(
+        observations,
+        np.ones(observations.shape[:2], dtype=np.float32),
+        center=config.readout_calibration != "scale",
+        unit_norm=config.readout_calibration == "unit_norm",
+    )
+    print(
+        f"fresh policy calibrated on {observations.shape[0]} random rollouts of "
+        f"{observations.shape[1]} steps: median readout spread {calibration['median_spread']:.2e}",
+        flush=True,
+    )
+    return policy
+
+
+def load_kitchen_policy(config: KitchenPPOConfig, pack_root: Path) -> BrainPolicy:
+    """Rebuild a trained B2 kitchen checkpoint as the PPO starting point."""
+    from flyarm.flyleg.record import load_flyleg_policy
+
+    policy = load_flyleg_policy(
+        Path(config.base_run),
+        config.base_kind,
+        config.base_seed,
+        pack_root,
+        Path(config.annotations),
+    )
+    if not isinstance(policy, BrainPolicy):
+        raise ValueError("Kitchen PPO fine-tuning is defined for brain policies")
+    if policy.chunk != 1:
+        raise ValueError(
+            f"The base checkpoint emits chunks of {policy.chunk} actions; PPO drives one "
+            "action per step, so retrain the base run with action_chunk 1"
+        )
+    if policy.obs_dim != OBS_DIM or policy.action_dim != ACTION_DIM:
+        raise ValueError(
+            f"The base checkpoint is {policy.obs_dim} -> {policy.action_dim}, "
+            f"expected {OBS_DIM} -> {ACTION_DIM}"
+        )
+    return policy
+
+
+def run_kitchen_ppo(config: KitchenPPOConfig, pack_root: Path, output: Path) -> dict[str, Any]:
+    """Build the starting policy, score it, train it with PPO and save everything."""
+    from flyarm.experiment import save_json
+
+    if output.exists():
+        raise FileExistsError(f"Run directory already exists; choose a new output: {output}")
+    output.mkdir(parents=True)
+    save_json(output / "config.json", config.model_dump())
+    policy = (
+        scratch_kitchen_policy(config, pack_root)
+        if config.from_scratch
+        else load_kitchen_policy(config, pack_root)
+    )
+    task = KitchenTask(config)
+    head = MotorHead(policy.decoder, config.log_std, ACTION_DIM)
+    eval_seeds = list(range(TEST_SEED, TEST_SEED + config.eval_episodes))
+    select_seeds = list(range(SELECTION_SEED, SELECTION_SEED + config.eval_episodes))
+    before = task.score(policy, head, eval_seeds)
+    summary = "; ".join(task.describe(n, r, len(eval_seeds)) for n, r in before.items())
+    print(f"base checkpoint: {summary}", flush=True)
+    results: dict[str, Any] = {
+        "status": "running",
+        "benchmark": "D4RL/kitchen/complete-v2 (FrankaKitchen-v1)",
+        "base": before,
+        "trainable_parameters": trainable_count(head),
+        "claim": (
+            "reward only: random encoder, frozen connectome, PPO trains the motor decoder"
+            + (" and the encoder" if config.encoder_lr > 0 else "")
+            if config.from_scratch
+            else "PPO tunes the trained kitchen checkpoint against the shaped kitchen reward"
+        ),
+        "from_scratch": config.from_scratch,
+        "encoder_trained": config.encoder_lr > 0,
+    }
+    save_json(output / "results.json", results)
+    try:
+        run = train_ppo(policy, task, output, config, eval_seeds, select_seeds)
+    except (Exception, KeyboardInterrupt) as error:
+        results.update(status="failed", error=f"{type(error).__name__}: {error}")
+        save_json(output / "results.json", results)
+        raise
+    results.update(status="complete", best=run["best"], final=run["evaluations"][-1])
+    save_json(output / "results.json", results)
+    return results
+
+
+__all__ = [
+    "KitchenTask",
+    "evaluate_kitchen",
+    "kitchen_variant",
+    "load_kitchen_policy",
+    "run_kitchen_ppo",
+    "scratch_kitchen_policy",
+]
