@@ -247,9 +247,11 @@ def test_the_reference_term_raises_the_stalling_floor_and_the_check_fires() -> N
 
     # The term is exp(-||q - q_ref||^2 / sigma^2) over the 9 robot joints, 1 on the reference.
     env.reset(seeds=np.array([0]))
-    env.qpos[0, :9] = env.reference[0]
+    reference = env.reference
+    assert reference is not None
+    env.qpos[0, :9] = reference[0]
     assert env.tracking_reward()[0] == pytest.approx(1.0)
-    env.qpos[0, :9] = env.reference[0] + np.r_[TRACKING_SIGMA, np.zeros(8)]
+    env.qpos[0, :9] = reference[0] + np.r_[TRACKING_SIGMA, np.zeros(8)]
     assert env.tracking_reward()[0] == pytest.approx(np.exp(-1.0), rel=1e-5)
 
 
