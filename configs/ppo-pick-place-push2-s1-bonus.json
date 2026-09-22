@@ -1,0 +1,16 @@
+{
+  "base_run": "runs/whole-brain-pick-place-push2-s1",
+  "base_kind": "connectome",
+  "base_seed": 1,
+  "num_envs": 128,
+  "rollout_steps": 64,
+  "iterations": 300,
+  "eval_every": 20,
+  "eval_episodes": 48,
+  "seed": 0,
+  "eval_variants": {
+    "nominal": {}
+  },
+  "best_on": "nominal",
+  "success_bonus": 500.0
+}
