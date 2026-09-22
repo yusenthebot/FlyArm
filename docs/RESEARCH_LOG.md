@@ -199,6 +199,9 @@ Lesions (successes of 64): edges off 0 (no rotation); state reset every control 
 Zero-shot object transfer, connectome vs teacher: small cube 0 vs 28, large cube 29 vs 38, light 51 vs 63, heavy 64 vs 64, slippery 16 vs 34, grippy 56 vs 63, cylinder 16 vs 38, sphere 19 vs 32.
 Reading: the frozen connectome with linear maps learns in-hand rotation close to the teacher, and the recurrent connectome is necessary for it (edges off gives 0); whether the measured wiring matters is open until the seed-0 shuffle and GRU finish (then seeds 1 and 2, expected 2026-09-22 01:00 to 02:00).
 Video: runs/hand-dexterous-001/connectome-0/rollout.mp4, episode 200000 turns 29.5 rad (1,687 degrees) in 20 s; featured on the dashboard.
+Shuffle seed 0 (degree-preserving, same parameters and data): 63/64 successes, 1 drop, 35.2 rad, so on the training object the measured wiring gives no advantage.
+Transfer, connectome vs shuffle: small cube 0 vs 0, large 29 vs 8, light 51 vs 51, heavy 64 vs 59, slippery 16 vs 10, grippy 56 vs 54, cylinder 16 vs 16, sphere 19 vs 18 (251 vs 216 of 512 in total, most of the gap from the large cube).
+Reading: one seed; the only visible difference is transfer to a larger cube, to be tested on seeds 1 and 2 with the episode-level binomial and the seed-level sign-flip test before any claim.
 
 ### E24. B1a pick-and-place protocol v2 (configs/whole-brain-pick-place-v2a.json and -v2b.json, queued)
 Change from the first protocol: the stage-resynchronized teacher (teacher "resync", commit 5a9f2d9), whose demonstrations are bit-identical to the first protocol's on six compared episodes and which keeps squeezing a cube a learner has already lifted.
