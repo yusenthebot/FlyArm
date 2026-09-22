@@ -382,6 +382,59 @@ def trainable_count(module: nn.Module) -> int:
     return sum(value.size for _, value in leaves)
 
 
+SCRATCH_SEED = 2_000_000  # environment seeds for the random rollouts that calibrate a fresh policy
+
+
+def scratch_policy(
+    config: PPOConfig, pack_root: Path, model_path: Path, obs_dim: int
+) -> BrainPolicy:
+    """A fresh brain policy for reward-only training: no demonstrations anywhere.
+
+    The interface and rate model are the base run's, the encoder and decoder are random, and
+    the two frozen normalizations (observation statistics and readout scale) are measured from
+    random-action rollouts, which carry no task information.
+    """
+    from flyarm.interfaces import NeuralInterface
+    from flyarm.whole_brain.backend_mlx import RateDynamics
+    from flyarm.whole_brain.compiler import ConnectomePack
+
+    pack = ConnectomePack.load(pack_root)
+    pack.validate_b1a_provenance()
+    interface = NeuralInterface.load(Path(config.base_run) / "interface.json")
+    policy = BrainPolicy(
+        "connectome",
+        RateDynamics(pack, interface),
+        obs_dim=obs_dim,
+        action_dim=ACTION_DIM,
+        neural_steps=config.neural_steps,
+        seed=config.seed,
+    )
+    env = BatchedPickPlace(
+        model_path,
+        config.scratch_envs,
+        horizon=config.horizon,
+        first_seed=SCRATCH_SEED + 10_000 * config.seed,
+        variant=task_variant(config.train_variant),
+    )
+    generator = np.random.default_rng(config.seed)
+    rows = [env.reset()]
+    for _ in range(config.scratch_steps - 1):
+        action = generator.uniform(-1.0, 1.0, (config.scratch_envs, ACTION_DIM))
+        rows.append(env.step(action, auto_reset=True).obs)
+    observations = np.stack(rows, axis=1).astype(np.float32)
+    flat = observations.reshape(-1, obs_dim)
+    policy.set_normalization(flat.mean(0), np.maximum(flat.std(0), 0.05))
+    calibration = policy.calibrate_readout(
+        observations, np.ones(observations.shape[:2], dtype=np.float32)
+    )
+    print(
+        f"fresh policy calibrated on {observations.shape[0]} random rollouts of "
+        f"{observations.shape[1]} steps: median readout spread {calibration['median_spread']:.2e}",
+        flush=True,
+    )
+    return policy
+
+
 def run_ppo(config: PPOConfig, pack_root: Path, model_path: Path, output: Path) -> dict[str, Any]:
     """Load the base checkpoint, score it, fine-tune its decoder with PPO, save everything."""
     from flyarm.experiment import save_json
@@ -389,16 +442,20 @@ def run_ppo(config: PPOConfig, pack_root: Path, model_path: Path, output: Path) 
 
     if output.exists():
         raise FileExistsError(f"Run directory already exists; choose a new output: {output}")
-    task, policy = load_trained_policy(
+    task, loaded = load_trained_policy(
         Path(config.base_run), config.base_kind, config.base_seed, pack_root, model_path
     )
     eval_seeds = task.seeds("test", config.eval_episodes)
     select_seeds = task.seeds("validation", config.eval_episodes)
+    obs_dim = task.obs_dim
     task.close()
-    if not isinstance(policy, BrainPolicy):
+    if not isinstance(loaded, BrainPolicy):
         raise ValueError("PPO fine-tuning is defined for brain policies (connectome, shuffled)")
     output.mkdir(parents=True)
     save_json(output / "config.json", config.model_dump())
+    policy = (
+        scratch_policy(config, pack_root, model_path, obs_dim) if config.from_scratch else loaded
+    )
     head = MotorHead(policy.decoder, config.log_std)
     before = {
         name: evaluate(policy, head, model_path, eval_seeds, config.horizon, task_variant(v))
@@ -413,7 +470,12 @@ def run_ppo(config: PPOConfig, pack_root: Path, model_path: Path, output: Path) 
         "status": "running",
         "base": before,
         "trainable_parameters": trainable_count(head),
-        "claim": "PPO tunes only the linear motor decoder; encoder and connectome frozen",
+        "claim": (
+            "reward only: random encoder, frozen connectome, PPO trains the linear motor decoder"
+            if config.from_scratch
+            else "PPO tunes only the linear motor decoder; encoder and connectome frozen"
+        ),
+        "from_scratch": config.from_scratch,
     }
     save_json(output / "results.json", results)
     try:
