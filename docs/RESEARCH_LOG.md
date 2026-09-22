@@ -12,7 +12,7 @@ Numbers marked exploratory come from scratch probes that were later superseded b
 | The complete MaleCNS (166,700 neurons, 10.5 M edges) runs as a frozen real-time controller on a laptop | supported | E1 |
 | Control is graph-mediated: removing every edge removes the skill | supported (pick-place, kitchen, dexterous seed 0: 0/64) | E3, E11, E22, dexterous track |
 | The skill needs the connectome's own state across control steps | supported for pick-place and dexterous seed 0 (0/64); kitchen depends on the run (E11 yes, standardized readout 23.8 of 25 without state) | E3, E11, E22, dexterous track |
-| Measured wiring beats a degree-preserving shuffle | open: strong in pick-place seeds 0 to 2, reversed in seeds 3 and 4; dexterous seed 0 tie on the training object (62 vs 63 of 64), connectome ahead on transfer (251 vs 216 of 512); v2 and dexterous seeds 1 and 2 running | E3, E21, E24, dexterous track |
+| Measured wiring beats a degree-preserving shuffle | not established: pick-place first protocol over 6 seeds trends ahead (lift 72% vs 56%, seed-level p 0.125) after seeds 3 to 5 failed to replicate seeds 0 to 2; kitchen fly above shuffle in 2 of 2 seeds; dexterous seed 0 tie (62 vs 63 of 64); v2 (E24) and dexterous seeds 1 and 2 running | E3, E11, E21, E24, dexterous track |
 | The fly controller solves more than one kitchen task | not yet: one task (microwave); not fixed by longer memory (E20), tracker DAgger (E19) or a wider standardized readout (E22, whose kettle scores are shoves) | E4, E11, E19, E20, E22 |
 | RL on the frozen connectome improves a skill | supported for lifting (18/24 to 24/24), not for placing | E12 |
 | RL on the frozen connectome generalizes to unseen physics | partly: lifting generalizes to heavier cubes, but equally through a shuffled connectome; heavy-cube placement favours the measured wiring late in training (15.1 vs 6.3 of 24), nominal and far goals favour the shuffle; one PPO run per wiring | E17 |
@@ -147,10 +147,15 @@ Method: E11 protocol with recurrent gain 0.99, fly only, seed 0, 20 test episode
 Result: 25 (microwave in every episode, no other task); best validation score during training 1 task, as at gain 0.8; final training L1 0.106, as at gain 0.8.
 Reading: negative; memory is not what stops the fly controller after the first task.
 
-### E21. Pick-and-place topology replication (runs/whole-brain-pick-place-003, -004, running)
+### E21. Pick-and-place topology replication (runs/whole-brain-pick-place-003, complete; -004 cancelled)
 Method: seeds 3 to 5 with two independent shuffles each (replicate r uses shuffle seed seed + 17000 + 1000 r), then a second shuffle for seeds 0 to 2.
 Partial (lift / stable place of 24; shuffles listed as #1, #2): seed 3 connectome 9/5, shuffles 15/11 and 12/3, GRU 17/3; seed 4 connectome 17/13, shuffles 22/12 and 22/4, GRU 18/1; seed 5 connectome 20/3, shuffles running.
-Reading so far: in seeds 3 and 4 both shuffles lift more often than the measured connectome, the reverse of seeds 0 to 2, while placement is mixed; this run uses the first protocol's teacher (E23), and the clean comparison is E24.
+Final seed 5 shuffles: 24/4 and 12/1 (lift / place), GRU 14/0.
+Seeds 3 to 5 alone (two shuffles each; scripts/topology_report.py): lift connectome 64% vs shuffles 74%, 1 of 3 seeds better, sign-flip p 0.88, episodes 19 measured-only vs 34 shuffled-only; place 29% vs 24%, 2 of 3 seeds better, p 0.38.
+First protocol pooled, seeds 0 to 5 (docs/results/pick-place-first-protocol-topology.json): lift 72% vs 56%, 4 of 6 seeds better, seed-level p 0.125, episode-level p 0.061; place 24% vs 19%, 5 of 6 better, p 0.14 and 0.096; grasp 86% vs 89%, no difference.
+Reading: the strong advantage of seeds 0 to 2 (E3) did not replicate; pooled over six seeds the measured wiring trends ahead on lifting and placing but no test reaches 0.05.
+Method lesson: the E3 episode-level p of 3.9e-7 treated 72 episodes as independent, but between-seed and between-shuffle variance is large (seed 5 shuffles lift 24 and 12 of 24), so the seed-level test is the primary one and the paper reports both.
+This protocol's teacher mislabels some lifted states (E23); the clean and final comparison is E24.
 
 ## Parallel tracks (agents on their own branches)
 
@@ -217,10 +222,10 @@ Reading: one seed; the only visible difference is transfer to a larger cube, to 
 Parameter-matched GRU seed 0 (86,531 parameters, same data): 64/64, 0 drops, 50.4 rad, at the teacher's level; transfer 331/512 (small cube 10, large 27, light 63, heavy 64, slippery 37, grippy 63, cylinder 44, sphere 23).
 Reading: on seed 0 the GRU beats both connectome controllers, most clearly in rotation speed (50.4 against 38.0 and 35.2 rad) and in transfer to slippery, cylindrical and small objects; the dexterous result is that the frozen connectome can do in-hand rotation, not that it does it better than a trained recurrent network.
 
-### E24. B1a pick-and-place protocol v2 (configs/whole-brain-pick-place-v2a.json and -v2b.json, queued)
+### E24. B1a pick-and-place protocol v2 (configs/whole-brain-pick-place-v2a.json and -v2b.json, running)
 Change from the first protocol: the stage-resynchronized teacher (teacher "resync", commit 5a9f2d9), whose demonstrations are bit-identical to the first protocol's on six compared episodes and which keeps squeezing a cube a learner has already lifted.
 Design: seeds 0 to 5, each training the connectome, two independent degree-preserving shuffles and a parameter-matched GRU on identical data; lesions as before; statistics per E3 (seed-level sign-flip and episode-level binomial).
-It starts after run 003 finishes (scripts/pick_place_v2.sh); run 004 (a second shuffle for the first protocol's seeds 0 to 2) was cancelled because v2 supersedes it.
+Run v2a (seeds 0 to 2) started 2026-09-21 21:35 when run 003 finished, v2b (seeds 3 to 5) follows (scripts/pick_place_v2.sh); run 004 (a second shuffle for the first protocol's seeds 0 to 2) was cancelled because v2 supersedes it.
 
 ## Housekeeping 2026-09-21 evening
 Superseded rollout media (67 files: the first kitchen protocol, most proprioception-only clips, page copies, the 256-node prototypes and a duplicate) moved to runs/_archive with a manifest by scripts/archive_media.py; at the user's request the archive (148 MB, manifest included) then went to the macOS Trash, so these files are no longer part of the record.
