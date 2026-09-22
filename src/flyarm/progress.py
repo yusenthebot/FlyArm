@@ -2,8 +2,9 @@
 
 A watcher polls a PPO run directory, and every time a newer ``policy-XXXX.safetensors``
 appears it renders a couple of labelled episodes with that checkpoint and replaces
-``progress/latest.mp4`` and ``progress/latest.json`` in the run. Only the newest clip is kept,
-so the dashboard's Live view always shows what the controller does right now.
+``progress/latest.mp4`` and ``progress/latest.json`` in the run. Exactly one clip per run ever
+exists: the new file is written beside it and moved over the old one, so the Live view always
+shows what the controller does right now and the run directory never grows with clips.
 """
 
 from __future__ import annotations
@@ -78,10 +79,13 @@ def record_progress(
     directory = run / "progress"
     directory.mkdir(exist_ok=True)
     temporary = directory / "writing.mp4"
+    temporary.unlink(missing_ok=True)  # a previous recording may have been killed mid-write
     write_video(temporary, frames, FPS)
     os.replace(temporary, directory / "latest.mp4")
+    kept = directory / "latest.mp4"
     manifest = {
         "run": str(run),
+        "megabytes": round(kept.stat().st_size / 1e6, 2),
         "iteration": iteration,
         "checkpoint": checkpoint.name,
         "variant": variant,
