@@ -12,7 +12,7 @@ Numbers marked exploratory come from scratch probes that were later superseded b
 | The complete MaleCNS (166,700 neurons, 10.5 M edges) runs as a frozen real-time controller on a laptop | supported | E1 |
 | Control is graph-mediated: removing every edge removes the skill | supported for pick-place and dexterous seed 0 (0/64); kitchen mixed: seeds 0 and 1 yes, seed 2 no, because a constant action opens the microwave (40/40) | E3, E11, E22, dexterous track |
 | The skill needs the connectome's own state across control steps | supported for pick-place and dexterous seed 0 (0/64); kitchen depends on the run (E11 yes, standardized readout 23.8 of 25 without state) | E3, E11, E22, dexterous track |
-| The frozen connectome places the cube in 90% of pick-and-place episodes | not yet: best 72.9% (push2 seed 3), 64.6% and 54.2% for seeds 0 and 1, with 384 demonstrations and closed-loop phase selection; PPO running | E31, E33 |
+| The frozen connectome places the cube in 90% of pick-and-place episodes | supported for seed 3: 46/48 test episodes (95.8%) after PPO on the output map with a corrected success bonus, from 72.9% after imitation; seeds 0 and 1 running; no shuffle or GRU control yet | E31, E33, E34 |
 | Measured wiring beats a degree-preserving shuffle | not established: pick-place first protocol over 6 seeds trends ahead (lift 72% vs 56%, seed-level p 0.125) after seeds 3 to 5 failed to replicate seeds 0 to 2; kitchen fly above shuffle in 2 of 2 seeds; dexterous seed 0 tie (62 vs 63 of 64); v2 (E24) and dexterous seeds 1 and 2 running | E3, E11, E21, E24, dexterous track |
 | The fly controller solves more than one kitchen task | not yet: one task (microwave); not fixed by longer memory (E20) or tracker DAgger (E19); the 68 leg motor neurons carry about 5 independent signals (E25); the wide readout's failure was an Adam effect (E26), now retested | E4, E11, E19, E20, E22, E25, E26 |
 | The kitchen benchmark measures closed-loop control | no: blind replay of one demonstration scores 99.5 clean, 70.4 and 40.0 at 0.05 and 0.1 rad joint offsets, matching or beating every trained controller | E29 |
@@ -298,6 +298,11 @@ Cause: the shaped reward pays up to 4 per step while the cube is grasped, lifted
 This also explains E12 and E17, where PPO raised lifting to near ceiling but never raised placement.
 Fix: PPOConfig.success_bonus (default 50, the value of every earlier run); a bonus above 400 makes placement worth more than holding (test in tests/test_batched_pick_place.py).
 Rerun: runs/ppo-pick-place-push2-s3-bonus-001 (configs/ppo-pick-place-push2-s3-bonus.json: success bonus 500, 300 iterations), started 08:58.
+Result (complete 09:16; placed of 48 test episodes every 20 iterations): 31, 32, 33, 30, 31, 30, 36, 39, 36, 45, 46, 45, 45, 46, 48; the validation-selected checkpoint is iteration 220 (48/48 on the 48 validation seeds), which places 46/48 test episodes (95.8%), lifts 47 and grasps 48; the last iteration places 48/48.
+Reading: the 90% goal is met on one training seed; the controller is still W_in, the frozen complete MaleCNS and W_out, PPO changed only W_out, and the numbers are held-out test episodes with the checkpoint chosen on validation seeds.
+Video: runs/ppo-pick-place-push2-s3-bonus-001/videos/nominal-before-after.mp4 (test episodes 60000 to 60005: 3 placed before, 6 after, and faster, steps 127 to 164 against 152 to 210), featured on the dashboard.
+Replication: the same PPO from push2 seeds 0 (64.6%) and 1 (54.2%), runs/ppo-pick-place-push2-s0-bonus-001 and -s1-bonus-001, started 09:18.
+Open for the paper: the same pipeline on a degree-preserving shuffle and on the GRU, to know how much of the 95.8% needs the measured wiring.
 
 ### E23. Stateful-teacher labels in B1a DAgger (found by the multi-task agent, quantified here)
 Finding: the scripted pick-and-place teacher keeps its own stage machine, so while labelling learner-driven DAgger states it can still be in "approach" or "descend" after the learner has already grasped and lifted the cube, and it then labels those states "open the gripper".
