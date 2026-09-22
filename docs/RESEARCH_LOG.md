@@ -213,6 +213,21 @@ Result (validation L1): linear policy 0.119; fly controllers 0.104 to 0.113 (E11
 Also: the decoder alone on the untrained seed-0 encoder reaches 0.106 (E26 probe), so end-to-end training of the encoder through the connectome adds almost nothing.
 Reading: in the default regime the fly controller is close to a linear policy; with E25 (near-linear, about five motor directions) this is why it learns one reaching skill (the microwave) and not the switch to a second task, which needs a nonlinear function of the scene.
 
+### E28. Operating regime under L-p weight normalization (scripts/weight_normalization_probe.py, docs/results/weight-normalization.json, commit 2b4220b)
+Question: E25 and E27 place the default rate model in a quiet, near-linear regime; is there a weight normalization that keeps the connectome stable but makes it nonlinear and higher-dimensional?
+Background: the default divides each neuron's signed inputs by their absolute sum (L1), so independent input fluctuations shrink by about 1 over the square root of the in-degree per synapse; dividing by the L-p norm with 1 < p <= 2 shrinks them less (L2 preserves variance).
+Result (kitchen interface, random +-0.5 drive, 68-motor linear response; activity is mean |h| over all neurons; lingering is neurons above 0.1 twenty control steps after the drive stops):
+L1, gain 0.8 (default): activity 0.014, linear prediction error 0.09, participation ratio 3.8, 5 values for 90%, head share 8%, lingering 0.
+L2, gain 0.2: nearly the default (error 0.09, 5 values, head 19%, lingering 0); L2 at gains 0.3, 0.5, 0.8 and 0.95 lingers in 5,009, 55,798, 153,758 and 164,217 neurons, the last three with saturated self-sustained activity and linear-prediction errors of 176 to 2,212.
+L1.25, gain 0.8: error 0.21, participation ratio 5.1, 9 values for 90% and 23 for 99%, head share 48%, lingering 2,137 neurons (1.3%).
+L1.5, gain 0.5: error 0.16, 8 values for 90%, head share 46%, lingering 3,637; L1.5 at gain 0.8 runs away (23,075 lingering).
+Reading: between the default and runaway activity there is a narrow band (L1.25 at 0.8, L1.5 at 0.5) where the leg's motor interface carries about twice as many directions, receives six times more of its signal from the head, is measurably nonlinear, and keeps a small subpopulation active after the input stops.
+Test: runs/flyleg-kitchen-lp125-dev-001 (configs/flyleg-kitchen-lp125-dev.json: E26's 68-motor unit_norm run with weight_norm_power 1.25 and nothing else changed), started 2026-09-22 00:35.
+
+### E29. Open-loop baselines on the kitchen (scripts/kitchen_open_loop.py, running)
+Motivation: E11 seed 2 keeps the microwave with every edge removed, that is with one constant action.
+Partial: zero action, the mean demonstration action and the mean action of the first 60 steps all score 0 on the 40 test seeds; random constant actions score 0 so far; demonstration replays are pending.
+
 ### E23. Stateful-teacher labels in B1a DAgger (found by the multi-task agent, quantified here)
 Finding: the scripted pick-and-place teacher keeps its own stage machine, so while labelling learner-driven DAgger states it can still be in "approach" or "descend" after the learner has already grasped and lifted the cube, and it then labels those states "open the gripper".
 Quantification over every saved B1a DAgger set (runs/whole-brain-pick-place-001 to -003, 36 files): 337,014 labelled states, 6,353 with both fingers on a cube at least 6 cm above rest, 931 of those (15%) labelled with an open gripper, all in teacher stages 0 or 1.
