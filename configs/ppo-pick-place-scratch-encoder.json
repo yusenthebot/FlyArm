@@ -16,5 +16,7 @@
   },
   "best_on": "nominal",
   "encoder_lr": 0.0001,
-  "reach_slope": 3.0
+  "reach_slope": 3.0,
+  "advantage_clip": 10.0,
+  "critic_warmup": 50
 }
