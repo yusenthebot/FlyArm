@@ -302,6 +302,9 @@ class PPOConfig(BaseModel):
     # 4 / (1 - gamma) = 400 at gamma 0.99, so a bonus below that teaches PPO not to release
     # (research log E34); 50 is the value of every run before E34.
     success_bonus: float = Field(default=50.0, ge=0, le=100_000)
+    # Decay of the reach term with distance to the cube; the default 10 leaves almost no
+    # signal beyond 30 cm, which matters only when training starts from a random policy.
+    reach_slope: float = Field(default=10.0, gt=0, le=100)
     # Reward only: ignore the base run's trained weights and start from a random encoder and
     # decoder, with both frozen normalizations measured from random-action rollouts, so no
     # demonstration touches the controller; the base run still supplies the interface.
