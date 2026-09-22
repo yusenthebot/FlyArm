@@ -1,0 +1,570 @@
+{
+  "test_seeds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    35,
+    36,
+    37,
+    38,
+    39
+  ],
+  "constant": {
+    "zero": {
+      "normalized_score": 0.0,
+      "per_task_success": {
+        "microwave": 0.0,
+        "kettle": 0.0,
+        "light switch": 0.0,
+        "slide cabinet": 0.0
+      },
+      "episodes": 40
+    },
+    "mean demonstration action": {
+      "normalized_score": 0.0,
+      "per_task_success": {
+        "microwave": 0.0,
+        "kettle": 0.0,
+        "light switch": 0.0,
+        "slide cabinet": 0.0
+      },
+      "episodes": 40
+    },
+    "mean action of the first 60 steps": {
+      "normalized_score": 0.0,
+      "per_task_success": {
+        "microwave": 0.0,
+        "kettle": 0.0,
+        "light switch": 0.0,
+        "slide cabinet": 0.0
+      },
+      "episodes": 40
+    }
+  },
+  "random_constant": [
+    {
+      "action": [
+        0.2739233746429086,
+        -0.4604265724722594,
+        -0.9180529521276106,
+        -0.9669447289429418,
+        0.6265404784005448,
+        0.8255111545554434,
+        0.21327155153435973,
+        0.4589931219679968,
+        0.08724998293084574
+      ],
+      "normalized_score": 0.0,
+      "per_task_success": {
+        "microwave": 0.0,
+        "kettle": 0.0,
+        "light switch": 0.0,
+        "slide cabinet": 0.0
+      },
+      "episodes": 10
+    },
+    {
+      "action": [
+        0.8701448475755365,
+        0.6317071082430643,
+        -0.9945229996597038,
+        0.7148085531751387,
+        -0.9328288493890713,
+        0.45931089285988813,
+        -0.648688758794882,
+        0.7263578446997732,
+        0.08292244049818343
+      ],
+      "normalized_score": 0.0,
+      "per_task_success": {
+        "microwave": 0.0,
+        "kettle": 0.0,
+        "light switch": 0.0,
+        "slide cabinet": 0.0
+      },
+      "episodes": 10
+    },
+    {
+      "action": [
+        -0.40057621892523043,
+        -0.1546255576046831,
+        -0.9433606577090741,
+        -0.7514334470008721,
+        0.34124882938726064,
+        0.2943790231485002,
+        0.2307702229625077,
+        -0.23264489147623313,
+        0.994419871578422
+      ],
+      "normalized_score": 0.0,
+      "per_task_success": {
+        "microwave": 0.0,
+        "kettle": 0.0,
+        "light switch": 0.0,
+        "slide cabinet": 0.0
+      },
+      "episodes": 10
+    },
+    {
+      "action": [
+        0.9616706775524602,
+        0.3710839689613894,
+        0.3009185525356326,
+        0.37689346114188016,
+        -0.22215715204179243,
+        -0.7298069899551776,
+        0.4429766803881634,
+        0.050708644951451776,
+        -0.3795162488820887
+      ],
+      "normalized_score": 0.0,
+      "per_task_success": {
+        "microwave": 0.0,
+        "kettle": 0.0,
+        "light switch": 0.0,
+        "slide cabinet": 0.0
+      },
+      "episodes": 10
+    },
+    {
+      "action": [
+        -0.028329282336421846,
+        0.7789756686980005,
+        0.8680870319124994,
+        -0.28440960658185954,
+        0.14305966145952187,
+        -0.3562612178481157,
+        0.1886000603993936,
+        -0.3241775489857335,
+        -0.21676199894367754
+      ],
+      "normalized_score": 0.0,
+      "per_task_success": {
+        "microwave": 0.0,
+        "kettle": 0.0,
+        "light switch": 0.0,
+        "slide cabinet": 0.0
+      },
+      "episodes": 10
+    },
+    {
+      "action": [
+        0.7805487040095846,
+        -0.5456848129332406,
+        0.24637428937208483,
+        -0.8319693128352303,
+        0.6652882953067956,
+        0.5741966149773667,
+        -0.5212611140140957,
+        0.7529684616214076,
+        -0.8828639303896113
+      ],
+      "normalized_score": 0.0,
+      "per_task_success": {
+        "microwave": 0.0,
+        "kettle": 0.0,
+        "light switch": 0.0,
+        "slide cabinet": 0.0
+      },
+      "episodes": 10
+    },
+    {
+      "action": [
+        -0.32776587890867925,
+        -0.6994410662103219,
+        -0.09932126670142605,
+        0.5926485405745885,
+        -0.5387155820125051,
+        -0.8959573978711808,
+        -0.1908963203569436,
+        -0.6029739109814893,
+        -0.8184939087617562
+      ],
+      "normalized_score": 0.0,
+      "per_task_success": {
+        "microwave": 0.0,
+        "kettle": 0.0,
+        "light switch": 0.0,
+        "slide cabinet": 0.0
+      },
+      "episodes": 10
+    },
+    {
+      "action": [
+        0.16066477197370133,
+        -0.4026077343621548,
+        0.34398975591271874,
+        -0.6009691120635734,
+        0.8842262210129956,
+        -0.2697796635103429,
+        -0.789009440859541,
+        0.25821630307941845,
+        0.8543091061357349
+      ],
+      "normalized_score": 0.0,
+      "per_task_success": {
+        "microwave": 0.0,
+        "kettle": 0.0,
+        "light switch": 0.0,
+        "slide cabinet": 0.0
+      },
+      "episodes": 10
+    },
+    {
+      "action": [
+        -0.11924569056843204,
+        0.9091809873814745,
+        -0.00020837262470596585,
+        -0.14954275030184894,
+        0.24042690403075562,
+        0.9901930104706482,
+        0.8978873498755306,
+        -0.07990972138180785,
+        0.5154576906165829
+      ],
+      "normalized_score": 0.0,
+      "per_task_success": {
+        "microwave": 0.0,
+        "kettle": 0.0,
+        "light switch": 0.0,
+        "slide cabinet": 0.0
+      },
+      "episodes": 10
+    },
+    {
+      "action": [
+        -0.005154609024762058,
+        0.05862432039354082,
+        0.571571401427615,
+        -0.17068830128865842,
+        0.4689671435774587,
+        0.4222857559794997,
+        0.8641193732267565,
+        -0.7701347334381896,
+        0.4580302341526188
+      ],
+      "normalized_score": 0.0,
+      "per_task_success": {
+        "microwave": 0.0,
+        "kettle": 0.0,
+        "light switch": 0.0,
+        "slide cabinet": 0.0
+      },
+      "episodes": 10
+    },
+    {
+      "action": [
+        0.8548478572491198,
+        0.9358523798492928,
+        -0.9705873900692614,
+        0.7272801804911515,
+        0.9623900801326886,
+        0.9144203592219271,
+        -0.7024719755350042,
+        0.9452576276459099,
+        0.7798711114410413
+      ],
+      "normalized_score": 0.0,
+      "per_task_success": {
+        "microwave": 0.0,
+        "kettle": 0.0,
+        "light switch": 0.0,
+        "slide cabinet": 0.0
+      },
+      "episodes": 10
+    },
+    {
+      "action": [
+        0.6447476550861408,
+        -0.040024152384335654,
+        -0.5352541607213923,
+        0.6037611574366157,
+        0.8470603195669391,
+        -0.46773945541541484,
+        0.07786881524437383,
+        -0.114494342050937,
+        0.86203463196231
+      ],
+      "normalized_score": 0.0,
+      "per_task_success": {
+        "microwave": 0.0,
+        "kettle": 0.0,
+        "light switch": 0.0,
+        "slide cabinet": 0.0
+      },
+      "episodes": 10
+    },
+    {
+      "action": [
+        -0.9189785776231307,
+        0.46401239131312155,
+        0.22874649389799329,
+        -0.9432692697729579,
+        0.43843954565348064,
+        -0.968016540952856,
+        0.5159020047128562,
+        0.025517446524156107,
+        0.8582084415940123
+      ],
+      "normalized_score": 0.0,
+      "per_task_success": {
+        "microwave": 0.0,
+        "kettle": 0.0,
+        "light switch": 0.0,
+        "slide cabinet": 0.0
+      },
+      "episodes": 10
+    },
+    {
+      "action": [
+        -0.8678350065518505,
+        0.6826345592247665,
+        -0.8666199824657972,
+        -0.31138004239174966,
+        -0.1394025361043334,
+        0.9321241615681404,
+        0.12446368445691403,
+        -0.4822708136581355,
+        -0.5166485718113101
+      ],
+      "normalized_score": 0.0,
+      "per_task_success": {
+        "microwave": 0.0,
+        "kettle": 0.0,
+        "light switch": 0.0,
+        "slide cabinet": 0.0
+      },
+      "episodes": 10
+    },
+    {
+      "action": [
+        0.7762366413183597,
+        -0.5482611431653512,
+        -0.750890588329433,
+        -0.4233384859848448,
+        0.1722461296254656,
+        0.10818100434653566,
+        0.6194215518255555,
+        0.12095190401237166,
+        -0.423157571137579
+      ],
+      "normalized_score": 0.0,
+      "per_task_success": {
+        "microwave": 0.0,
+        "kettle": 0.0,
+        "light switch": 0.0,
+        "slide cabinet": 0.0
+      },
+      "episodes": 10
+    },
+    {
+      "action": [
+        -0.1742073146382146,
+        0.6362419419418208,
+        0.253012924839507,
+        0.9181552853948844,
+        -0.26119117781663825,
+        0.10522302104257442,
+        0.18784840322633656,
+        0.69658241655012,
+        -0.7090529236269365
+      ],
+      "normalized_score": 0.0,
+      "per_task_success": {
+        "microwave": 0.0,
+        "kettle": 0.0,
+        "light switch": 0.0,
+        "slide cabinet": 0.0
+      },
+      "episodes": 10
+    }
+  ],
+  "replay": {
+    "0": {
+      "normalized_score": 100.0,
+      "per_task_success": {
+        "microwave": 1.0,
+        "kettle": 1.0,
+        "light switch": 1.0,
+        "slide cabinet": 1.0
+      },
+      "episodes": 40
+    },
+    "1": {
+      "normalized_score": 100.0,
+      "per_task_success": {
+        "microwave": 1.0,
+        "kettle": 1.0,
+        "light switch": 1.0,
+        "slide cabinet": 1.0
+      },
+      "episodes": 40
+    },
+    "2": {
+      "normalized_score": 100.0,
+      "per_task_success": {
+        "microwave": 1.0,
+        "kettle": 1.0,
+        "light switch": 1.0,
+        "slide cabinet": 1.0
+      },
+      "episodes": 40
+    },
+    "3": {
+      "normalized_score": 100.0,
+      "per_task_success": {
+        "microwave": 1.0,
+        "kettle": 1.0,
+        "light switch": 1.0,
+        "slide cabinet": 1.0
+      },
+      "episodes": 40
+    },
+    "4": {
+      "normalized_score": 97.5,
+      "per_task_success": {
+        "microwave": 1.0,
+        "kettle": 1.0,
+        "light switch": 0.925,
+        "slide cabinet": 0.975
+      },
+      "episodes": 40
+    }
+  },
+  "replay_joint_offset_0.05rad": {
+    "0": {
+      "normalized_score": 64.375,
+      "per_task_success": {
+        "microwave": 0.775,
+        "kettle": 0.75,
+        "light switch": 0.525,
+        "slide cabinet": 0.525
+      },
+      "episodes": 40
+    },
+    "1": {
+      "normalized_score": 78.125,
+      "per_task_success": {
+        "microwave": 0.8,
+        "kettle": 0.8,
+        "light switch": 0.7,
+        "slide cabinet": 0.825
+      },
+      "episodes": 40
+    },
+    "2": {
+      "normalized_score": 80.625,
+      "per_task_success": {
+        "microwave": 0.9,
+        "kettle": 0.925,
+        "light switch": 0.7,
+        "slide cabinet": 0.7
+      },
+      "episodes": 40
+    },
+    "3": {
+      "normalized_score": 61.875,
+      "per_task_success": {
+        "microwave": 0.85,
+        "kettle": 0.65,
+        "light switch": 0.5,
+        "slide cabinet": 0.475
+      },
+      "episodes": 40
+    },
+    "4": {
+      "normalized_score": 66.875,
+      "per_task_success": {
+        "microwave": 0.875,
+        "kettle": 0.825,
+        "light switch": 0.45,
+        "slide cabinet": 0.525
+      },
+      "episodes": 40
+    }
+  },
+  "replay_joint_offset_0.1rad": {
+    "0": {
+      "normalized_score": 36.875,
+      "per_task_success": {
+        "microwave": 0.575,
+        "kettle": 0.575,
+        "light switch": 0.175,
+        "slide cabinet": 0.15
+      },
+      "episodes": 40
+    },
+    "1": {
+      "normalized_score": 42.5,
+      "per_task_success": {
+        "microwave": 0.525,
+        "kettle": 0.475,
+        "light switch": 0.275,
+        "slide cabinet": 0.425
+      },
+      "episodes": 40
+    },
+    "2": {
+      "normalized_score": 48.75,
+      "per_task_success": {
+        "microwave": 0.55,
+        "kettle": 0.7,
+        "light switch": 0.325,
+        "slide cabinet": 0.375
+      },
+      "episodes": 40
+    },
+    "3": {
+      "normalized_score": 36.25,
+      "per_task_success": {
+        "microwave": 0.625,
+        "kettle": 0.5,
+        "light switch": 0.225,
+        "slide cabinet": 0.1
+      },
+      "episodes": 40
+    },
+    "4": {
+      "normalized_score": 35.625,
+      "per_task_success": {
+        "microwave": 0.425,
+        "kettle": 0.525,
+        "light switch": 0.1,
+        "slide cabinet": 0.375
+      },
+      "episodes": 40
+    }
+  }
+}
