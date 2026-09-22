@@ -242,3 +242,23 @@ def test_standardized_readout_removes_the_common_mode_and_old_checkpoints_load(
     fresh = BrainPolicy("connectome", dynamics, obs_dim=4, action_dim=2, seed=3)
     fresh.load(tmp_path / "old.safetensors")
     assert np.array_equal(np.asarray(fresh.readout_offset), np.zeros(dynamics.output_count))
+
+
+def test_unit_norm_readout_has_unit_expected_squared_norm(pack) -> None:
+    interface = interface_for(pack)
+    dynamics = RateDynamics(pack, interface)
+    policy = BrainPolicy("connectome", dynamics, obs_dim=4, action_dim=2, seed=1)
+    rng = np.random.default_rng(0)
+    obs = rng.standard_normal((3, 10, 4)).astype(np.float32)
+    mask = np.ones((3, 10), np.float32)
+    info = policy.calibrate_readout(obs, mask, unit_norm=True)
+    assert info["centered"] and info["unit_norm"] and info["floored_outputs"] == 0
+    state = policy.initial_state(3)
+    features = []
+    for step in range(10):
+        current = policy.encode(policy.normalize(mx.array(obs[:, step])))
+        state, pooled = dynamics.advance(state, current, policy.neural_steps)
+        features.append(np.asarray(policy.readout(pooled), dtype=np.float64))
+    features = np.concatenate(features)
+    assert np.allclose(features.mean(0), 0.0, atol=1e-3)
+    assert np.isclose((features**2).sum(1).mean(), 1.0, rtol=1e-2)
