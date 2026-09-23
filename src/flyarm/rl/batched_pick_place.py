@@ -15,6 +15,7 @@ observation are blanked after the first steps while the critic still sees them.
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -36,6 +37,21 @@ STEP_METERS = 0.014
 LIFT_HEIGHT = CUBE_HALF + 0.06
 GOAL_FIELDS = np.r_[20:23, 26:29]  # goal and goal - cube inside the 37-D observation
 BASE_FRICTION = 4.0
+
+
+def simulation_threads(requested: int) -> int:
+    """Worker threads for mjbatch: ``requested`` if set, else FLYARM_SIM_THREADS, else all.
+
+    0 lets mjbatch use every core, which is fastest for one job and ruinous for several: seven
+    concurrent runs at 18 threads each drove the load average to 271 on 18 cores (research log
+    E46). Set FLYARM_SIM_THREADS when several runs share the machine.
+    """
+    if requested:
+        return requested
+    value = os.environ.get("FLYARM_SIM_THREADS", "0")
+    if not value.isdigit():
+        raise ValueError(f"FLYARM_SIM_THREADS must be a non-negative integer, got {value!r}")
+    return int(value)
 
 
 @dataclass(frozen=True)
@@ -104,7 +120,7 @@ class BatchedPickPlace:
         self.model = model = compile_pick_place_model(spec)
         self.num_envs, self.horizon = num_envs, horizon
         self.variant = variant or TaskVariant()
-        self.batch = Batch(model, num_envs, num_threads)
+        self.batch = Batch(model, num_envs, simulation_threads(num_threads))
         joints = [model.joint(f"joint{i}") for i in range(1, 8)]
         self._jnt = np.array([joint.id for joint in joints])
         self._qadr = np.array([int(joint.qposadr[0]) for joint in joints])
