@@ -7,6 +7,12 @@
  },
  {
   "root": "main",
+  "path": "ppo-kitchen-quality-demoreset-001/videos/before-after-quality.mp4",
+  "title": "Kitchen motion quality: before and after",
+  "note": "Same 0.2 rad perturbed start, official environment. Left: the four-task controller of E49. Right: after PPO with depth, disturbance, collision, action and smoothness terms, half of each bonus held for the strict 0.1 threshold, and demonstration resets (E50 to E53). Saturated commands 46% to 2%; microwave 0.09 to 0.00, slide cabinet 0.23 to 0.07; the kettle stays at 0.23."
+ },
+ {
+  "root": "main",
   "path": "ppo-kitchen-dapg-ordered-potential-001/videos/iteration1000-perturbed-episode0-four-tasks.mp4",
   "title": "Kitchen: the fly connectome completes all four tasks",
   "note": "Frozen complete MaleCNS with trained linear input and output maps; imitation, then PPO with a demonstration term (DAPG), a completion bonus paid in the demonstrations' order and potential-based task shaping. Official FrankaKitchen environment, 0.2 rad perturbed start never trained on: 92.5 over 20 test episodes, all four tasks in 17 of 20."
