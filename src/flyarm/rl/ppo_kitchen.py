@@ -17,9 +17,11 @@ why a run that wants an honest selection evaluates one.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
+import mlx.core as mx
 import numpy as np
 
 from flyarm.config import FlyLegConfig, KitchenPPOConfig, KitchenVariantConfig
@@ -274,6 +276,40 @@ def load_kitchen_policy(config: KitchenPPOConfig, pack_root: Path) -> BrainPolic
     return policy
 
 
+def demonstration_features(
+    policy: BrainPolicy, base_run: Path, batch: int = 64
+) -> tuple[mx.array, mx.array]:
+    """Connectome features and actions of the base run's own training demonstrations.
+
+    These are exactly the episodes the imitation run trained on: the dataset episodes listed
+    as training in its splits.json plus its DART episodes (dart.npz). Each episode is replayed
+    through the frozen encoder and connectome from a zero state, as in imitation, and only the
+    valid steps are kept. The encoder must stay frozen during PPO for these to remain exact.
+    """
+    from flyarm.benchmarks import kitchen
+
+    config = kitchen_base_config(base_run)
+    splits = json.loads((base_run / "splits.json").read_text())
+    data = kitchen.load(config.split)
+    rows = np.flatnonzero(np.isin(data.episode_ids, splits["train_episode_ids"]))
+    parts = [data.subset(rows)]
+    dart_path = base_run / "dart.npz"
+    if dart_path.is_file():
+        dart = np.load(dart_path)
+        parts.append({key: dart[key] for key in ("obs", "actions", "mask")})
+    features, actions = [], []
+    for part in parts:
+        for start in range(0, len(part["obs"]), batch):
+            obs = part["obs"][start : start + batch]
+            mask = part["mask"][start : start + batch] > 0
+            rollout = rollout_for(policy, len(obs))
+            steps = [np.asarray(rollout.features(obs[:, t])) for t in range(obs.shape[1])]
+            stacked = np.stack(steps, axis=1)  # [episodes, steps, features]
+            features.append(stacked[mask])
+            actions.append(part["actions"][start : start + batch][mask])
+    return mx.array(np.concatenate(features)), mx.array(np.concatenate(actions))
+
+
 def run_kitchen_ppo(config: KitchenPPOConfig, pack_root: Path, output: Path) -> dict[str, Any]:
     """Build the starting policy, score it, train it with PPO and save everything."""
     from flyarm.experiment import save_json
@@ -314,8 +350,17 @@ def run_kitchen_ppo(config: KitchenPPOConfig, pack_root: Path, output: Path) -> 
         "base_kind": None if config.from_scratch else config.base_kind,
     }
     save_json(output / "results.json", results)
+    demonstrations = None
+    if config.bc_weight > 0:
+        if not isinstance(policy, BrainPolicy):
+            raise ValueError("The DAPG term is defined for a warm-started brain policy")
+        demonstrations = demonstration_features(policy, Path(config.base_run))
+        results["demonstration_steps"] = int(demonstrations[0].shape[0])
+        print(f"DAPG term on {demonstrations[0].shape[0]} demonstration steps", flush=True)
     try:
-        run = train_ppo(policy, task, output, config, eval_seeds, select_seeds)
+        run = train_ppo(
+            policy, task, output, config, eval_seeds, select_seeds, demonstrations=demonstrations
+        )
     except (Exception, KeyboardInterrupt) as error:
         results.update(status="failed", error=f"{type(error).__name__}: {error}")
         save_json(output / "results.json", results)

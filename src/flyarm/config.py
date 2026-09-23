@@ -455,6 +455,15 @@ class KitchenPPOConfig(BaseModel):
     # rebased without payment when a completion moves the target: idleness then pays exactly 0,
     # it telescopes, and it does not enter the per-step maximum or the E34 floor.
     task_shaping_form: Literal["level", "potential"] = "level"
+    # Demonstration-augmented PPO (DAPG, Rajeswaran et al. 2018): add bc_weight * bc_decay^k x
+    # the squared error between the policy mean and the demonstrated action to the PPO loss at
+    # iteration k, on the base run's own training demonstrations. It keeps a warm-started policy
+    # from trading a demonstrated skill for a rewarded one (research log E46). 0, the default,
+    # leaves every earlier run unchanged; above 0 it needs a warm start and a frozen encoder,
+    # because the demonstrations' connectome features are computed once, before training.
+    bc_weight: float = Field(default=0.0, ge=0, le=1000)
+    bc_decay: float = Field(default=1.0, gt=0, le=1)
+    bc_minibatch: int = Field(default=1024, ge=32, le=100_000)
     neural_steps: int = Field(default=3, ge=1, le=8)
     eval_every: int = Field(default=50, ge=1)
     eval_episodes: int = Field(default=20, ge=1, le=256)
@@ -470,6 +479,8 @@ class KitchenPPOConfig(BaseModel):
     def bonus_outweighs_stalling(self) -> KitchenPPOConfig:
         if self.best_on not in self.eval_variants:
             raise ValueError("best_on must name one of self.eval_variants")
+        if self.bc_weight > 0 and (self.from_scratch or self.encoder_lr > 0):
+            raise ValueError("bc_weight needs a warm start and a frozen encoder (encoder_lr 0)")
         if self.controller == "mlp" and (not self.from_scratch or self.encoder_lr > 0):
             raise ValueError("controller 'mlp' trains from scratch and has no encoder to train")
         # flyarm.rl.batched_kitchen.MAX_STEP_REWARD, plus the Gaussian reference term when it
