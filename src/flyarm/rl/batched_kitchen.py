@@ -205,6 +205,9 @@ SHAPING_SCOPES = ("target", "sum")
 #   payment whenever a completion moves the target. Idleness pays exactly 0 by construction, it
 #   telescopes, and so it adds nothing to the per-step maximum or the E34 floor.
 TASK_SHAPING_FORMS = ("level", "potential")
+# Which completions pay the bonus: "any" (every run before research log E47) or "split_order",
+# where a task pays only once every earlier task of the split is done, as the demonstrations do.
+COMPLETION_ORDERS = ("any", "split_order")
 PROGRESS_EPSILON = 0.05  # normalised progress that counts as "this element has started moving"
 REFERENCE_SPLIT = "complete"
 
@@ -354,6 +357,7 @@ class BatchedKitchen:
         shaping_scope: str = "target",
         task_shaping_weight: float = 1.0,
         task_shaping_form: str = "level",
+        completion_order: str = "any",
         tracking_sigma: float = TRACKING_SIGMA,
         reference_episode: int = 0,
         terminate_on_all_tasks: bool = True,
@@ -378,6 +382,9 @@ class BatchedKitchen:
         self.target_rule, self.shaping_scope = target_rule, shaping_scope
         self.task_shaping_weight = float(task_shaping_weight)
         self.task_shaping_form = task_shaping_form
+        if completion_order not in COMPLETION_ORDERS:
+            raise ValueError(f"completion_order must be one of {COMPLETION_ORDERS}")
+        self.completion_order = completion_order
         self.tracking_weight = float(tracking_weight)
         self.tracking_form = tracking_form
         self.tracking_sigma = float(tracking_sigma)
@@ -496,6 +503,10 @@ class BatchedKitchen:
         else:
             index = np.where(remaining, self._target_score(), -np.inf).argmax(1)
         return np.where(remaining.any(1), index, len(self.tasks))
+
+    def leading_completed(self) -> np.ndarray:
+        """[N] how many of the split's tasks are completed in order from the first."""
+        return np.cumprod(self.completed, axis=1).sum(1)
 
     def element_travel(self) -> np.ndarray:
         """[N, tasks] how far each element has moved toward its goal, in radians, never negative."""
@@ -683,8 +694,15 @@ class BatchedKitchen:
         distance = self.goal_distance()
         target = self.target()
         was_completed = self.completed.copy()
+        leading_before = self.leading_completed()
         self.completed |= distance < BONUS_THRESH
         newly = (self.completed & ~was_completed & ~self.preset).sum(1)
+        # "split_order" pays a task's bonus only once every earlier task of the split is done,
+        # so the bonus counts the growth of the completed prefix; the benchmark's own count,
+        # reported in StepResult, still takes any order.
+        paid = newly
+        if self.completion_order == "split_order":
+            paid = self.leading_completed() - leading_before
         rows, shaped = np.arange(self.num_envs), np.minimum(target, len(self.tasks) - 1)
         tracking = self.tracking_reward()
         if self.task_shaping_form == "potential":
@@ -709,7 +727,7 @@ class BatchedKitchen:
                 self.approach_slope,
             )
         reward = assemble_reward(
-            task_term, newly, self.completion_bonus, tracking, self.tracking_weight
+            task_term, paid, self.completion_bonus, tracking, self.tracking_weight
         )
         self.previous_potential = self.potential()
         self.previous_task_potential = self.task_potential(self.target())

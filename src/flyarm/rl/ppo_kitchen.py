@@ -59,6 +59,7 @@ def evaluate_kitchen(
         shaping_scope=settings.shaping_scope,
         task_shaping_weight=settings.task_shaping_weight,
         task_shaping_form=settings.task_shaping_form,
+        completion_order=settings.completion_order,
         tracking_sigma=settings.tracking_sigma,
         reference_episode=settings.reference_episode,
     )
@@ -120,6 +121,7 @@ class KitchenTask:
             shaping_scope=self.settings.shaping_scope,
             task_shaping_weight=self.settings.task_shaping_weight,
             task_shaping_form=self.settings.task_shaping_form,
+            completion_order=self.settings.completion_order,
             tracking_sigma=self.settings.tracking_sigma,
             reference_episode=self.settings.reference_episode,
         )

@@ -455,6 +455,11 @@ class KitchenPPOConfig(BaseModel):
     # rebased without payment when a completion moves the target: idleness then pays exactly 0,
     # it telescopes, and it does not enter the per-step maximum or the E34 floor.
     task_shaping_form: Literal["level", "potential"] = "level"
+    # Which completions pay the bonus. "any", the default and the rule of every run before
+    # research log E47, pays each newly completed task; "split_order" pays a task only once every
+    # earlier task of the split is done, the order of the demonstrations. The reported score
+    # always counts any order, as the benchmark does.
+    completion_order: Literal["any", "split_order"] = "any"
     # Demonstration-augmented PPO (DAPG, Rajeswaran et al. 2018): add bc_weight * bc_decay^k x
     # the squared error between the policy mean and the demonstrated action to the PPO loss at
     # iteration k, on the base run's own training demonstrations. It keeps a warm-started policy

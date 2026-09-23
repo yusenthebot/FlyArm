@@ -580,3 +580,28 @@ def test_task_shaping_weight_scales_the_terms_and_zero_leaves_the_bonus_alone() 
         BatchedKitchen(1, task_shaping_form="derivative")
     with pytest.raises(ValueError, match="shaping_scope 'target'"):
         BatchedKitchen(1, task_shaping_form="potential", shaping_scope="sum")
+
+
+def test_split_order_pays_a_task_only_once_the_earlier_ones_are_done() -> None:
+    def place(env: BatchedKitchen, index: int) -> None:
+        env.qpos[0, env._element_indices[index]] = env._element_goals[index]
+        env.qvel[0, env._element_dofs[index]] = 0.0
+        env.batch.forward(np.array([0]))
+
+    bonus = 200.0
+    for order, kettle_pays in (("any", True), ("split_order", False)):
+        env = BatchedKitchen(
+            1, completion_order=order, completion_bonus=bonus, task_shaping_weight=0.0
+        )
+        env.reset(seeds=np.array([0]))
+        kettle = env.tasks.index("kettle")
+        place(env, kettle)
+        first = env.step(np.zeros((1, 9)))
+        assert first.newly_completed.tolist() == [1]  # the benchmark counts it either way
+        assert (first.reward[0] >= bonus) == kettle_pays
+        place(env, 0)  # the microwave, first of the split
+        second = env.step(np.zeros((1, 9)))
+        paid = 2 if order == "split_order" else 1  # the kettle's deferred bonus arrives now
+        assert second.reward[0] == pytest.approx(paid * bonus, abs=1.0)
+    with pytest.raises(ValueError, match="completion_order"):
+        BatchedKitchen(1, completion_order="whatever")
