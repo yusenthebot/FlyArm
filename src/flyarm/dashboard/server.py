@@ -8,7 +8,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, HTMLResponse
 
 from flyarm.dashboard.catalog import (
@@ -62,8 +62,8 @@ def create_dashboard_app(repo: Path) -> FastAPI:
         return gallery(roots(), repo / "docs" / "featured-videos.json")
 
     @app.get("/api/live")
-    def live_clips() -> dict[str, Any]:
-        return live(roots())
+    def live_clips(include_inactive: bool = Query(False, alias="all")) -> dict[str, Any]:
+        return live(roots(), include_inactive=include_inactive)
 
     @app.get("/media/{label}/{relative:path}")
     def media(label: str, relative: str) -> FileResponse:
