@@ -669,3 +669,22 @@ def test_demonstration_resets_load_demo_states_and_their_finished_tasks() -> Non
     # A task the demonstration had already done is not earned again.
     result = env.step(np.zeros((64, 9)))
     assert not (result.completed & env.preset & (result.newly_completed[:, None] > 0)).any()
+
+
+def test_final_strict_bonus_pays_for_elements_left_at_their_goal() -> None:
+    env = BatchedKitchen(
+        1,
+        horizon=20,
+        final_strict_bonus=50.0,
+        task_shaping_weight=0.0,
+        terminate_on_all_tasks=False,
+    )
+    env.reset(seeds=np.array([0]))
+    index = env.tasks.index("slide cabinet")
+    env.qpos[0, env._element_indices[index]] = env._element_goals[index]
+    env.qvel[0, env._element_dofs[index]] = 0.0
+    env.batch.forward(np.array([0]))
+    rewards = [env.step(np.zeros((1, 9)), auto_reset=False).reward[0] for _ in range(20)]
+    assert rewards[0] == pytest.approx(200.0, abs=1.0)  # the completion bonus
+    assert all(abs(r) < 1.0 for r in rewards[1:-1])
+    assert rewards[-1] == pytest.approx(50.0, abs=1.0)  # held at the end

@@ -400,6 +400,7 @@ class BatchedKitchen:
         quality: QualityWeights | None = None,
         strict_bonus_fraction: float = 0.0,
         completion_threshold: float = BONUS_THRESH,
+        final_strict_bonus: float = 0.0,
     ) -> None:
         if num_envs < 1 or horizon < 20:
             raise ValueError("num_envs must be positive and horizon at least 20")
@@ -478,6 +479,12 @@ class BatchedKitchen:
         if completion_threshold != BONUS_THRESH and task_shaping_form == "level":
             raise ValueError("a stricter completion_threshold needs the potential task form")
         self.completion_threshold = float(completion_threshold)
+        # Paid once, on an episode's last step, for every element of the split that then sits
+        # within STRICT_THRESHOLD of its goal: a task has to be finished and left finished
+        # (research log E54: the kettle reaches 0.1 from demonstration states and drifts back).
+        if final_strict_bonus < 0:
+            raise ValueError("final_strict_bonus must be non-negative")
+        self.final_strict_bonus = float(final_strict_bonus)
         self._contact_any, self._contact_task = contact_addresses(model, self.tasks)
         if self.quality.collision and (self._contact_task < 0).any():
             raise ValueError("collision_weight needs a contact body for every task")
@@ -508,6 +515,7 @@ class BatchedKitchen:
         # Done for the reward (completion_threshold); equal to completed at the default 0.3.
         self.reward_done = np.zeros((n, t), dtype=bool)
         self.strict_reached = np.zeros((n, t), dtype=bool)
+        self.strict_at_start = np.zeros((n, t), dtype=bool)
         self.preset = np.zeros((n, t), dtype=bool)
         self.prefix = np.zeros(n, dtype=np.int64)
         self.initial_goal_distance = np.ones((n, t))
@@ -722,6 +730,7 @@ class BatchedKitchen:
         self.completed[ids] = self.preset[ids]
         self.reward_done[ids] = self.preset[ids]
         self.strict_reached[ids] = self.preset[ids]
+        self.strict_at_start[ids] = (self.goal_distance() < STRICT_THRESHOLD)[ids]
         self.episode_seed[ids] = seeds
         distance = self.goal_distance()
         self.initial_goal_distance[ids] = np.maximum(distance[ids], BONUS_THRESH + 1e-6)
@@ -875,6 +884,11 @@ class BatchedKitchen:
         tasks_completed = (self.completed & ~self.preset).sum(1)
         terminated = (tasks_completed == len(self.tasks)) & self.terminate_on_all_tasks
         truncated = self.steps >= self.horizon
+        if self.final_strict_bonus:
+            held = ((distance < STRICT_THRESHOLD) & ~self.strict_at_start).sum(1)
+            reward = reward + (self.final_strict_bonus * held * (truncated | terminated)).astype(
+                np.float32
+            )
         result = StepResult(
             obs=observation,
             reward=reward,
