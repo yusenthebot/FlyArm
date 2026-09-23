@@ -1,6 +1,12 @@
 [
  {
   "root": "main",
+  "path": "ppo-kitchen-dapg-ordered-potential-001/videos/iteration1000-perturbed-episode0-four-tasks.mp4",
+  "title": "Kitchen: the fly connectome completes all four tasks",
+  "note": "Frozen complete MaleCNS with trained linear input and output maps; imitation, then PPO with a demonstration term (DAPG), a completion bonus paid in the demonstrations' order and potential-based task shaping. Official FrankaKitchen environment, 0.2 rad perturbed start never trained on: 92.5 over 20 test episodes, all four tasks in 17 of 20."
+ },
+ {
+  "root": "main",
   "path": "ppo-pick-place-hard-push2-s3-001/videos/heavier_6_10x-before-after.mp4",
   "title": "Harder physics: cubes 6 to 10x heavier, before and after PPO",
   "note": "Frozen complete MaleCNS, PPO on the linear output map with randomized mass and friction and the corrected success bonus. On the 24 held-out test episodes of this variant the validation-selected checkpoint places 17 (from 1 before PPO) and lifts all 24; nominal goes 19 to 24 of 24 and goals within 18 cm 12 to 19. Three episodes shown: before, all three end holding the cube; after, two placed."
