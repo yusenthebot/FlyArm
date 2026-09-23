@@ -143,6 +143,7 @@ from mjbatch import Batch
 from flyarm.benchmarks import _robotics_compat, kitchen
 from flyarm.rl.batched_pick_place import simulation_threads
 from flyarm.rl.kitchen_quality import (
+    STRICT_THRESHOLD,
     QualityWeights,
     action_costs,
     build_model_with_contact_sensors,
@@ -374,6 +375,7 @@ class BatchedKitchen:
         terminate_on_all_tasks: bool = True,
         tasks: tuple[str, ...] = COMPLETE_TASKS,
         quality: QualityWeights | None = None,
+        strict_bonus_fraction: float = 0.0,
     ) -> None:
         if num_envs < 1 or horizon < 20:
             raise ValueError("num_envs must be positive and horizon at least 20")
@@ -436,6 +438,12 @@ class BatchedKitchen:
         # The benchmark's model plus contact counters, which leave its physics untouched.
         self.model = model = build_model_with_contact_sensors(specs.xml_path, self.tasks)
         self.quality = quality or QualityWeights()
+        # Share of each completion bonus held back until the element comes within
+        # STRICT_THRESHOLD of its goal (kitchen_quality, research log E51); 0 pays it all at the
+        # benchmark's threshold, as every earlier run did.
+        if not 0 <= strict_bonus_fraction < 1:
+            raise ValueError("strict_bonus_fraction must be in [0, 1)")
+        self.strict_bonus_fraction = float(strict_bonus_fraction)
         self._contact_any, self._contact_task = contact_addresses(model, self.tasks)
         if self.quality.collision and (self._contact_task < 0).any():
             raise ValueError("collision_weight needs a contact body for every task")
@@ -463,6 +471,7 @@ class BatchedKitchen:
         n, t = num_envs, len(self.tasks)
         self.steps = np.zeros(n, dtype=np.int64)
         self.completed = np.zeros((n, t), dtype=bool)
+        self.strict_reached = np.zeros((n, t), dtype=bool)
         self.preset = np.zeros((n, t), dtype=bool)
         self.prefix = np.zeros(n, dtype=np.int64)
         self.initial_goal_distance = np.ones((n, t))
@@ -667,6 +676,7 @@ class BatchedKitchen:
         self.batch.forward(ids)
         self.steps[ids] = 0
         self.completed[ids] = self.preset[ids]
+        self.strict_reached[ids] = self.preset[ids]
         self.episode_seed[ids] = seeds
         distance = self.goal_distance()
         self.initial_goal_distance[ids] = np.maximum(distance[ids], BONUS_THRESH + 1e-6)
@@ -758,6 +768,11 @@ class BatchedKitchen:
         paid = newly
         if self.completion_order == "split_order":
             paid = self.leading_completed() - leading_before
+        close = distance < STRICT_THRESHOLD
+        newly_strict = (close & ~self.strict_reached & ~self.preset).sum(1)
+        self.strict_reached |= close
+        fraction = self.strict_bonus_fraction
+        paid = (1.0 - fraction) * paid + fraction * newly_strict
         rows, shaped = np.arange(self.num_envs), np.minimum(target, len(self.tasks) - 1)
         tracking = self.tracking_reward()
         if self.task_shaping_form == "potential":

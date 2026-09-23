@@ -605,3 +605,27 @@ def test_split_order_pays_a_task_only_once_the_earlier_ones_are_done() -> None:
         assert second.reward[0] == pytest.approx(paid * bonus, abs=1.0)
     with pytest.raises(ValueError, match="completion_order"):
         BatchedKitchen(1, completion_order="whatever")
+
+
+def test_strict_bonus_share_is_paid_only_close_to_the_goal() -> None:
+    env = BatchedKitchen(
+        1, strict_bonus_fraction=0.5, completion_bonus=200.0, task_shaping_weight=0.0
+    )
+    env.reset(seeds=np.array([0]))
+    index = env.tasks.index("slide cabinet")
+    goal = env._element_goals[index]
+    start = env.qpos[0, env._element_indices[index]].copy()
+    # Within the benchmark's 0.3 but not the strict 0.1: half the bonus.
+    env.qpos[0, env._element_indices[index]] = goal + 0.2 * np.sign(start - goal)
+    env.batch.forward(np.array([0]))
+    first = env.step(np.zeros((1, 9)))
+    assert first.newly_completed.tolist() == [1]
+    assert first.reward[0] == pytest.approx(100.0, abs=1.0)
+    # Now all the way: the other half.
+    env.qpos[0, env._element_indices[index]] = goal
+    env.qvel[0, env._element_dofs[index]] = 0.0
+    env.batch.forward(np.array([0]))
+    second = env.step(np.zeros((1, 9)))
+    assert second.reward[0] == pytest.approx(100.0, abs=1.0)
+    with pytest.raises(ValueError, match="strict_bonus_fraction"):
+        BatchedKitchen(1, strict_bonus_fraction=1.0)
