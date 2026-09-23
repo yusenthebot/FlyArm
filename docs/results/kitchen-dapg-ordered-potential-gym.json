@@ -1,0 +1,46 @@
+{
+ "0700-nominal": {
+  "score": 50.0,
+  "sem": 0.0,
+  "all_four": 0,
+  "per_task": {
+   "microwave": 1.0,
+   "kettle": 1.0,
+   "light switch": 0.0,
+   "slide cabinet": 0.0
+  }
+ },
+ "0700-perturbed": {
+  "score": 53.75,
+  "sem": 4.165570031125456,
+  "all_four": 2,
+  "per_task": {
+   "microwave": 1.0,
+   "kettle": 0.9,
+   "light switch": 0.1,
+   "slide cabinet": 0.15
+  }
+ },
+ "1000-nominal": {
+  "score": 70.0,
+  "sem": 5.318784981949404,
+  "all_four": 7,
+  "per_task": {
+   "microwave": 1.0,
+   "kettle": 1.0,
+   "light switch": 0.45,
+   "slide cabinet": 0.35
+  }
+ },
+ "1000-perturbed": {
+  "score": 92.5,
+  "sem": 4.095890109545627,
+  "all_four": 17,
+  "per_task": {
+   "microwave": 1.0,
+   "kettle": 1.0,
+   "light switch": 0.85,
+   "slide cabinet": 0.85
+  }
+ }
+}
