@@ -560,3 +560,7 @@ Decision rule for the regime runs, against the E26 68-motor unit_norm run (valid
 If one is better: run it on kitchen seeds 0 to 2 with the fly and a shuffle, same protocol as E11 (kitchen protocol v3 candidate).
 If neither is: widen the proprioceptive channel from 23 to all 41 left front-leg proprioceptive neurons (class mechanosensory_proprioceptive on the ProLN; the current rule misses 18 labelled subclass "leg").
 Morning deliverables: updated tables, labelled videos of the best new checkpoints (v2 connectome seeds 0 and 3, the best kitchen run), dashboard featured entries, a summary for the user.
+
+## Paused 2026-09-22 23:20 (user: get the measured connectome working first, controls later)
+Paused with SIGSTOP, progress kept (resume with kill -CONT on the Python process): runs/ppo-pick-place-push2-s3-bonus-shuffled-001 (pid 10998, iteration about 100; placement had fallen from 22/48 to 3 to 11/48 while lifts stayed at 45 to 47/48), runs/ppo-kitchen-mlp-nominal-001 (pid 13316) and runs/ppo-pick-place-mlp-001 (pid 8788, 6.6 M steps, still no lift).
+Running on the measured connectome: runs/ppo-kitchen-dapg-decay-nominal-001, runs/ppo-kitchen-dapg-const-nominal-001 and runs/ppo-kitchen-curriculum-nominal-001, all trained and selected on the unperturbed start (user decision), with the perturbed score reported only.
