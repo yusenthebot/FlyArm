@@ -16,7 +16,21 @@ It runs in real time on a Mac (MLX, 4 ms per control step).
 - **Biologically mapped I/O.** In FrankaKitchen the arm is the fly's left front leg: joint angles enter through its 23 leg proprioceptors, the scene through 4,868 head sensory neurons, and actions are read from its 68 leg motor neurons, all selected by annotation rules.
 - **Causal controls, as in neuroscience.** Every result is compared with a degree-preserving shuffle of the same CNS, a parameter-matched GRU and an MLP, and checked with lesions: edges off, direct synapses only, deafferentation, state reset every step.
 
-## Results so far
+## Milestone: FrankaKitchen solved by the frozen connectome
+
+With only the two linear maps trained (imitation, then PPO with a demonstration term, an ordered completion bonus and potential-based shaping), the Franka completes all four kitchen-complete tasks in every test episode of the official environment:
+
+| Start (50 test episodes each) | Benchmark score | All four tasks | Strict score, motion-quality controller |
+|---|---:|---:|---:|
+| Benchmark start | 100.0 | 50/50 | 69.5 |
+| 0.2 rad perturbed (never trained on) | 100.0 | 50/50 | 70.5 |
+| 0.3 rad perturbed (never trained on) | 100.0 | 50/50 | 68.0 |
+
+Replicated on three PPO seeds; controls for the RL stage are still to run, so a wiring advantage is not claimed.
+Details, recipe, videos and open items: [kitchen milestone](docs/MILESTONE_KITCHEN.md).
+Pick and place after PPO on the output map: 95.8%, 97.9% and 91.7% placement over three seeds (48 test episodes each).
+
+## Earlier results
 
 Real-contact pick and place, 3 training seeds x 24 held-out episodes:
 

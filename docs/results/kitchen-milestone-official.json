@@ -1,0 +1,126 @@
+{
+ "four-task (E49)": {
+  "checkpoint": "runs/ppo-kitchen-dapg-ordered-potential-continue-001/policy-0600.safetensors",
+  "conditions": {
+   "benchmark start": {
+    "episodes": 50,
+    "benchmark_score": 100.0,
+    "all_four": 50,
+    "strict_score": 50.0,
+    "strict_per_task": {
+     "microwave": 1.0,
+     "kettle": 0.0,
+     "light switch": 1.0,
+     "slide cabinet": 0.0
+    },
+    "final_distance_median": {
+     "microwave": 0.09015503734709562,
+     "kettle": 0.22609189174525285,
+     "light switch": 0.004043710188287166,
+     "slide cabinet": 0.20365649158756619
+    },
+    "saturated_fraction": 0.4712777777777778
+   },
+   "0.2 rad perturbed": {
+    "episodes": 50,
+    "benchmark_score": 100.0,
+    "all_four": 50,
+    "strict_score": 50.0,
+    "strict_per_task": {
+     "microwave": 1.0,
+     "kettle": 0.0,
+     "light switch": 1.0,
+     "slide cabinet": 0.0
+    },
+    "final_distance_median": {
+     "microwave": 0.08876811781259863,
+     "kettle": 0.2379705884644098,
+     "light switch": 0.003992263586646743,
+     "slide cabinet": 0.19267769738881638
+    },
+    "saturated_fraction": 0.47241269841269845
+   },
+   "0.3 rad perturbed": {
+    "episodes": 50,
+    "benchmark_score": 100.0,
+    "all_four": 50,
+    "strict_score": 50.0,
+    "strict_per_task": {
+     "microwave": 0.98,
+     "kettle": 0.0,
+     "light switch": 1.0,
+     "slide cabinet": 0.02
+    },
+    "final_distance_median": {
+     "microwave": 0.08570444979126884,
+     "kettle": 0.2457053570248099,
+     "light switch": 0.003973933284884781,
+     "slide cabinet": 0.18431371899307417
+    },
+    "saturated_fraction": 0.471936507936508
+   }
+  }
+ },
+ "motion quality (E53)": {
+  "checkpoint": "runs/ppo-kitchen-quality-demoreset-001/policy-0500.safetensors",
+  "conditions": {
+   "benchmark start": {
+    "episodes": 50,
+    "benchmark_score": 100.0,
+    "all_four": 50,
+    "strict_score": 69.5,
+    "strict_per_task": {
+     "microwave": 1.0,
+     "kettle": 0.0,
+     "light switch": 1.0,
+     "slide cabinet": 0.78
+    },
+    "final_distance_median": {
+     "microwave": 0.0031994973926205983,
+     "kettle": 0.23420412713263244,
+     "light switch": 0.0038780784610730236,
+     "slide cabinet": 0.06999999985962774
+    },
+    "saturated_fraction": 0.19414285714285712
+   },
+   "0.2 rad perturbed": {
+    "episodes": 50,
+    "benchmark_score": 97.5,
+    "all_four": 48,
+    "strict_score": 70.5,
+    "strict_per_task": {
+     "microwave": 0.98,
+     "kettle": 0.0,
+     "light switch": 0.98,
+     "slide cabinet": 0.86
+    },
+    "final_distance_median": {
+     "microwave": 0.0017914462432935818,
+     "kettle": 0.24039203589314928,
+     "light switch": 0.0038962458298505117,
+     "slide cabinet": 0.06999999985827648
+    },
+    "saturated_fraction": 0.11134920634920636
+   },
+   "0.3 rad perturbed": {
+    "episodes": 50,
+    "benchmark_score": 96.5,
+    "all_four": 46,
+    "strict_score": 68.0,
+    "strict_per_task": {
+     "microwave": 0.9,
+     "kettle": 0.0,
+     "light switch": 1.0,
+     "slide cabinet": 0.82
+    },
+    "final_distance_median": {
+     "microwave": 0.0031846970080945947,
+     "kettle": 0.2459851808079054,
+     "light switch": 0.0039405551398343786,
+     "slide cabinet": 0.06999999985900623
+    },
+    "saturated_fraction": 0.09928571428571428
+   }
+  }
+ }
+}
