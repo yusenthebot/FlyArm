@@ -1,0 +1,74 @@
+{
+ "0600-nominal": {
+  "episodes": 50,
+  "score": 100.0,
+  "sem": 0.0,
+  "all_four": 50,
+  "per_task": {
+   "microwave": 1.0,
+   "kettle": 1.0,
+   "light switch": 1.0,
+   "slide cabinet": 1.0
+  }
+ },
+ "0600-perturbed_0.2": {
+  "episodes": 50,
+  "score": 100.0,
+  "sem": 0.0,
+  "all_four": 50,
+  "per_task": {
+   "microwave": 1.0,
+   "kettle": 1.0,
+   "light switch": 1.0,
+   "slide cabinet": 1.0
+  }
+ },
+ "0600-perturbed_0.3": {
+  "episodes": 50,
+  "score": 100.0,
+  "sem": 0.0,
+  "all_four": 50,
+  "per_task": {
+   "microwave": 1.0,
+   "kettle": 1.0,
+   "light switch": 1.0,
+   "slide cabinet": 1.0
+  }
+ },
+ "0950-nominal": {
+  "episodes": 50,
+  "score": 100.0,
+  "sem": 0.0,
+  "all_four": 50,
+  "per_task": {
+   "microwave": 1.0,
+   "kettle": 1.0,
+   "light switch": 1.0,
+   "slide cabinet": 1.0
+  }
+ },
+ "0950-perturbed_0.2": {
+  "episodes": 50,
+  "score": 100.0,
+  "sem": 0.0,
+  "all_four": 50,
+  "per_task": {
+   "microwave": 1.0,
+   "kettle": 1.0,
+   "light switch": 1.0,
+   "slide cabinet": 1.0
+  }
+ },
+ "0950-perturbed_0.3": {
+  "episodes": 50,
+  "score": 100.0,
+  "sem": 0.0,
+  "all_four": 50,
+  "per_task": {
+   "microwave": 1.0,
+   "kettle": 1.0,
+   "light switch": 1.0,
+   "slide cabinet": 1.0
+  }
+ }
+}
