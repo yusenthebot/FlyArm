@@ -222,6 +222,22 @@ PROGRESS_EPSILON = 0.05  # normalised progress that counts as "this element has 
 REFERENCE_SPLIT = "complete"
 
 
+@functools.cache
+def demonstration_states(split: str = REFERENCE_SPLIT) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Every valid step of the split's demonstrations as (qpos [M, 30], qvel [M, 29], time [M]).
+
+    The 59-D benchmark observation is the full state: robot qpos (9), robot qvel (9), object
+    qpos (21), object qvel (20); the first recorded state matches the benchmark's init_qpos to
+    within its 0.006 observation noise.
+    """
+    data = kitchen.load(split)
+    rows, steps = np.nonzero(data.mask > 0)
+    obs = data.obs[rows, steps].astype(np.float64)
+    qpos = np.concatenate((obs[:, 0:9], obs[:, 18:39]), axis=1)
+    qvel = np.concatenate((obs[:, 9:18], obs[:, 39:59]), axis=1)
+    return qpos, qvel, steps.astype(np.int64)
+
+
 def minimum_completion_bonus(
     gamma: float = STALL_GAMMA, max_step_reward: float = MAX_STEP_REWARD
 ) -> float:
@@ -264,12 +280,19 @@ class KitchenVariant:
     # at the true beginning whatever the prefix bound is.
     curriculum_prefix: int = 0
     curriculum_true_start_share: float = 0.25
+    # Demonstration resets (Nair et al. 2018; Salimans and Chen 2018): this share of episodes
+    # starts from the full simulator state of a random moment of a random kitchen-complete
+    # demonstration, with the step counter at that moment, and tasks already done there count
+    # as done without a bonus. Only states are read, never actions; 0 disables it (E53).
+    demo_reset_fraction: float = 0.0
 
     def __post_init__(self) -> None:
         if not 0 <= self.initial_joint_offset <= 0.5:
             raise ValueError("initial_joint_offset must be in [0, 0.5] rad")
         if self.curriculum_prefix < 0:
             raise ValueError("curriculum_prefix must be non-negative")
+        if not 0 <= self.demo_reset_fraction < 1:
+            raise ValueError("demo_reset_fraction must be in [0, 1)")
         if not 0 <= self.curriculum_true_start_share <= 1:
             raise ValueError("curriculum_true_start_share must be in [0, 1]")
         low, high = self.kettle_mass_scale
@@ -501,6 +524,9 @@ class BatchedKitchen:
         self.previous_depth = np.zeros(n)
         self.previous_disturbance = np.zeros(n)
         self.episode_seed = np.zeros(n, dtype=np.int64)
+        self._demo = demonstration_states() if self.variant.demo_reset_fraction else None
+        self._demo_row = np.zeros(n, dtype=bool)
+        self._demo_time = np.zeros(n, dtype=np.int64)
         self._noise = [np.random.default_rng(0) for _ in range(n)]
         self._next_seed = first_seed
 
@@ -683,11 +709,16 @@ class BatchedKitchen:
                 )
                 self.qpos[row, :ARM_JOINTS] = self.specs.init_qpos[:ARM_JOINTS] + draw
             self._noise[row] = np.random.default_rng([int(seed), 2])
-            self._apply_prefix(row, int(seed))
+            if not self._apply_demo_state(row, int(seed)):
+                self._apply_prefix(row, int(seed))
         if self.variant.randomizes_physics:
             self._randomize_physics(ids, seeds)
         self.batch.forward(ids)
-        self.steps[ids] = 0
+        self.steps[ids] = self._demo_time[ids]
+        demo = ids[self._demo_row[ids]]
+        if len(demo):
+            # Tasks the demonstration had already done count as done, without a bonus.
+            self.preset[demo] = self.goal_distance()[demo] < BONUS_THRESH
         self.completed[ids] = self.preset[ids]
         self.reward_done[ids] = self.preset[ids]
         self.strict_reached[ids] = self.preset[ids]
@@ -704,6 +735,24 @@ class BatchedKitchen:
         self.previous_depth[ids] = self.depth_potential()[ids]
         self.previous_disturbance[ids] = self.disturbance_potential()[ids]
         return observation
+
+    def _apply_demo_state(self, row: int, seed: int) -> bool:
+        """Maybe load a demonstration moment into ``row``; True if it did."""
+        self._demo_row[row] = False
+        self._demo_time[row] = 0
+        if self._demo is None:
+            return False
+        generator = np.random.default_rng([seed, 5])
+        if generator.random() >= self.variant.demo_reset_fraction:
+            return False
+        qpos, qvel, time = self._demo
+        pick = int(generator.integers(len(time)))
+        self.qpos[row], self.qvel[row] = qpos[pick], qvel[pick]
+        self.preset[row] = False
+        self.prefix[row] = 0
+        self._demo_row[row] = True
+        self._demo_time[row] = min(int(time[pick]), self.horizon - 1)
+        return True
 
     def _apply_prefix(self, row: int, seed: int) -> None:
         """Place the first k elements of the split at their goals; k is drawn per environment."""

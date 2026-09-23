@@ -351,6 +351,9 @@ class KitchenVariantConfig(BaseModel):
     # Evaluation variants must leave it at 0, which keeps the reported score the benchmark's.
     curriculum_prefix: int = Field(default=0, ge=0, le=3)
     curriculum_true_start_share: float = Field(default=0.25, ge=0, le=1)
+    # Share of episodes that start from a random moment of a random demonstration (states only,
+    # research log E53); 0 disables it and evaluation never uses it.
+    demo_reset_fraction: float = Field(default=0.0, ge=0, lt=1)
 
 
 def default_kitchen_eval_variants() -> dict[str, KitchenVariantConfig]:
