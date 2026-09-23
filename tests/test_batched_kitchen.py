@@ -650,3 +650,22 @@ def test_a_stricter_completion_threshold_withholds_the_bonus_until_close() -> No
     assert env.step(np.zeros((1, 9))).reward[0] > 150.0
     with pytest.raises(ValueError, match="potential"):
         BatchedKitchen(1, completion_threshold=0.1)
+
+
+def test_demonstration_resets_load_demo_states_and_their_finished_tasks() -> None:
+    from flyarm.rl.batched_kitchen import KitchenVariant, demonstration_states
+
+    qpos, qvel, time = demonstration_states()
+    assert qpos.shape[1] == 30 and qvel.shape[1] == 29 and len(time) == len(qpos)
+    env = BatchedKitchen(64, variant=KitchenVariant(demo_reset_fraction=0.5))
+    env.reset(seeds=np.arange(64))
+    demo = env._demo_row
+    assert 16 < demo.sum() < 48  # about half
+    assert (env.steps[~demo] == 0).all() and (env.steps[demo] > 0).any()
+    # Every demo-started row sits on a recorded state, and tasks done there are preset.
+    done = env.goal_distance() < 0.3
+    assert (env.preset[demo] == done[demo]).all()
+    assert not env.preset[~demo].any()
+    # A task the demonstration had already done is not earned again.
+    result = env.step(np.zeros((64, 9)))
+    assert not (result.completed & env.preset & (result.newly_completed[:, None] > 0)).any()
