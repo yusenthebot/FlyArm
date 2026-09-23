@@ -629,3 +629,24 @@ def test_strict_bonus_share_is_paid_only_close_to_the_goal() -> None:
     assert second.reward[0] == pytest.approx(100.0, abs=1.0)
     with pytest.raises(ValueError, match="strict_bonus_fraction"):
         BatchedKitchen(1, strict_bonus_fraction=1.0)
+
+
+def test_a_stricter_completion_threshold_withholds_the_bonus_until_close() -> None:
+    env = BatchedKitchen(
+        1, completion_threshold=0.1, completion_bonus=200.0, task_shaping_form="potential"
+    )
+    env.reset(seeds=np.array([0]))
+    index = env.tasks.index("slide cabinet")
+    goal = env._element_goals[index]
+    start = env.qpos[0, env._element_indices[index]].copy()
+    env.qpos[0, env._element_indices[index]] = goal + 0.2 * np.sign(start - goal)
+    env.batch.forward(np.array([0]))
+    first = env.step(np.zeros((1, 9)))
+    assert first.newly_completed.tolist() == [1]  # the benchmark counts it at 0.3
+    assert first.reward[0] < 50.0  # but the reward does not pay the bonus yet
+    env.qpos[0, env._element_indices[index]] = goal
+    env.qvel[0, env._element_dofs[index]] = 0.0
+    env.batch.forward(np.array([0]))
+    assert env.step(np.zeros((1, 9))).reward[0] > 150.0
+    with pytest.raises(ValueError, match="potential"):
+        BatchedKitchen(1, completion_threshold=0.1)

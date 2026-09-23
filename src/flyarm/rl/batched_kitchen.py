@@ -376,6 +376,7 @@ class BatchedKitchen:
         tasks: tuple[str, ...] = COMPLETE_TASKS,
         quality: QualityWeights | None = None,
         strict_bonus_fraction: float = 0.0,
+        completion_threshold: float = BONUS_THRESH,
     ) -> None:
         if num_envs < 1 or horizon < 20:
             raise ValueError("num_envs must be positive and horizon at least 20")
@@ -444,6 +445,16 @@ class BatchedKitchen:
         if not 0 <= strict_bonus_fraction < 1:
             raise ValueError("strict_bonus_fraction must be in [0, 1)")
         self.strict_bonus_fraction = float(strict_bonus_fraction)
+        # The distance at which the *reward* counts a task as done: it pays the bonus, advances
+        # the ordered prefix and moves the shaping target on. The benchmark's own 0.3 still
+        # decides what is reported, so a stricter value only makes training demand more
+        # (research log E52: at 0.3 the kettle needs a 0.11 nudge from its 0.41 start and the
+        # controller pushes it just over the line).
+        if not 0 < completion_threshold <= BONUS_THRESH:
+            raise ValueError(f"completion_threshold must be in (0, {BONUS_THRESH}]")
+        if completion_threshold != BONUS_THRESH and task_shaping_form == "level":
+            raise ValueError("a stricter completion_threshold needs the potential task form")
+        self.completion_threshold = float(completion_threshold)
         self._contact_any, self._contact_task = contact_addresses(model, self.tasks)
         if self.quality.collision and (self._contact_task < 0).any():
             raise ValueError("collision_weight needs a contact body for every task")
@@ -471,6 +482,8 @@ class BatchedKitchen:
         n, t = num_envs, len(self.tasks)
         self.steps = np.zeros(n, dtype=np.int64)
         self.completed = np.zeros((n, t), dtype=bool)
+        # Done for the reward (completion_threshold); equal to completed at the default 0.3.
+        self.reward_done = np.zeros((n, t), dtype=bool)
         self.strict_reached = np.zeros((n, t), dtype=bool)
         self.preset = np.zeros((n, t), dtype=bool)
         self.prefix = np.zeros(n, dtype=np.int64)
@@ -523,7 +536,7 @@ class BatchedKitchen:
 
     def element_progress(self) -> np.ndarray:
         """[N, tasks] normalised progress: 0 at the episode start, 1 at the completion threshold."""
-        span = np.maximum(self.initial_goal_distance - BONUS_THRESH, 1e-6)
+        span = np.maximum(self.initial_goal_distance - self.completion_threshold, 1e-6)
         return np.clip((self.initial_goal_distance - self.goal_distance()) / span, 0.0, 1.0)
 
     def handle_distances(self) -> np.ndarray:
@@ -533,7 +546,7 @@ class BatchedKitchen:
 
     def target(self) -> np.ndarray:
         """[N] index of the uncompleted task the shaping is paid for (len when all are done)."""
-        remaining = ~self.completed
+        remaining = ~self.reward_done
         if self.target_rule == "split_order":
             index = remaining.argmax(1)
         else:
@@ -550,7 +563,7 @@ class BatchedKitchen:
 
     def leading_completed(self) -> np.ndarray:
         """[N] how many of the split's tasks are completed in order from the first."""
-        return np.cumprod(self.completed, axis=1).sum(1)
+        return np.cumprod(self.reward_done, axis=1).sum(1)
 
     def element_travel(self) -> np.ndarray:
         """[N, tasks] how far each element has moved toward its goal, in radians, never negative."""
@@ -635,7 +648,7 @@ class BatchedKitchen:
                 robot_qvel,
                 object_qvel,
                 self.goal_distance(),
-                self.completed.astype(np.float64),
+                self.reward_done.astype(np.float64),
             ),
             axis=1,
         ).astype(np.float32)
@@ -676,6 +689,7 @@ class BatchedKitchen:
         self.batch.forward(ids)
         self.steps[ids] = 0
         self.completed[ids] = self.preset[ids]
+        self.reward_done[ids] = self.preset[ids]
         self.strict_reached[ids] = self.preset[ids]
         self.episode_seed[ids] = seeds
         distance = self.goal_distance()
@@ -759,13 +773,16 @@ class BatchedKitchen:
         distance = self.goal_distance()
         target = self.target()
         was_completed = self.completed.copy()
+        was_done = self.reward_done.copy()
         leading_before = self.leading_completed()
         self.completed |= distance < BONUS_THRESH
+        self.reward_done |= distance < self.completion_threshold
         newly = (self.completed & ~was_completed & ~self.preset).sum(1)
+        newly_done = (self.reward_done & ~was_done & ~self.preset).sum(1)
         # "split_order" pays a task's bonus only once every earlier task of the split is done,
         # so the bonus counts the growth of the completed prefix; the benchmark's own count,
         # reported in StepResult, still takes any order.
-        paid = newly
+        paid = newly_done
         if self.completion_order == "split_order":
             paid = self.leading_completed() - leading_before
         close = distance < STRICT_THRESHOLD
@@ -785,7 +802,7 @@ class BatchedKitchen:
             task_term = self.task_shaping_weight * averaged_task_shaping(
                 self.handle_distances(),
                 self.element_progress(),
-                ~self.completed,
+                ~self.reward_done,
                 self.approach_slope,
             )
         else:
@@ -797,7 +814,7 @@ class BatchedKitchen:
                 self.approach_slope,
             )
         stray = stray_contact(
-            self.sensordata, self._contact_any, self._contact_task, target, self.completed
+            self.sensordata, self._contact_any, self._contact_task, target, self.reward_done
         )
         quality_term = self._quality_term(action, stray)
         reward = assemble_reward(
