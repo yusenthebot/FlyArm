@@ -12,14 +12,26 @@ from flyarm.rl.kitchen_quality import (
 )
 
 
-def test_only_contact_with_the_target_body_is_allowed() -> None:
+def test_only_the_target_and_finished_tasks_may_be_touched() -> None:
     # sensordata columns: [any, microwave, kettle]; row 0 touches only the kettle, its target;
-    # row 1 touches the kettle while the microwave is the target; row 2 touches nothing;
-    # row 3 has finished every task, so any contact is stray.
-    data = np.array([[2.0, 0.0, 2.0], [1.0, 0.0, 1.0], [0.0, 0.0, 0.0], [1.0, 0.0, 1.0]])
+    # row 1 touches the kettle while the microwave is the target and nothing is finished;
+    # row 2 touches nothing; row 3 has finished both and touches the kettle, which is allowed;
+    # row 4 touches the kettle and one more thing, the furniture.
+    data = np.array(
+        [[2.0, 0.0, 2.0], [1.0, 0.0, 1.0], [0.0, 0.0, 0.0], [1.0, 0.0, 1.0], [3.0, 0.0, 2.0]]
+    )
     per_task = np.array([1, 2])
-    target = np.array([1, 0, 0, 2])
-    assert stray_contact(data, 0, per_task, target).tolist() == [False, True, False, True]
+    target = np.array([1, 0, 0, 2, 1])
+    completed = np.array(
+        [[False, False], [False, False], [False, False], [True, True], [True, False]]
+    )
+    assert stray_contact(data, 0, per_task, target, completed).tolist() == [
+        False,
+        True,
+        False,
+        False,
+        True,
+    ]
 
 
 def test_depth_pays_only_the_last_stretch_and_equally_per_task() -> None:

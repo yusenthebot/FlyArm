@@ -32,7 +32,7 @@
   "task_shaping_form": "potential",
   "task_shaping_weight": 10.0,
   "terminate_on_all_tasks": false,
-  "depth_weight": 20.0,
-  "disturbance_weight": 20.0,
-  "collision_weight": 0.5
+  "depth_weight": 30.0,
+  "disturbance_weight": 50.0,
+  "collision_weight": 1.0
 }

@@ -781,7 +781,9 @@ class BatchedKitchen:
                 target < len(self.tasks),
                 self.approach_slope,
             )
-        stray = stray_contact(self.sensordata, self._contact_any, self._contact_task, target)
+        stray = stray_contact(
+            self.sensordata, self._contact_any, self._contact_task, target, self.completed
+        )
         quality_term = self._quality_term(action, stray)
         reward = assemble_reward(
             task_term + quality_term, paid, self.completion_bonus, tracking, self.tracking_weight
