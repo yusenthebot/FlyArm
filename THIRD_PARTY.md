@@ -8,6 +8,7 @@ No upstream connectome export or Menagerie mesh is committed to this repository.
 | MaleCNS v1.0, Janelia / Google / Cambridge / MRC collaboration | Real neuron annotations, contacts and NT predictions; downloaded and hash-pinned | CC BY 4.0; [official download and citation instructions](https://male-cns.janelia.org/download/) |
 | Google DeepMind MuJoCo Menagerie, Franka Emika Panda | Reused robot geometry, physics and actuators | Panda directory Apache 2.0; [source](https://github.com/google-deepmind/mujoco_menagerie/tree/822c2d8f877dd166c5b7d3c9f7e3c3b6589473b7/franka_emika_panda) |
 | MuJoCo | Physics and DLS Jacobians; no custom physics engine | Apache 2.0; [source](https://github.com/google-deepmind/mujoco) |
+| Google Scanned Objects (Downs et al., 2022), MJCF conversion by Kevin Zakka | Meshes and textures of the generalizable-grasp objects; downloaded and hash-pinned, not committed | Meshes and textures CC BY 4.0, MJCF conversion MIT; [source](https://github.com/kevinzakka/mujoco_scanned_objects/tree/6ff8d275cebfd5b47e49685e3cfbe64b20e49a3c); per-object URLs and SHA-256 in `src/flyarm/grasp/catalog/objects.json` |
 | Gymnasium | Standard reset/step spaces and seeded episode interface | MIT; [source](https://github.com/Farama-Foundation/Gymnasium) |
 | PyTorch | Autograd, sparse recurrence, standard MLP/GRU and optimizer | BSD-style; [source](https://github.com/pytorch/pytorch) |
 
