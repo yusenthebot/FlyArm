@@ -70,6 +70,30 @@ Standing still far from the reference pays ``(1 - gamma) * d`` forever instead o
 Either way, the time index has to count as part of the state for the invariance argument, which
 it does: the reference is a function of the step and the critic reads the episode fraction.
 
+Prefix curriculum (optional, ``KitchenVariant.curriculum_prefix``, default 0 so every earlier
+run is unchanged). Reward alone drives every controller to the kettle and no further: research
+log E43 measures the kettle completing by step 24 of 280, after which the shaping points at an
+element the policy cannot engage for 91% of the episode, and three different initialisations,
+including one warm-started from a checkpoint that solved the microwave, all converge on the
+kettle alone. The curriculum attacks that by starting some episodes with the first k tasks of
+the split already at their goals, so that task k+1 is the first uncompleted one and each of the
+later elements gets a shaping gradient of its own.
+
+The prefix length is drawn per environment, not per batch, so a rollout always mixes true
+starts with advanced ones, and a fixed share of environments
+(``curriculum_true_start_share``) always start at the true beginning so the policy keeps
+practising it. Pre-completed elements are placed at their goal joint positions with zero
+velocity and are marked completed at reset, so they pay no completion bonus and are never the
+shaping target. ``StepResult.tasks_completed`` counts only the tasks *earned* during the
+episode, so it stays comparable with a run that has no curriculum, and it equals the
+benchmark's own count whenever the curriculum is off.
+
+What the curriculum assumes, stated plainly: the state it constructs is reachable in principle,
+because each element's goal is a joint configuration the arm can put it in, but it is not a
+state this policy reached, and nothing guarantees the arm is posed as it would be had the policy
+got there itself. Evaluation therefore never uses it; the reported score is always the
+unmodified benchmark from the true start.
+
 ``"gaussian"`` (kept for the record, do not reach for it):
 ``tracking_weight * exp(-||q - q_ref||^2 / tracking_sigma^2)``. **This form produced a negative
 result (research log E41, runs/ppo-kitchen-scratch-004).** A learning policy sits about 5.5 rad
@@ -168,6 +192,9 @@ TARGET_RULES = (
     "moved_then_nearest",
 )
 MOVED_EPSILON = 0.02  # rad of element travel that counts as "this element has started moving"
+# Whether the approach and progress terms are paid for one target element or averaged over every
+# uncompleted one. "sum" keeps the per-step maximum at 1.0 by averaging, so E34 is unaffected.
+SHAPING_SCOPES = ("target", "sum")
 PROGRESS_EPSILON = 0.05  # normalised progress that counts as "this element has started moving"
 REFERENCE_SPLIT = "complete"
 
@@ -209,10 +236,19 @@ class KitchenVariant:
     # robot noise also enters the control law through the last observed joint positions.
     robot_noise_ratio: float = 0.0
     object_noise_ratio: float = 0.0
+    # Prefix curriculum: pre-complete up to this many of the split's first tasks, drawn per
+    # environment; 0 disables it. ``curriculum_true_start_share`` of environments always start
+    # at the true beginning whatever the prefix bound is.
+    curriculum_prefix: int = 0
+    curriculum_true_start_share: float = 0.25
 
     def __post_init__(self) -> None:
         if not 0 <= self.initial_joint_offset <= 0.5:
             raise ValueError("initial_joint_offset must be in [0, 0.5] rad")
+        if self.curriculum_prefix < 0:
+            raise ValueError("curriculum_prefix must be non-negative")
+        if not 0 <= self.curriculum_true_start_share <= 1:
+            raise ValueError("curriculum_true_start_share must be in [0, 1]")
         low, high = self.kettle_mass_scale
         if not 0 < low <= high:
             raise ValueError("kettle_mass_scale must satisfy 0 < low <= high")
@@ -223,6 +259,10 @@ class KitchenVariant:
     @property
     def randomizes_physics(self) -> bool:
         return self.kettle_mass_scale != (1.0, 1.0)
+
+    @property
+    def uses_curriculum(self) -> bool:
+        return self.curriculum_prefix > 0
 
     @property
     def adds_noise(self) -> bool:
@@ -236,11 +276,12 @@ class StepResult:
     terminated: np.ndarray  # [N] bool, all four tasks completed
     truncated: np.ndarray  # [N] bool, horizon reached
     completed: np.ndarray  # [N, 4] bool, tasks ever completed this episode (before reset)
-    tasks_completed: np.ndarray  # [N] int in 0..4 (before reset)
+    tasks_completed: np.ndarray  # [N] int earned this episode, excluding any curriculum prefix
     newly_completed: np.ndarray  # [N] int completed at this step
     target: np.ndarray  # [N] index of the task being shaped for, 4 when all are done
     goal_distance: np.ndarray  # [N, 4] element distance to its goal
     tracking: np.ndarray  # [N] the reference term actually paid this step, before its weight
+    prefix: np.ndarray  # [N] int, how many tasks the curriculum pre-completed at reset
 
 
 @dataclass(frozen=True)
@@ -300,6 +341,7 @@ class BatchedKitchen:
         tracking_weight: float = 0.0,
         tracking_form: str = "potential",
         target_rule: str = "split_order",
+        shaping_scope: str = "target",
         tracking_sigma: float = TRACKING_SIGMA,
         reference_episode: int = 0,
         terminate_on_all_tasks: bool = True,
@@ -313,7 +355,9 @@ class BatchedKitchen:
             raise ValueError(f"tracking_form must be one of {TRACKING_FORMS}")
         if target_rule not in TARGET_RULES:
             raise ValueError(f"target_rule must be one of {TARGET_RULES}")
-        self.target_rule = target_rule
+        if shaping_scope not in SHAPING_SCOPES:
+            raise ValueError(f"shaping_scope must be one of {SHAPING_SCOPES}")
+        self.target_rule, self.shaping_scope = target_rule, shaping_scope
         self.tracking_weight = float(tracking_weight)
         self.tracking_form = tracking_form
         self.tracking_sigma = float(tracking_sigma)
@@ -354,6 +398,9 @@ class BatchedKitchen:
         self._element_goals = [OBS_ELEMENT_GOALS[task] for task in self.tasks]
         self._element_sites = np.array([model.site(ELEMENT_SITES[task]).id for task in self.tasks])
         self._gripper_site = model.site(GRIPPER_SITE).id
+        # Velocity addresses of each element's joints, so a pre-completed element starts at rest.
+        # The kettle is a free joint, 7 qpos to 6 qvel, so the mapping is per joint, not per qpos.
+        self._element_dofs = [self._dofs_for(model, indices) for indices in self._element_indices]
         self._kettle_body = model.body("kettle").id
 
         b = self.batch
@@ -367,12 +414,29 @@ class BatchedKitchen:
         n, t = num_envs, len(self.tasks)
         self.steps = np.zeros(n, dtype=np.int64)
         self.completed = np.zeros((n, t), dtype=bool)
+        self.preset = np.zeros((n, t), dtype=bool)
+        self.prefix = np.zeros(n, dtype=np.int64)
         self.initial_goal_distance = np.ones((n, t))
         self.last_robot_qpos = np.zeros((n, ROBOT_JOINTS))
         self.previous_potential = np.zeros(n)
         self.episode_seed = np.zeros(n, dtype=np.int64)
         self._noise = [np.random.default_rng(0) for _ in range(n)]
         self._next_seed = first_seed
+
+    @staticmethod
+    def _dofs_for(model: Any, qpos_indices: np.ndarray) -> np.ndarray:
+        """Every velocity address of the joints that own these qpos addresses."""
+        widths = {
+            int(mujoco.mjtJoint.mjJNT_FREE): 6,
+            int(mujoco.mjtJoint.mjJNT_BALL): 3,
+        }
+        addresses: set[int] = set()
+        for qpos in qpos_indices:
+            joint = int(np.searchsorted(model.jnt_qposadr, qpos, side="right")) - 1
+            width = widths.get(int(model.jnt_type[joint]), 1)
+            start = int(model.jnt_dofadr[joint])
+            addresses.update(range(start, start + width))
+        return np.array(sorted(addresses))
 
     # State readers ------------------------------------------------------------------------
     def object_qpos(self) -> np.ndarray:
@@ -517,11 +581,12 @@ class BatchedKitchen:
                 )
                 self.qpos[row, :ARM_JOINTS] = self.specs.init_qpos[:ARM_JOINTS] + draw
             self._noise[row] = np.random.default_rng([int(seed), 2])
+            self._apply_prefix(row, int(seed))
         if self.variant.randomizes_physics:
             self._randomize_physics(ids, seeds)
         self.batch.forward(ids)
         self.steps[ids] = 0
-        self.completed[ids] = False
+        self.completed[ids] = self.preset[ids]
         self.episode_seed[ids] = seeds
         distance = self.goal_distance()
         self.initial_goal_distance[ids] = np.maximum(distance[ids], BONUS_THRESH + 1e-6)
@@ -530,6 +595,25 @@ class BatchedKitchen:
         self.last_robot_qpos[ids] = observation[ids, :ROBOT_JOINTS]
         self.previous_potential[ids] = self.potential()[ids]
         return observation
+
+    def _apply_prefix(self, row: int, seed: int) -> None:
+        """Place the first k elements of the split at their goals; k is drawn per environment."""
+        self.preset[row] = False
+        self.prefix[row] = 0
+        variant = self.variant
+        if not variant.uses_curriculum:
+            return
+        generator = np.random.default_rng([seed, 3])
+        bound = min(variant.curriculum_prefix, len(self.tasks) - 1)
+        if generator.random() < variant.curriculum_true_start_share or bound < 1:
+            return
+        prefix = int(generator.integers(1, bound + 1))
+        self.prefix[row] = prefix
+        for index in range(prefix):
+            indices = self._element_indices[index]
+            self.qpos[row, indices] = self._element_goals[index]
+            self.qvel[row, self._element_dofs[index]] = 0.0
+            self.preset[row, index] = True
 
     def _randomize_physics(self, ids: np.ndarray, seeds: np.ndarray) -> None:
         """Kettle mass (inertia scaled with it), from a stream of its own."""
@@ -565,22 +649,34 @@ class BatchedKitchen:
         target = self.target()
         was_completed = self.completed.copy()
         self.completed |= distance < BONUS_THRESH
-        newly = (self.completed & ~was_completed).sum(1)
+        newly = (self.completed & ~was_completed & ~self.preset).sum(1)
         rows, shaped = np.arange(self.num_envs), np.minimum(target, len(self.tasks) - 1)
         tracking = self.tracking_reward()
-        reward = shaped_reward(
-            self.approach_distance(target),
-            distance[rows, shaped],
-            self.initial_goal_distance[rows, shaped],
-            newly,
-            target < len(self.tasks),
-            self.completion_bonus,
-            self.approach_slope,
-            tracking,
-            self.tracking_weight,
-        )
+        if self.shaping_scope == "sum":
+            task_term = averaged_task_shaping(
+                self.handle_distances(),
+                self.element_progress(),
+                ~self.completed,
+                self.approach_slope,
+            )
+            reward = assemble_reward(
+                task_term, newly, self.completion_bonus, tracking, self.tracking_weight
+            )
+        else:
+            reward = shaped_reward(
+                self.approach_distance(target),
+                distance[rows, shaped],
+                self.initial_goal_distance[rows, shaped],
+                newly,
+                target < len(self.tasks),
+                self.completion_bonus,
+                self.approach_slope,
+                tracking,
+                self.tracking_weight,
+            )
         self.previous_potential = self.potential()
-        tasks_completed = self.completed.sum(1)
+        # Only tasks earned this episode count; a curriculum prefix is excluded.
+        tasks_completed = (self.completed & ~self.preset).sum(1)
         terminated = (tasks_completed == len(self.tasks)) & self.terminate_on_all_tasks
         truncated = self.steps >= self.horizon
         result = StepResult(
@@ -594,6 +690,7 @@ class BatchedKitchen:
             target=target,
             goal_distance=distance,
             tracking=tracking,
+            prefix=self.prefix.copy(),
         )
         done = terminated | truncated
         if auto_reset and done.any():
@@ -635,9 +732,38 @@ def shaped_reward(
     span = np.maximum(initial_goal_distance - BONUS_THRESH, 1e-6)
     progress = np.clip((initial_goal_distance - goal_distance) / span, 0.0, 1.0)
     per_step = has_target * (APPROACH_WEIGHT * approach + PROGRESS_WEIGHT * progress)
+    return assemble_reward(per_step, newly_completed, completion_bonus, tracking, tracking_weight)
+
+
+def averaged_task_shaping(
+    handle_distances: np.ndarray,
+    progress: np.ndarray,
+    remaining: np.ndarray,
+    approach_slope: float = APPROACH_SLOPE,
+) -> np.ndarray:
+    """[N] the task terms averaged over every uncompleted element instead of one target.
+
+    Averaging rather than summing keeps the per-step maximum at ``MAX_STEP_REWARD``, so the E34
+    floor is unchanged, and completing a task cannot lower the term by shrinking a numerator.
+    """
+    approach = 1.0 - np.tanh(approach_slope * handle_distances)
+    per_task = APPROACH_WEIGHT * approach + PROGRESS_WEIGHT * progress
+    count = remaining.sum(1)
+    return np.where(count > 0, (per_task * remaining).sum(1) / np.maximum(count, 1), 0.0)
+
+
+def assemble_reward(
+    task_term: np.ndarray,
+    newly_completed: np.ndarray,
+    completion_bonus: float,
+    tracking: np.ndarray | None = None,
+    tracking_weight: float = 0.0,
+) -> np.ndarray:
+    """The per-step task term, plus the optional reference term, plus the completion bonuses."""
+    total = task_term
     if tracking is not None and tracking_weight:
-        per_step = per_step + tracking_weight * tracking
-    return (per_step + completion_bonus * newly_completed).astype(np.float32)
+        total = total + tracking_weight * tracking
+    return (total + completion_bonus * newly_completed).astype(np.float32)
 
 
 def rollout(

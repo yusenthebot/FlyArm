@@ -340,6 +340,11 @@ class KitchenVariantConfig(BaseModel):
     kettle_mass_scale: tuple[float, float] = (1.0, 1.0)
     robot_noise_ratio: float = Field(default=0.0, ge=0, le=1)
     object_noise_ratio: float = Field(default=0.0, ge=0, le=1)
+    # Prefix curriculum: pre-complete up to this many of the split's first tasks, drawn per
+    # environment, with this share of environments always starting at the true beginning.
+    # Evaluation variants must leave it at 0, which keeps the reported score the benchmark's.
+    curriculum_prefix: int = Field(default=0, ge=0, le=3)
+    curriculum_true_start_share: float = Field(default=0.25, ge=0, le=1)
 
 
 def default_kitchen_eval_variants() -> dict[str, KitchenVariantConfig]:
@@ -428,6 +433,11 @@ class KitchenPPOConfig(BaseModel):
     target_rule: Literal[
         "split_order", "nearest", "progress", "progress_then_nearest", "moved", "moved_then_nearest"
     ] = "split_order"
+    # "target" pays the approach and progress terms for one element, "sum" averages them over
+    # every uncompleted element. Measured worse on both counts in research log E44 (the expert's
+    # shaping falls from 0.2636 to 0.1823 and the expert-to-random ratio from 2.5x to 1.6x), so
+    # "target" stays the default.
+    shaping_scope: Literal["target", "sum"] = "target"
     neural_steps: int = Field(default=3, ge=1, le=8)
     eval_every: int = Field(default=50, ge=1)
     eval_episodes: int = Field(default=20, ge=1, le=256)

@@ -54,6 +54,7 @@ def evaluate_kitchen(
         tracking_weight=settings.tracking_weight,
         tracking_form=settings.tracking_form,
         target_rule=settings.target_rule,
+        shaping_scope=settings.shaping_scope,
         tracking_sigma=settings.tracking_sigma,
         reference_episode=settings.reference_episode,
     )
@@ -111,6 +112,7 @@ class KitchenTask:
             tracking_weight=self.settings.tracking_weight,
             tracking_form=self.settings.tracking_form,
             target_rule=self.settings.target_rule,
+            shaping_scope=self.settings.shaping_scope,
             tracking_sigma=self.settings.tracking_sigma,
             reference_episode=self.settings.reference_episode,
         )
@@ -166,6 +168,7 @@ def scratch_kitchen_policy(config: KitchenPPOConfig, pack_root: Path) -> BrainPo
         tracking_weight=config.tracking_weight,
         tracking_form=config.tracking_form,
         target_rule=config.target_rule,
+        shaping_scope=config.shaping_scope,
         tracking_sigma=config.tracking_sigma,
         reference_episode=config.reference_episode,
     )
