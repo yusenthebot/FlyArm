@@ -24,8 +24,8 @@ import numpy as np
 
 from flyarm.config import FlyLegConfig, KitchenPPOConfig, KitchenVariantConfig
 from flyarm.rl.batched_kitchen import ACTION_DIM, OBS_DIM, BatchedKitchen, KitchenVariant
-from flyarm.rl.ppo import BrainRollout, MotorHead, train_ppo, trainable_count
-from flyarm.whole_brain.policy import BrainPolicy
+from flyarm.rl.ppo import Controller, MotorHead, rollout_for, train_ppo, trainable_count
+from flyarm.whole_brain.policy import BrainPolicy, DirectPolicy
 
 TEST_SEED = 0  # the kitchen benchmark's evaluation seeds (flyarm.flyleg.experiment)
 SELECTION_SEED = 50_000  # disjoint validation seeds, also from flyarm.flyleg.experiment
@@ -37,7 +37,7 @@ def kitchen_variant(config: KitchenVariantConfig) -> KitchenVariant:
 
 
 def evaluate_kitchen(
-    policy: BrainPolicy,
+    policy: Controller,
     head: MotorHead,
     seeds: list[int],
     settings: KitchenPPOConfig,
@@ -61,7 +61,7 @@ def evaluate_kitchen(
         reference_episode=settings.reference_episode,
     )
     obs = env.reset(seeds=np.array(seeds))
-    brain = BrainRollout(policy, len(seeds))
+    brain = rollout_for(policy, len(seeds))
     completed = np.zeros((len(seeds), len(env.tasks)), dtype=bool)
     reward = np.zeros(len(seeds))
     active = np.ones(len(seeds), dtype=bool)
@@ -144,13 +144,45 @@ class KitchenTask:
         )
 
 
-def scratch_kitchen_policy(config: KitchenPPOConfig, pack_root: Path) -> BrainPolicy:
-    """A fresh brain policy for reward-only kitchen training: no demonstrations anywhere.
+def scratch_kitchen_policy(config: KitchenPPOConfig, pack_root: Path) -> Controller:
+    """A fresh policy for reward-only kitchen training: no demonstrations anywhere.
 
-    The interface is the base run's frozen one; the encoder and decoder are random, and both
-    frozen normalizations (observation statistics and readout scale) are measured from
-    random-action rollouts, which carry no task information (research log E36).
+    For the connectome, the interface is the base run's frozen one; the encoder and decoder are
+    random, and both frozen normalizations (observation statistics and readout scale) are
+    measured from random-action rollouts, which carry no task information (research log E36).
+    The MLP control gets the same observation normalization from the same rollouts.
     """
+    env = BatchedKitchen(
+        config.scratch_envs,
+        horizon=config.horizon,
+        first_seed=SCRATCH_SEED + 10_000 * config.seed,
+        variant=kitchen_variant(config.train_variant),
+        completion_bonus=config.completion_bonus,
+        approach_slope=config.approach_slope,
+        gamma=config.gamma,
+    )
+    generator = np.random.default_rng(config.seed)
+    rows = [env.reset()]
+    for _ in range(config.scratch_steps - 1):
+        action = generator.uniform(-1.0, 1.0, (config.scratch_envs, ACTION_DIM))
+        rows.append(env.step(action, auto_reset=True).obs)
+    observations = np.stack(rows, axis=1).astype(np.float32)
+    flat = observations.reshape(-1, OBS_DIM)
+    mean, scale = flat.mean(0), np.maximum(flat.std(0), 0.05)
+    if config.controller == "mlp":
+        direct = DirectPolicy(obs_dim=OBS_DIM, action_dim=ACTION_DIM, seed=config.seed)
+        direct.set_normalization(mean, scale)
+        return direct
+    return _calibrated_brain(config, pack_root, observations, mean, scale)
+
+
+def _calibrated_brain(
+    config: KitchenPPOConfig,
+    pack_root: Path,
+    observations: np.ndarray,
+    mean: np.ndarray,
+    scale: np.ndarray,
+) -> BrainPolicy:
     from flyarm.interfaces import NeuralInterface
     from flyarm.whole_brain.backend_mlx import RateDynamics
     from flyarm.whole_brain.compiler import ConnectomePack
@@ -166,31 +198,7 @@ def scratch_kitchen_policy(config: KitchenPPOConfig, pack_root: Path) -> BrainPo
         neural_steps=config.neural_steps,
         seed=config.seed,
     )
-    env = BatchedKitchen(
-        config.scratch_envs,
-        horizon=config.horizon,
-        first_seed=SCRATCH_SEED + 10_000 * config.seed,
-        variant=kitchen_variant(config.train_variant),
-        completion_bonus=config.completion_bonus,
-        approach_slope=config.approach_slope,
-        gamma=config.gamma,
-        tracking_weight=config.tracking_weight,
-        tracking_form=config.tracking_form,
-        target_rule=config.target_rule,
-        shaping_scope=config.shaping_scope,
-        task_shaping_weight=config.task_shaping_weight,
-        task_shaping_form=config.task_shaping_form,
-        tracking_sigma=config.tracking_sigma,
-        reference_episode=config.reference_episode,
-    )
-    generator = np.random.default_rng(config.seed)
-    rows = [env.reset()]
-    for _ in range(config.scratch_steps - 1):
-        action = generator.uniform(-1.0, 1.0, (config.scratch_envs, ACTION_DIM))
-        rows.append(env.step(action, auto_reset=True).obs)
-    observations = np.stack(rows, axis=1).astype(np.float32)
-    flat = observations.reshape(-1, OBS_DIM)
-    policy.set_normalization(flat.mean(0), np.maximum(flat.std(0), 0.05))
+    policy.set_normalization(mean, scale)
     calibration = policy.calibrate_readout(
         observations,
         np.ones(observations.shape[:2], dtype=np.float32),
@@ -292,12 +300,15 @@ def run_kitchen_ppo(config: KitchenPPOConfig, pack_root: Path, output: Path) -> 
         "base": before,
         "trainable_parameters": trainable_count(head),
         "claim": (
-            "reward only: random encoder, frozen connectome, PPO trains the motor decoder"
+            "reward only: a tanh MLP trained end to end by the same PPO (deep-RL control)"
+            if config.controller == "mlp"
+            else "reward only: random encoder, frozen connectome, PPO trains the motor decoder"
             + (" and the encoder" if config.encoder_lr > 0 else "")
             if config.from_scratch
             else "PPO tunes the trained kitchen checkpoint against the shaped kitchen reward"
         ),
         "from_scratch": config.from_scratch,
+        "controller": config.controller,
         "encoder_trained": config.encoder_lr > 0,
         "base_run": config.base_run,
         "base_kind": None if config.from_scratch else config.base_kind,

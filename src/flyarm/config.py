@@ -314,6 +314,10 @@ class PPOConfig(BaseModel):
     # decoder, with both frozen normalizations measured from random-action rollouts, so no
     # demonstration touches the controller; the base run still supplies the interface.
     from_scratch: bool = False
+    # Which network PPO trains from scratch: the connectome policy, or the deep-RL control, a
+    # tanh MLP from the observation to the action (whole_brain.policy.DirectPolicy) trained by
+    # the same PPO on the same reward. "mlp" requires from_scratch and a frozen encoder.
+    controller: Literal["connectome", "mlp"] = "connectome"
     scratch_envs: int = Field(default=32, ge=1, le=512)
     scratch_steps: int = Field(default=200, ge=20, le=2000)
     neural_steps: int = Field(default=3, ge=1, le=8)
@@ -329,6 +333,8 @@ class PPOConfig(BaseModel):
     def best_variant_is_evaluated(self) -> PPOConfig:
         if self.best_on not in self.eval_variants:
             raise ValueError("best_on must name one of eval_variants")
+        if self.controller == "mlp" and (not self.from_scratch or self.encoder_lr > 0):
+            raise ValueError("controller 'mlp' trains from scratch and has no encoder to train")
         return self
 
 
@@ -372,6 +378,10 @@ class KitchenPPOConfig(BaseModel):
     # with both frozen normalizations measured from random-action rollouts, so that no
     # demonstration touches the controller (research log E36).
     from_scratch: bool = False
+    # Which network PPO trains from scratch: the connectome policy, or the deep-RL control, a
+    # tanh MLP from the observation to the action (whole_brain.policy.DirectPolicy) trained by
+    # the same PPO on the same reward. "mlp" requires from_scratch and a frozen encoder.
+    controller: Literal["connectome", "mlp"] = "connectome"
     scratch_envs: int = Field(default=32, ge=1, le=512)
     scratch_steps: int = Field(default=200, ge=20, le=2000)
     # Frozen output normalization measured on those rollouts; "unit_norm" keeps a wide readout
@@ -460,6 +470,8 @@ class KitchenPPOConfig(BaseModel):
     def bonus_outweighs_stalling(self) -> KitchenPPOConfig:
         if self.best_on not in self.eval_variants:
             raise ValueError("best_on must name one of self.eval_variants")
+        if self.controller == "mlp" and (not self.from_scratch or self.encoder_lr > 0):
+            raise ValueError("controller 'mlp' trains from scratch and has no encoder to train")
         # flyarm.rl.batched_kitchen.MAX_STEP_REWARD, plus the Gaussian reference term when it
         # is in use; the potential-based form telescopes and adds nothing to a sustained
         # trajectory. Kept as a literal so that validating a config never imports MuJoCo.

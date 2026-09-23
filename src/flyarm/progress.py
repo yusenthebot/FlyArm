@@ -19,10 +19,11 @@ import numpy as np
 
 from flyarm.config import PPOConfig
 from flyarm.experiment import save_json
+from flyarm.rl.batched_pick_place import ACTION_DIM, OBS_DIM
 from flyarm.rl.record import _episodes
 from flyarm.video import write_video
 from flyarm.whole_brain.experiment import load_trained_policy
-from flyarm.whole_brain.policy import BrainPolicy
+from flyarm.whole_brain.policy import BrainPolicy, DirectPolicy
 
 FPS = 20
 
@@ -96,12 +97,17 @@ def record_progress(
         clips, outcomes = _kitchen_frames(run, pack_root, checkpoint, seeds, title)
         return _write_clip(run, checkpoint, seeds, clips, outcomes, iteration, variant="kitchen")
     config = PPOConfig.model_validate_json((run / "config.json").read_text())
-    task, policy = load_trained_policy(
-        Path(config.base_run), config.base_kind, config.base_seed, pack_root, model_path
-    )
-    task.close()
-    if not isinstance(policy, BrainPolicy):
-        raise ValueError("Progress clips are defined for brain policies")
+    policy: BrainPolicy | DirectPolicy
+    if config.controller == "mlp":
+        policy = DirectPolicy(obs_dim=OBS_DIM, action_dim=ACTION_DIM)
+    else:
+        task, loaded = load_trained_policy(
+            Path(config.base_run), config.base_kind, config.base_seed, pack_root, model_path
+        )
+        task.close()
+        if not isinstance(loaded, BrainPolicy):
+            raise ValueError("Progress clips are defined for brain policies")
+        policy = loaded
     policy.load(checkpoint)
     title = f"{run.name} · iteration {iteration}"
     clips, outcomes = _episodes(policy, model_path, seeds, config, variant, title)

@@ -161,3 +161,31 @@ def test_advantage_clip_bounds_the_tail_and_is_off_by_default() -> None:
     assert np.allclose(clipped[:15], unclipped[:15])
     with pytest.raises(ValueError, match="advantage_clip"):
         normalized_advantages(advantages, -1.0)
+
+
+def test_mlp_control_reads_the_normalized_observation_and_checkpoints(tmp_path) -> None:
+    from flyarm.config import PPOConfig
+    from flyarm.rl.ppo import MotorHead, rollout_for
+    from flyarm.whole_brain.policy import DirectPolicy
+
+    policy = DirectPolicy(obs_dim=5, action_dim=3, hidden=16)
+    policy.set_normalization(np.full(5, 1.0), np.full(5, 2.0))
+    rollout = rollout_for(policy, 4)
+    obs = np.arange(20, dtype=np.float64).reshape(4, 5)
+    features = np.asarray(rollout.features(obs))
+    assert rollout.feature_dim == 5
+    assert np.allclose(features, (obs - 1.0) / 2.0)
+    head = MotorHead(policy.decoder, -0.7, 3)
+    mean = np.asarray(head.mean(mx.array(features)))
+    action, _ = policy.step(mx.array(obs, dtype=mx.float32), policy.initial_state(4))
+    assert np.allclose(mean, np.asarray(action), atol=1e-6)
+    assert np.abs(mean).max() < 0.1  # the small last layer starts near the zero action
+    policy.save(tmp_path / "mlp.safetensors")
+    restored = DirectPolicy(obs_dim=5, action_dim=3, hidden=16, seed=7)
+    restored.load(tmp_path / "mlp.safetensors")
+    assert np.allclose(np.asarray(restored.step(mx.array(obs, dtype=mx.float32), None)[0]), mean)
+    with pytest.raises(ValueError, match="mlp"):
+        PPOConfig(controller="mlp")
+    with pytest.raises(ValueError, match="mlp"):
+        PPOConfig(controller="mlp", from_scratch=True, encoder_lr=1e-4)
+    assert PPOConfig(controller="mlp", from_scratch=True).controller == "mlp"
