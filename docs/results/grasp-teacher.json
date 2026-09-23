@@ -1,0 +1,576 @@
+{
+  "task": "generalizable grasp: lift 10 cm and hold 20 steps with both fingers",
+  "machine": "macOS-26.3.2-arm64-arm-64bit",
+  "teacher": {
+    "seeds": [
+      900000,
+      900019
+    ],
+    "horizon": 200,
+    "wall_seconds": 39.84,
+    "objects": [
+      {
+        "object": "paper_cup",
+        "family": "mug",
+        "success_rate": 1.0,
+        "grasp_rate": 1.0,
+        "lift_rate": 1.0,
+        "successes": 20,
+        "episodes": 20,
+        "mean_steps_to_success": 118.6,
+        "split": "test"
+      },
+      {
+        "object": "classic_blue_mug",
+        "family": "mug",
+        "success_rate": 1.0,
+        "grasp_rate": 1.0,
+        "lift_rate": 1.0,
+        "successes": 20,
+        "episodes": 20,
+        "mean_steps_to_success": 123.75,
+        "split": "train"
+      },
+      {
+        "object": "white_yellow_mug",
+        "family": "mug",
+        "success_rate": 1.0,
+        "grasp_rate": 1.0,
+        "lift_rate": 1.0,
+        "successes": 20,
+        "episodes": 20,
+        "mean_steps_to_success": 121.55,
+        "split": "test"
+      },
+      {
+        "object": "bead_mug",
+        "family": "mug",
+        "success_rate": 1.0,
+        "grasp_rate": 1.0,
+        "lift_rate": 1.0,
+        "successes": 20,
+        "episodes": 20,
+        "mean_steps_to_success": 122.4,
+        "split": "train"
+      },
+      {
+        "object": "sand_cup",
+        "family": "mug",
+        "success_rate": 0.95,
+        "grasp_rate": 1.0,
+        "lift_rate": 1.0,
+        "successes": 19,
+        "episodes": 20,
+        "mean_steps_to_success": 120.26315789473684,
+        "split": "train"
+      },
+      {
+        "object": "scirocco_bowl",
+        "family": "bowl",
+        "success_rate": 1.0,
+        "grasp_rate": 1.0,
+        "lift_rate": 1.0,
+        "successes": 20,
+        "episodes": 20,
+        "mean_steps_to_success": 122.65,
+        "split": "train"
+      },
+      {
+        "object": "glazed_ramekin",
+        "family": "bowl",
+        "success_rate": 1.0,
+        "grasp_rate": 1.0,
+        "lift_rate": 1.0,
+        "successes": 20,
+        "episodes": 20,
+        "mean_steps_to_success": 123.7,
+        "split": "train"
+      },
+      {
+        "object": "cereal_bowl",
+        "family": "bowl",
+        "success_rate": 1.0,
+        "grasp_rate": 1.0,
+        "lift_rate": 1.0,
+        "successes": 20,
+        "episodes": 20,
+        "mean_steps_to_success": 125.15,
+        "split": "test"
+      },
+      {
+        "object": "turquoise_bowl",
+        "family": "bowl",
+        "success_rate": 1.0,
+        "grasp_rate": 1.0,
+        "lift_rate": 1.0,
+        "successes": 20,
+        "episodes": 20,
+        "mean_steps_to_success": 121.55,
+        "split": "train"
+      },
+      {
+        "object": "coq10_bottle",
+        "family": "bottle",
+        "success_rate": 0.95,
+        "grasp_rate": 1.0,
+        "lift_rate": 1.0,
+        "successes": 19,
+        "episodes": 20,
+        "mean_steps_to_success": 120.10526315789474,
+        "split": "train"
+      },
+      {
+        "object": "htp_bottle",
+        "family": "bottle",
+        "success_rate": 1.0,
+        "grasp_rate": 1.0,
+        "lift_rate": 1.0,
+        "successes": 20,
+        "episodes": 20,
+        "mean_steps_to_success": 120.85,
+        "split": "train"
+      },
+      {
+        "object": "sprinkles_jar",
+        "family": "bottle",
+        "success_rate": 1.0,
+        "grasp_rate": 1.0,
+        "lift_rate": 1.0,
+        "successes": 20,
+        "episodes": 20,
+        "mean_steps_to_success": 117.75,
+        "split": "train"
+      },
+      {
+        "object": "tonic_bottle",
+        "family": "bottle",
+        "success_rate": 1.0,
+        "grasp_rate": 1.0,
+        "lift_rate": 1.0,
+        "successes": 20,
+        "episodes": 20,
+        "mean_steps_to_success": 118.3,
+        "split": "test"
+      },
+      {
+        "object": "supplement_tub",
+        "family": "bottle",
+        "success_rate": 0.95,
+        "grasp_rate": 1.0,
+        "lift_rate": 0.95,
+        "successes": 19,
+        "episodes": 20,
+        "mean_steps_to_success": 117.42105263157895,
+        "split": "test"
+      },
+      {
+        "object": "coffee_can",
+        "family": "can",
+        "success_rate": 1.0,
+        "grasp_rate": 1.0,
+        "lift_rate": 1.0,
+        "successes": 20,
+        "episodes": 20,
+        "mean_steps_to_success": 123.4,
+        "split": "test"
+      },
+      {
+        "object": "xylitol_tub",
+        "family": "can",
+        "success_rate": 0.95,
+        "grasp_rate": 1.0,
+        "lift_rate": 1.0,
+        "successes": 19,
+        "episodes": 20,
+        "mean_steps_to_success": 120.36842105263158,
+        "split": "train"
+      },
+      {
+        "object": "instant_coffee_jar",
+        "family": "can",
+        "success_rate": 1.0,
+        "grasp_rate": 1.0,
+        "lift_rate": 1.0,
+        "successes": 20,
+        "episodes": 20,
+        "mean_steps_to_success": 119.65,
+        "split": "train"
+      },
+      {
+        "object": "cocoa_canister",
+        "family": "can",
+        "success_rate": 1.0,
+        "grasp_rate": 1.0,
+        "lift_rate": 1.0,
+        "successes": 20,
+        "episodes": 20,
+        "mean_steps_to_success": 119.4,
+        "split": "train"
+      },
+      {
+        "object": "camera_lens",
+        "family": "can",
+        "success_rate": 1.0,
+        "grasp_rate": 1.0,
+        "lift_rate": 1.0,
+        "successes": 20,
+        "episodes": 20,
+        "mean_steps_to_success": 123.85,
+        "split": "test"
+      },
+      {
+        "object": "crayon_box",
+        "family": "box",
+        "success_rate": 1.0,
+        "grasp_rate": 1.0,
+        "lift_rate": 1.0,
+        "successes": 20,
+        "episodes": 20,
+        "mean_steps_to_success": 119.65,
+        "split": "test"
+      },
+      {
+        "object": "caplet_box",
+        "family": "box",
+        "success_rate": 1.0,
+        "grasp_rate": 1.0,
+        "lift_rate": 1.0,
+        "successes": 20,
+        "episodes": 20,
+        "mean_steps_to_success": 122.4,
+        "split": "train"
+      },
+      {
+        "object": "raisinets_box",
+        "family": "box",
+        "success_rate": 1.0,
+        "grasp_rate": 1.0,
+        "lift_rate": 1.0,
+        "successes": 20,
+        "episodes": 20,
+        "mean_steps_to_success": 122.8,
+        "split": "train"
+      },
+      {
+        "object": "lipstick_box",
+        "family": "box",
+        "success_rate": 1.0,
+        "grasp_rate": 1.0,
+        "lift_rate": 1.0,
+        "successes": 20,
+        "episodes": 20,
+        "mean_steps_to_success": 121.8,
+        "split": "train"
+      },
+      {
+        "object": "cereal_box",
+        "family": "box",
+        "success_rate": 1.0,
+        "grasp_rate": 1.0,
+        "lift_rate": 1.0,
+        "successes": 20,
+        "episodes": 20,
+        "mean_steps_to_success": 119.55,
+        "split": "test"
+      },
+      {
+        "object": "hair_color_box",
+        "family": "box",
+        "success_rate": 1.0,
+        "grasp_rate": 1.0,
+        "lift_rate": 1.0,
+        "successes": 20,
+        "episodes": 20,
+        "mean_steps_to_success": 119.95,
+        "split": "train"
+      },
+      {
+        "object": "hammer",
+        "family": "tool",
+        "success_rate": 1.0,
+        "grasp_rate": 1.0,
+        "lift_rate": 1.0,
+        "successes": 20,
+        "episodes": 20,
+        "mean_steps_to_success": 131.8,
+        "split": "train"
+      },
+      {
+        "object": "can_opener",
+        "family": "tool",
+        "success_rate": 0.05,
+        "grasp_rate": 1.0,
+        "lift_rate": 0.85,
+        "successes": 1,
+        "episodes": 20,
+        "mean_steps_to_success": 118.0,
+        "split": "dropped"
+      },
+      {
+        "object": "lime_squeezer",
+        "family": "tool",
+        "success_rate": 0.45,
+        "grasp_rate": 1.0,
+        "lift_rate": 0.8,
+        "successes": 9,
+        "episodes": 20,
+        "mean_steps_to_success": 164.11111111111111,
+        "split": "dropped"
+      },
+      {
+        "object": "flashlight",
+        "family": "tool",
+        "success_rate": 1.0,
+        "grasp_rate": 1.0,
+        "lift_rate": 1.0,
+        "successes": 20,
+        "episodes": 20,
+        "mean_steps_to_success": 117.75,
+        "split": "test"
+      },
+      {
+        "object": "tape_roll",
+        "family": "tool",
+        "success_rate": 1.0,
+        "grasp_rate": 1.0,
+        "lift_rate": 1.0,
+        "successes": 20,
+        "episodes": 20,
+        "mean_steps_to_success": 125.2,
+        "split": "test"
+      },
+      {
+        "object": "tape_measure",
+        "family": "tool",
+        "success_rate": 1.0,
+        "grasp_rate": 1.0,
+        "lift_rate": 1.0,
+        "successes": 20,
+        "episodes": 20,
+        "mean_steps_to_success": 126.2,
+        "split": "train"
+      },
+      {
+        "object": "hand_bell",
+        "family": "tool",
+        "success_rate": 1.0,
+        "grasp_rate": 1.0,
+        "lift_rate": 1.0,
+        "successes": 20,
+        "episodes": 20,
+        "mean_steps_to_success": 121.9,
+        "split": "train"
+      },
+      {
+        "object": "android_figure",
+        "family": "toy",
+        "success_rate": 1.0,
+        "grasp_rate": 1.0,
+        "lift_rate": 1.0,
+        "successes": 20,
+        "episodes": 20,
+        "mean_steps_to_success": 120.95,
+        "split": "train"
+      },
+      {
+        "object": "mario_figure",
+        "family": "toy",
+        "success_rate": 1.0,
+        "grasp_rate": 1.0,
+        "lift_rate": 1.0,
+        "successes": 20,
+        "episodes": 20,
+        "mean_steps_to_success": 119.6,
+        "split": "train"
+      },
+      {
+        "object": "yoshi_figure",
+        "family": "toy",
+        "success_rate": 1.0,
+        "grasp_rate": 1.0,
+        "lift_rate": 1.0,
+        "successes": 20,
+        "episodes": 20,
+        "mean_steps_to_success": 121.1,
+        "split": "train"
+      },
+      {
+        "object": "triceratops",
+        "family": "toy",
+        "success_rate": 1.0,
+        "grasp_rate": 1.0,
+        "lift_rate": 1.0,
+        "successes": 20,
+        "episodes": 20,
+        "mean_steps_to_success": 121.6,
+        "split": "test"
+      },
+      {
+        "object": "school_bus",
+        "family": "toy",
+        "success_rate": 1.0,
+        "grasp_rate": 1.0,
+        "lift_rate": 1.0,
+        "successes": 20,
+        "episodes": 20,
+        "mean_steps_to_success": 125.45,
+        "split": "test"
+      },
+      {
+        "object": "henry_engine",
+        "family": "toy",
+        "success_rate": 1.0,
+        "grasp_rate": 1.0,
+        "lift_rate": 1.0,
+        "successes": 20,
+        "episodes": 20,
+        "mean_steps_to_success": 127.85,
+        "split": "train"
+      },
+      {
+        "object": "lion_figure",
+        "family": "toy",
+        "success_rate": 0.95,
+        "grasp_rate": 1.0,
+        "lift_rate": 1.0,
+        "successes": 19,
+        "episodes": 20,
+        "mean_steps_to_success": 123.05263157894737,
+        "split": "train"
+      },
+      {
+        "object": "pineapple_maraca",
+        "family": "rounded",
+        "success_rate": 0.65,
+        "grasp_rate": 1.0,
+        "lift_rate": 0.95,
+        "successes": 13,
+        "episodes": 20,
+        "mean_steps_to_success": 134.53846153846155,
+        "split": "dropped"
+      },
+      {
+        "object": "fruit_basket_toy",
+        "family": "rounded",
+        "success_rate": 1.0,
+        "grasp_rate": 1.0,
+        "lift_rate": 1.0,
+        "successes": 20,
+        "episodes": 20,
+        "mean_steps_to_success": 125.95,
+        "split": "train"
+      },
+      {
+        "object": "ladybug_bead",
+        "family": "rounded",
+        "success_rate": 0.8,
+        "grasp_rate": 1.0,
+        "lift_rate": 1.0,
+        "successes": 16,
+        "episodes": 20,
+        "mean_steps_to_success": 121.75,
+        "split": "train"
+      },
+      {
+        "object": "rubber_chew_toy",
+        "family": "rounded",
+        "success_rate": 1.0,
+        "grasp_rate": 1.0,
+        "lift_rate": 1.0,
+        "successes": 20,
+        "episodes": 20,
+        "mean_steps_to_success": 125.75,
+        "split": "test"
+      },
+      {
+        "object": "whale_whistle",
+        "family": "rounded",
+        "success_rate": 1.0,
+        "grasp_rate": 1.0,
+        "lift_rate": 1.0,
+        "successes": 20,
+        "episodes": 20,
+        "mean_steps_to_success": 125.15,
+        "split": "train"
+      },
+      {
+        "object": "bird_rattle",
+        "family": "rounded",
+        "success_rate": 0.0,
+        "grasp_rate": 0.0,
+        "lift_rate": 0.0,
+        "successes": 0,
+        "episodes": 20,
+        "mean_steps_to_success": null,
+        "split": "dropped"
+      }
+    ]
+  },
+  "summary": {
+    "train": {
+      "objects": 27,
+      "mean_success": 0.9852
+    },
+    "test": {
+      "objects": 14,
+      "mean_success": 0.9964
+    },
+    "dropped": {
+      "objects": 4,
+      "mean_success": 0.2875
+    }
+  },
+  "throughput": {
+    "num_envs": 128,
+    "steps": 400,
+    "threads": 4,
+    "random_actions_steps_per_second": 7347.8,
+    "teacher_steps_per_second": 6111.0
+  },
+  "video": {
+    "path": "runs/grasp/teacher-smoke.mp4",
+    "seed": 910000,
+    "episodes": [
+      {
+        "object": "bead_mug",
+        "split": "train",
+        "success": true
+      },
+      {
+        "object": "coq10_bottle",
+        "split": "train",
+        "success": true
+      },
+      {
+        "object": "caplet_box",
+        "split": "train",
+        "success": true
+      },
+      {
+        "object": "android_figure",
+        "split": "train",
+        "success": true
+      },
+      {
+        "object": "cereal_bowl",
+        "split": "test",
+        "success": true
+      },
+      {
+        "object": "camera_lens",
+        "split": "test",
+        "success": true
+      },
+      {
+        "object": "flashlight",
+        "split": "test",
+        "success": true
+      },
+      {
+        "object": "rubber_chew_toy",
+        "split": "test",
+        "success": true
+      }
+    ]
+  }
+}
