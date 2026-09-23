@@ -587,3 +587,15 @@ Replacement lane B (runs/overnight-2026-09-23-b.sh): DAPG plus the potential tas
 Reason: with split_order the level shaping always points at the microwave, which the policy has stopped doing, so after the kettle its guidance is spent on an element it never engages; the nearest rule points it at whichever uncompleted element is closest, and the potential form pays only for progress.
 Lane A continues with dapg-seed1 and dapg-seed2.
 02:24, iteration 300: dapg-seed1 (the seed-0 recipe, PPO seed 1) is slower than seed 0, 25 clean and 17.5 perturbed against seed 0's 50 and 41.25 at the same point, with its mean tasks per training episode at 1.22 and rising; dapg-pot-nearest reaches 50 clean (kettle, slide cabinet) and 17.5 perturbed at iteration 300, its training mean 0.97, so it is no faster than plain DAPG so far. Both continue to 1,000 iterations.
+
+### E47. The kitchen ceiling under DAPG, and a bonus paid only in the demonstrations' order
+Overnight results, 1,000 iterations each, trained and selected on the clean start (score of the validation-selected checkpoint, clean / perturbed):
+dapg-seed1 (the recipe with PPO seed 1): best iteration 850, 50 / 45.0 (kettle, slide cabinet), so the two-task result of seed 0 (iteration 550: 75 / 48.75, two tasks at every evaluation from 250 to 650) replicates on a second seed, reached later (first 50 at iteration 400 against 150).
+dapg-pot-nearest (plus the potential task form at weight 10 and the nearest target): best iteration 500, 50 / 38.75, no better than plain DAPG.
+dapg-continue550 and dapg-bc3 (01:25 entry above): continued training settles on two tasks, a heavier demonstration term is worse.
+Every DAPG run shows the same pattern: the imitation start does the microwave, PPO drops it by iteration 100, then learns the kettle first and the light switch or slide cabinet next, and the mean tasks per training episode levels at 1.4 to 1.6.
+Reading: the demonstrations all start with the microwave, so once PPO goes to the kettle first it is in states the demonstrations never visit before the microwave, and the microwave after the kettle has to be found by reward alone, which never happens; kettle then light switch then slide cabinet is the demonstrations' own order minus its first task, which is why the third task appears.
+Change (commit after 8c656e8): KitchenPPOConfig.completion_order "split_order" pays a completion bonus only when every earlier task of the split is done (the bonus counts the growth of the completed prefix, so a task done early is paid when the prefix reaches it); "any", the default, is every earlier run; the benchmark's score still counts any order.
+Test: tests/test_batched_kitchen.py places the kettle at its goal (the benchmark counts it, no bonus under split_order), then the microwave (both bonuses arrive at once).
+Run: runs/ppo-kitchen-dapg-ordered-001 (dapg-const plus split_order), replacing dapg-pot-order at its iteration 28; lane A runs dapg-seed2.
+Decision rule: split_order helps if the microwave survives past iteration 200 and a validation-selected checkpoint completes more than two tasks, or completes two with the microwave among them.
