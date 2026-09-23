@@ -1,6 +1,12 @@
 [
  {
   "root": "main",
+  "path": "ppo-kitchen-dapg-ordered-potential-continue-001/videos/four-tasks-perturbed-0.3rad-grid.mp4",
+  "title": "Kitchen: the fly connectome completes all four tasks in every episode",
+  "note": "Frozen complete MaleCNS with trained linear input and output maps; imitation, then PPO with a demonstration term (DAPG), a bonus paid in the demonstrations' order and potential-based task shaping. Official FrankaKitchen environment, 50 test episodes per condition: 100.0 from the benchmark start, from 0.2 rad and from 0.3 rad perturbed starts (all four tasks in 50 of 50 each). Shown: four episodes from 0.3 rad starts, never trained on."
+ },
+ {
+  "root": "main",
   "path": "ppo-kitchen-dapg-ordered-potential-001/videos/iteration1000-perturbed-episode0-four-tasks.mp4",
   "title": "Kitchen: the fly connectome completes all four tasks",
   "note": "Frozen complete MaleCNS with trained linear input and output maps; imitation, then PPO with a demonstration term (DAPG), a completion bonus paid in the demonstrations' order and potential-based task shaping. Official FrankaKitchen environment, 0.2 rad perturbed start never trained on: 92.5 over 20 test episodes, all four tasks in 17 of 20."
