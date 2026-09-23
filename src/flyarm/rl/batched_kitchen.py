@@ -195,6 +195,15 @@ MOVED_EPSILON = 0.02  # rad of element travel that counts as "this element has s
 # Whether the approach and progress terms are paid for one target element or averaged over every
 # uncompleted one. "sum" keeps the per-step maximum at 1.0 by averaging, so E34 is unaffected.
 SHAPING_SCOPES = ("target", "sum")
+# How the approach and progress terms are paid.
+# "level": the current level, the form of every run before research log E45. Idleness collects
+#   it every step, and because completing a task advances the target to a further element the
+#   level falls as competence rises: measured per curriculum prefix, a random policy out-earns
+#   the expert at two of four prefixes (E44).
+# "potential": the change in that level within a step, w * (phi(s') - phi(s)), rebased without
+#   payment whenever a completion moves the target. Idleness pays exactly 0 by construction, it
+#   telescopes, and so it adds nothing to the per-step maximum or the E34 floor.
+TASK_SHAPING_FORMS = ("level", "potential")
 PROGRESS_EPSILON = 0.05  # normalised progress that counts as "this element has started moving"
 REFERENCE_SPLIT = "complete"
 
@@ -342,6 +351,8 @@ class BatchedKitchen:
         tracking_form: str = "potential",
         target_rule: str = "split_order",
         shaping_scope: str = "target",
+        task_shaping_weight: float = 1.0,
+        task_shaping_form: str = "level",
         tracking_sigma: float = TRACKING_SIGMA,
         reference_episode: int = 0,
         terminate_on_all_tasks: bool = True,
@@ -357,17 +368,29 @@ class BatchedKitchen:
             raise ValueError(f"target_rule must be one of {TARGET_RULES}")
         if shaping_scope not in SHAPING_SCOPES:
             raise ValueError(f"shaping_scope must be one of {SHAPING_SCOPES}")
+        if task_shaping_form not in TASK_SHAPING_FORMS:
+            raise ValueError(f"task_shaping_form must be one of {TASK_SHAPING_FORMS}")
+        if task_shaping_weight < 0:
+            raise ValueError("task_shaping_weight must be non-negative")
+        if task_shaping_form == "potential" and shaping_scope != "target":
+            raise ValueError("the potential task form is defined for shaping_scope 'target'")
         self.target_rule, self.shaping_scope = target_rule, shaping_scope
+        self.task_shaping_weight = float(task_shaping_weight)
+        self.task_shaping_form = task_shaping_form
         self.tracking_weight = float(tracking_weight)
         self.tracking_form = tracking_form
         self.tracking_sigma = float(tracking_sigma)
         self.gamma = float(gamma)
         # Potential-based shaping telescopes, so it adds nothing to a sustained trajectory and
         # leaves the E34 floor alone; the Gaussian form joins the per-step budget and raises it.
-        self.max_step_reward = MAX_STEP_REWARD + (
-            self.tracking_weight if tracking_form == "gaussian" else 0.0
+        # Only the level forms can be collected every step forever; the potential forms
+        # telescope and contribute nothing to a sustained trajectory.
+        self.max_step_reward = (
+            self.task_shaping_weight * MAX_STEP_REWARD if task_shaping_form == "level" else 0.0
+        ) + (self.tracking_weight if tracking_form == "gaussian" else 0.0)
+        floor = (
+            minimum_completion_bonus(gamma, self.max_step_reward) if self.max_step_reward else 0.0
         )
-        floor = minimum_completion_bonus(gamma, self.max_step_reward)
         if completion_bonus <= floor:
             raise ValueError(
                 f"completion_bonus {completion_bonus} must exceed the value of stalling on the "
@@ -419,6 +442,7 @@ class BatchedKitchen:
         self.initial_goal_distance = np.ones((n, t))
         self.last_robot_qpos = np.zeros((n, ROBOT_JOINTS))
         self.previous_potential = np.zeros(n)
+        self.previous_task_potential = np.zeros(n)
         self.episode_seed = np.zeros(n, dtype=np.int64)
         self._noise = [np.random.default_rng(0) for _ in range(n)]
         self._next_seed = first_seed
@@ -499,6 +523,15 @@ class BatchedKitchen:
             return np.zeros(self.num_envs)
         index = np.minimum(self.steps, len(self.reference) - 1)
         return -np.linalg.norm(self.qpos[:, :ROBOT_JOINTS] - self.reference[index], axis=1)
+
+    def task_potential(self, target: np.ndarray) -> np.ndarray:
+        """[N] the approach and progress levels for ``target``, the task shaping's potential."""
+        rows = np.arange(self.num_envs)
+        index = np.minimum(target, len(self.tasks) - 1)
+        approach = 1.0 - np.tanh(self.approach_slope * self.approach_distance(target))
+        progress = self.element_progress()[rows, index]
+        active = target < len(self.tasks)
+        return active * (APPROACH_WEIGHT * approach + PROGRESS_WEIGHT * progress)
 
     def tracking_reward(self) -> np.ndarray:
         """[N] the reference term for the current state.
@@ -594,6 +627,7 @@ class BatchedKitchen:
         # As in FrankaRobot.reset_model, the control law's reference is the observed position.
         self.last_robot_qpos[ids] = observation[ids, :ROBOT_JOINTS]
         self.previous_potential[ids] = self.potential()[ids]
+        self.previous_task_potential[ids] = self.task_potential(self.target())[ids]
         return observation
 
     def _apply_prefix(self, row: int, seed: int) -> None:
@@ -652,29 +686,32 @@ class BatchedKitchen:
         newly = (self.completed & ~was_completed & ~self.preset).sum(1)
         rows, shaped = np.arange(self.num_envs), np.minimum(target, len(self.tasks) - 1)
         tracking = self.tracking_reward()
-        if self.shaping_scope == "sum":
-            task_term = averaged_task_shaping(
+        if self.task_shaping_form == "potential":
+            # The same target on both sides of the step, so a completion does not appear as a
+            # sudden drop; the rebase below absorbs the target change without paying for it.
+            task_term = self.task_shaping_weight * (
+                self.task_potential(target) - self.previous_task_potential
+            )
+        elif self.shaping_scope == "sum":
+            task_term = self.task_shaping_weight * averaged_task_shaping(
                 self.handle_distances(),
                 self.element_progress(),
                 ~self.completed,
                 self.approach_slope,
             )
-            reward = assemble_reward(
-                task_term, newly, self.completion_bonus, tracking, self.tracking_weight
-            )
         else:
-            reward = shaped_reward(
+            task_term = self.task_shaping_weight * level_task_shaping(
                 self.approach_distance(target),
                 distance[rows, shaped],
                 self.initial_goal_distance[rows, shaped],
-                newly,
                 target < len(self.tasks),
-                self.completion_bonus,
                 self.approach_slope,
-                tracking,
-                self.tracking_weight,
             )
+        reward = assemble_reward(
+            task_term, newly, self.completion_bonus, tracking, self.tracking_weight
+        )
         self.previous_potential = self.potential()
+        self.previous_task_potential = self.task_potential(self.target())
         # Only tasks earned this episode count; a curriculum prefix is excluded.
         tasks_completed = (self.completed & ~self.preset).sum(1)
         terminated = (tasks_completed == len(self.tasks)) & self.terminate_on_all_tasks
@@ -728,11 +765,24 @@ def shaped_reward(
     ``tracking_weight * ||q_0 - q_ref,0||`` in total. The Gaussian form does enter it, because
     it can be collected every step forever.
     """
+    per_step = level_task_shaping(
+        approach_distance, goal_distance, initial_goal_distance, has_target, approach_slope
+    )
+    return assemble_reward(per_step, newly_completed, completion_bonus, tracking, tracking_weight)
+
+
+def level_task_shaping(
+    approach_distance: np.ndarray,
+    goal_distance: np.ndarray,
+    initial_goal_distance: np.ndarray,
+    has_target: np.ndarray,
+    approach_slope: float = APPROACH_SLOPE,
+) -> np.ndarray:
+    """[N] the approach and progress levels for the current target, bounded by MAX_STEP_REWARD."""
     approach = 1.0 - np.tanh(approach_slope * approach_distance)
     span = np.maximum(initial_goal_distance - BONUS_THRESH, 1e-6)
     progress = np.clip((initial_goal_distance - goal_distance) / span, 0.0, 1.0)
-    per_step = has_target * (APPROACH_WEIGHT * approach + PROGRESS_WEIGHT * progress)
-    return assemble_reward(per_step, newly_completed, completion_bonus, tracking, tracking_weight)
+    return has_target * (APPROACH_WEIGHT * approach + PROGRESS_WEIGHT * progress)
 
 
 def averaged_task_shaping(

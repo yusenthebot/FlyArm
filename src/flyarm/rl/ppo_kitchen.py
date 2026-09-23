@@ -55,6 +55,8 @@ def evaluate_kitchen(
         tracking_form=settings.tracking_form,
         target_rule=settings.target_rule,
         shaping_scope=settings.shaping_scope,
+        task_shaping_weight=settings.task_shaping_weight,
+        task_shaping_form=settings.task_shaping_form,
         tracking_sigma=settings.tracking_sigma,
         reference_episode=settings.reference_episode,
     )
@@ -95,6 +97,7 @@ class KitchenTask:
     action_dim = ACTION_DIM
     extra_key = "tasks_per_episode"
     extra_label = "tasks"
+    batch_peak_key: str | None = "max_tasks_in_one_episode"
 
     def __init__(self, settings: KitchenPPOConfig) -> None:
         self.settings = settings
@@ -113,6 +116,8 @@ class KitchenTask:
             tracking_form=self.settings.tracking_form,
             target_rule=self.settings.target_rule,
             shaping_scope=self.settings.shaping_scope,
+            task_shaping_weight=self.settings.task_shaping_weight,
+            task_shaping_form=self.settings.task_shaping_form,
             tracking_sigma=self.settings.tracking_sigma,
             reference_episode=self.settings.reference_episode,
         )
@@ -127,6 +132,10 @@ class KitchenTask:
 
     def extra(self, result: Any, done: np.ndarray) -> int:
         return int(result.tasks_completed[done].sum())
+
+    def batch_peak(self, result: Any, done: np.ndarray) -> float:
+        """Most tasks any single finished episode earned; the number the kitchen goal is about."""
+        return float(result.tasks_completed[done].max()) if done.any() else 0.0
 
     def describe(self, name: str, scored: dict[str, Any], episodes: int) -> str:
         return (
@@ -169,6 +178,8 @@ def scratch_kitchen_policy(config: KitchenPPOConfig, pack_root: Path) -> BrainPo
         tracking_form=config.tracking_form,
         target_rule=config.target_rule,
         shaping_scope=config.shaping_scope,
+        task_shaping_weight=config.task_shaping_weight,
+        task_shaping_form=config.task_shaping_form,
         tracking_sigma=config.tracking_sigma,
         reference_episode=config.reference_episode,
     )
