@@ -403,3 +403,66 @@ def test_the_potential_reference_is_still_states_only() -> None:
         assert not np.allclose(reference, data.actions[episode, :steps])
     env = BatchedKitchen(1, tracking_weight=0.5, reference_episode=3)
     assert env.reference is not None and np.allclose(env.reference, reference_joints(3))
+
+
+def test_the_target_rule_defaults_to_the_split_order_and_the_alternatives_pick_by_score() -> None:
+    from gymnasium_robotics.envs.franka_kitchen.kitchen_env import (
+        OBS_ELEMENT_GOALS,
+        OBS_ELEMENT_INDICES,
+    )
+
+    from flyarm.rl.batched_kitchen import TARGET_RULES
+
+    env = BatchedKitchen(2)
+    assert env.target_rule == "split_order"
+    env.reset(seeds=np.array([0, 1]))
+    assert env.target().tolist() == [0, 0]  # microwave first, whatever the geometry
+    with pytest.raises(ValueError, match="target_rule"):
+        BatchedKitchen(1, target_rule="whatever")
+    assert "split_order" in TARGET_RULES and "nearest" in TARGET_RULES
+
+    # "nearest" follows the geometry: the handle closest to the gripper wins.
+    near = BatchedKitchen(2, target_rule="nearest")
+    near.reset(seeds=np.array([0, 1]))
+    distances = near.handle_distances()
+    assert distances.shape == (2, 4)
+    assert near.target().tolist() == distances.argmin(1).tolist()
+
+    # "moved" follows absolute element travel, and falls back to the split's order on a tie.
+    moved = BatchedKitchen(2, target_rule="moved")
+    moved.reset(seeds=np.array([0, 1]))
+    assert np.allclose(moved.element_travel(), 0.0)
+    assert moved.target().tolist() == [0, 0]  # nothing has moved yet, so the tie breaks in order
+    light = OBS_ELEMENT_INDICES["light switch"]
+    moved.qpos[:, light] = OBS_ELEMENT_GOALS["light switch"]  # element 2 travels furthest
+    assert moved.target().tolist() == [2, 2]
+    assert moved.element_travel()[:, 2].min() > 0.0
+
+    # A completed task is never the target again.
+    moved.step(np.zeros((2, 9)), auto_reset=False)
+    assert moved.completed[:, 2].all()
+    assert (moved.target() != 2).all()
+
+
+def test_the_progress_rule_is_skewed_by_the_span_and_moved_is_not() -> None:
+    """Normalised progress saturates fastest for the smallest span to threshold (E43)."""
+    from gymnasium_robotics.envs.franka_kitchen.kitchen_env import OBS_ELEMENT_INDICES
+
+    env = BatchedKitchen(1, target_rule="progress")
+    env.reset(seeds=np.array([0]))
+    spans = env.initial_goal_distance[0] - BONUS_THRESH
+    # The slide cabinet starts far closer to its threshold than the microwave does.
+    assert spans[3] < 0.15 and spans[0] > 0.4
+    # The same absolute travel is far more "progress" on the narrow-span element.
+    travel = 0.05
+    env.qpos[0, OBS_ELEMENT_INDICES["microwave"]] -= travel
+    env.qpos[0, OBS_ELEMENT_INDICES["slide cabinet"]] += travel
+    progress = env.element_progress()[0]
+    assert progress[3] > 2 * progress[0]
+    assert env.target()[0] == 3  # so "progress" chases the narrow element
+
+    absolute = BatchedKitchen(1, target_rule="moved")
+    absolute.reset(seeds=np.array([0]))
+    absolute.qpos[0, OBS_ELEMENT_INDICES["microwave"]] -= 2 * travel
+    absolute.qpos[0, OBS_ELEMENT_INDICES["slide cabinet"]] += travel
+    assert absolute.target()[0] == 0  # "moved" follows the larger real motion

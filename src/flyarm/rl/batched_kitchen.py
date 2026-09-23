@@ -145,6 +145,30 @@ COMPLETION_BONUS = 200.0
 STALL_GAMMA = 0.99  # the discount the default bonus is sized against
 TRACKING_SIGMA = 0.6  # rad, "gaussian" form only; see the module docstring and research log E41
 TRACKING_FORMS = ("potential", "potential_discounted", "gaussian")
+# Which uncompleted task the approach and progress terms are paid for.
+# "split_order": the first one in the split's order, the rule of every run before research log
+#   E43. It is wrong whenever the controller cannot reach that element: measured on
+#   runs/ppo-kitchen-scratch-003, the target is the microwave for 280 of 280 steps while the
+#   microwave's progress stays at exactly 0 and the kettle is what gets completed.
+# "nearest": the one whose handle is nearest the gripper.
+# "progress": the one with the largest normalised progress, ties by the split's order. Measured
+#   worse than "split_order" for the expert, because normalised progress saturates fastest for
+#   the element with the smallest span to its threshold (slide cabinet 0.07 rad against the
+#   microwave's 0.45), so the rule follows an artefact of the normalisation (E43).
+# "progress_then_nearest": "progress" once any element has moved, "nearest" before that.
+# "moved": the one whose element has travelled furthest in absolute terms, ties by the split's
+#   order, which removes the span artefact; before anything moves this is the split's order.
+# "moved_then_nearest": "moved" once any element has moved, "nearest" before that.
+TARGET_RULES = (
+    "split_order",
+    "nearest",
+    "progress",
+    "progress_then_nearest",
+    "moved",
+    "moved_then_nearest",
+)
+MOVED_EPSILON = 0.02  # rad of element travel that counts as "this element has started moving"
+PROGRESS_EPSILON = 0.05  # normalised progress that counts as "this element has started moving"
 REFERENCE_SPLIT = "complete"
 
 
@@ -275,6 +299,7 @@ class BatchedKitchen:
         gamma: float = STALL_GAMMA,
         tracking_weight: float = 0.0,
         tracking_form: str = "potential",
+        target_rule: str = "split_order",
         tracking_sigma: float = TRACKING_SIGMA,
         reference_episode: int = 0,
         terminate_on_all_tasks: bool = True,
@@ -286,6 +311,9 @@ class BatchedKitchen:
             raise ValueError("tracking_weight must be non-negative and tracking_sigma positive")
         if tracking_form not in TRACKING_FORMS:
             raise ValueError(f"tracking_form must be one of {TRACKING_FORMS}")
+        if target_rule not in TARGET_RULES:
+            raise ValueError(f"target_rule must be one of {TARGET_RULES}")
+        self.target_rule = target_rule
         self.tracking_weight = float(tracking_weight)
         self.tracking_form = tracking_form
         self.tracking_sigma = float(tracking_sigma)
@@ -361,10 +389,45 @@ class BatchedKitchen:
             axis=1,
         )
 
+    def element_progress(self) -> np.ndarray:
+        """[N, tasks] normalised progress: 0 at the episode start, 1 at the completion threshold."""
+        span = np.maximum(self.initial_goal_distance - BONUS_THRESH, 1e-6)
+        return np.clip((self.initial_goal_distance - self.goal_distance()) / span, 0.0, 1.0)
+
+    def handle_distances(self) -> np.ndarray:
+        """[N, tasks] gripper-to-handle distance for every element of the split."""
+        gripper = self.site_xpos[:, self._gripper_site][:, None, :]
+        return np.linalg.norm(self.site_xpos[:, self._element_sites] - gripper, axis=2)
+
     def target(self) -> np.ndarray:
-        """[N] index of the first task of the split that is not yet completed (len when done)."""
+        """[N] index of the uncompleted task the shaping is paid for (len when all are done)."""
         remaining = ~self.completed
-        return np.where(remaining.any(1), remaining.argmax(1), len(self.tasks))
+        if self.target_rule == "split_order":
+            index = remaining.argmax(1)
+        else:
+            index = np.where(remaining, self._target_score(), -np.inf).argmax(1)
+        return np.where(remaining.any(1), index, len(self.tasks))
+
+    def element_travel(self) -> np.ndarray:
+        """[N, tasks] how far each element has moved toward its goal, in radians, never negative."""
+        return np.maximum(self.initial_goal_distance - self.goal_distance(), 0.0)
+
+    def _target_score(self) -> np.ndarray:
+        """[N, tasks] higher is a better shaping target under the configured rule."""
+        if self.target_rule == "nearest":
+            return -self.handle_distances()
+        if self.target_rule in ("moved", "moved_then_nearest"):
+            travel = self.element_travel()
+            if self.target_rule == "moved":
+                return travel
+            started = travel.max(1, keepdims=True) >= MOVED_EPSILON
+            return np.where(started, travel, -self.handle_distances())
+        progress = self.element_progress()
+        if self.target_rule == "progress":
+            return progress
+        # "progress_then_nearest": commit to whatever has started moving, otherwise go nearest.
+        started = progress.max(1, keepdims=True) >= PROGRESS_EPSILON
+        return np.where(started, progress, -self.handle_distances())
 
     def potential(self) -> np.ndarray:
         """[N] phi(s) = -||q - q_ref|| at the current step index; the shaping potential."""
