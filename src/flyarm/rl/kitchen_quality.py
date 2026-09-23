@@ -17,9 +17,12 @@ differences; every weight defaults to 0, which leaves the reward of every earlie
   the hinge cabinet), ``phi = -sum_j |q_j - q_j0|`` in radians, so knocking something pays
   negative once and putting it back pays it back.
 * collision: ``-w`` for every control step in which any robot geom touches anything other than
-  the movable body of the task being shaped for (the microwave door, the kettle, the light
-  switch, the sliding door), read from MuJoCo contact sensors. The sensors are added to the
-  benchmark's own model and change nothing in its physics (checked bit for bit).
+  the movable body of the task being shaped for or of a task already completed (the microwave
+  door, the kettle, the light switch, the sliding door), read from MuJoCo contact sensors. A
+  completed task's body is allowed because the depth term asks for it to be pushed on to its
+  exact goal; charging that contact made the two terms fight (E50: stray contact rose from
+  0.15 to 0.21 to 0.32 of steps). The sensors are added to the benchmark's own model and change
+  nothing in its physics (checked bit for bit).
 * action and smoothness: ``-w * mean(a^2)`` and ``-w * mean((a_t - a_{t-1})^2)`` over the 9
   normalized joint-velocity commands; the demonstrations average ``|a| = 0.23`` with 2.4% of
   commands saturated, the four-task controller of E49 ``|a| = 0.74`` with 47.5% saturated.
@@ -109,15 +112,24 @@ def contact_addresses(model: Any, tasks: tuple[str, ...]) -> tuple[int, np.ndarr
     return anything, per_task
 
 
-def stray_contact(sensordata: np.ndarray, anything: int, per_task: np.ndarray, target: np.ndarray):
-    """[N] bool: the robot touches something other than the target task's body."""
-    total = sensordata[:, anything]
-    rows = np.arange(len(total))
-    has_target = (target < len(per_task)) & (per_task[np.minimum(target, len(per_task) - 1)] >= 0)
-    allowed = np.where(
-        has_target, sensordata[rows, per_task[np.minimum(target, len(per_task) - 1)]], 0.0
-    )
-    return (total - allowed) > 0
+def stray_contact(
+    sensordata: np.ndarray,
+    anything: int,
+    per_task: np.ndarray,
+    target: np.ndarray,
+    completed: np.ndarray,
+) -> np.ndarray:
+    """[N] bool: the robot touches something other than the target's or a finished task's body.
+
+    Each contact involves one robot geom and one other geom, so the per-body counts add up to
+    at most the robot's total and the remainder is the stray contacts.
+    """
+    tasks = len(per_task)
+    allowed_task = completed | (target[:, None] == np.arange(tasks)[None, :])
+    allowed_task &= (per_task >= 0)[None, :]
+    counts = sensordata[:, np.maximum(per_task, 0)]
+    allowed = (counts * allowed_task).sum(1)
+    return (sensordata[:, anything] - allowed) > 0
 
 
 def depth_potential(goal_distance: np.ndarray, threshold: float) -> np.ndarray:
