@@ -420,6 +420,14 @@ class KitchenPPOConfig(BaseModel):
     tracking_form: Literal["potential", "potential_discounted", "gaussian"] = "potential"
     tracking_sigma: float = Field(default=0.6, gt=0, le=10)
     reference_episode: int = Field(default=0, ge=0, le=1000)
+    # Which uncompleted task the approach and progress terms are paid for. "split_order" is the
+    # rule of every run before research log E43 and stays the default. The alternatives were all
+    # measured worse there: "nearest" is the only one that does not lower the expert's shaping,
+    # and it collapses the expert-to-random ratio from 2.5x to 1.2x because taking a maximum over
+    # four elements inflates the term for any policy.
+    target_rule: Literal[
+        "split_order", "nearest", "progress", "progress_then_nearest", "moved", "moved_then_nearest"
+    ] = "split_order"
     neural_steps: int = Field(default=3, ge=1, le=8)
     eval_every: int = Field(default=50, ge=1)
     eval_episodes: int = Field(default=20, ge=1, le=256)
