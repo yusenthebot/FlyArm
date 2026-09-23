@@ -573,3 +573,11 @@ Reading: for the first time the measured connectome holds two kitchen tasks, mat
 DAPG iteration 550 (validation-selected): three tasks on the clean start (kettle, light switch, slide cabinet; score 75) and 48.75 from perturbed starts; iterations 600 and 650 are back at two tasks (50) with 43.75 and 47.5 perturbed.
 Stopped 2026-09-23 00:17 at iteration about 660 because the machine is being powered off (user); checkpoints policy-0050 to policy-0650 are on disk, and the trainer cannot resume mid-run, so a continuation starts from a checkpoint.
 Every process paused with SIGSTOP (multitask-001, the long-horizon runs, the dexterous hand, v2a and v2b, the protocol sweep, ppo-kitchen-scratch-005, the shuffled PPO control and the two MLP controls) dies with the power-off; what survives of each is what it last wrote to disk.
+
+## Overnight 2026-09-23 (user: keep working overnight; measured connectome only, one GPU)
+The power-off did not happen: the paused processes are still alive with SIGSTOP.
+New option KitchenPPOConfig.init_checkpoint continues PPO from a saved PPO checkpoint (the base run still supplies the interface and the demonstrations; critic and optimizer start fresh behind the usual 50-iteration critic warmup).
+Queue (runs/overnight-2026-09-23.sh, two lanes, 1,000 iterations each, all trained and selected on the clean start with the perturbed score reported):
+Lane A: dapg-continue550 (from the three-task checkpoint, bc_weight 1.0), then dapg-seed1 and dapg-seed2 (the DAPG recipe from the imitation checkpoint with PPO seeds 1 and 2, for the seed spread the paper needs).
+Lane B: dapg-bc3 and dapg-bc10 (bc_weight 3 and 10 from the imitation checkpoint), to test whether a stronger demonstration term keeps the microwave that bc_weight 1.0 lost by iteration 100.
+Decision rules: a recipe improves on dapg-const if its validation-selected checkpoint completes three or more tasks on the clean start and scores above 48.75 from perturbed starts; the microwave is kept if any evaluation after iteration 200 completes it.
