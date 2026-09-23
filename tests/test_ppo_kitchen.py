@@ -79,3 +79,18 @@ def test_the_potential_form_is_the_default_and_keeps_the_bonus_headroom() -> Non
     assert KitchenPPOConfig(tracking_weight=1.5).completion_bonus == 200.0
     with pytest.raises(ValueError, match="log E34"):
         KitchenPPOConfig(tracking_weight=1.5, tracking_form="gaussian")
+
+
+def test_the_dapg_term_needs_a_warm_start_and_a_frozen_encoder() -> None:
+    assert KitchenPPOConfig().bc_weight == 0.0
+    with pytest.raises(ValueError, match="bc_weight"):
+        KitchenPPOConfig(bc_weight=1.0, from_scratch=True)
+    with pytest.raises(ValueError, match="bc_weight"):
+        KitchenPPOConfig(bc_weight=1.0, encoder_lr=1e-4)
+    assert KitchenPPOConfig(bc_weight=1.0, bc_decay=0.995).bc_decay == 0.995
+
+
+def test_the_mlp_control_is_reward_only_and_has_no_encoder() -> None:
+    with pytest.raises(ValueError, match="mlp"):
+        KitchenPPOConfig(controller="mlp")
+    assert KitchenPPOConfig(controller="mlp", from_scratch=True).controller == "mlp"
