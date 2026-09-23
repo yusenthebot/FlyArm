@@ -674,3 +674,8 @@ quality-demoreset at iterations 450 and 500: 100.0 with all four in 20 of 20 fro
 Kettle from demonstration mid-lift states (32 states with the kettle 0.15 to 0.38 from its goal, 80 steps): both quality-strict policy-0600 and quality-demoreset policy-0200 bring it within 0.1 in 14 to 15 of 32, but it ends at 0.16 to 0.19, so the placement is reached and not held.
 Before and after in the official environment, one 0.2 rad perturbed episode (runs/ppo-kitchen-quality-demoreset-001/videos/before-after-quality.mp4): E49 policy-0600 saturates 46% of commands and ends microwave 0.09, kettle 0.27, light switch 0.00, slide cabinet 0.23; quality-demoreset policy-0500 saturates 2% and ends 0.00, 0.23, 0.00, 0.07, both with all four tasks.
 Standing: the motion terms work (commands, stray contact, disturbance and the depth of three of the four tasks), the kettle's placement is the one open item.
+
+### E54. A bonus for leaving each task finished
+Change: KitchenPPOConfig.final_strict_bonus pays, on an episode's last step, that amount for every element of the split within the strict 0.1 of its goal that was not already there at the start (so a demonstration reset cannot collect it for free); 0 is every earlier run (tests/test_batched_kitchen.py).
+Why: from demonstration mid-lift states the policies bring the kettle within 0.1 about half the time but end at 0.16 to 0.19 (E53); the strict half-bonus pays for reaching 0.1 once, nothing pays for staying there.
+Run runs/ppo-kitchen-quality-hold-001 from quality-demoreset's policy-0500 with final_strict_bonus 100 (at most 400 per episode against 800 in completion bonuses), everything else as quality-demoreset, which continues alongside.

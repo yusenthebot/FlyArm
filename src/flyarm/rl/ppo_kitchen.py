@@ -75,6 +75,7 @@ def evaluate_kitchen(
         terminate_on_all_tasks=settings.terminate_on_all_tasks,
         strict_bonus_fraction=settings.strict_bonus_fraction,
         completion_threshold=settings.completion_threshold,
+        final_strict_bonus=settings.final_strict_bonus,
         tracking_sigma=settings.tracking_sigma,
         reference_episode=settings.reference_episode,
     )
@@ -170,6 +171,7 @@ class KitchenTask:
             terminate_on_all_tasks=self.settings.terminate_on_all_tasks,
             strict_bonus_fraction=self.settings.strict_bonus_fraction,
             completion_threshold=self.settings.completion_threshold,
+            final_strict_bonus=self.settings.final_strict_bonus,
             tracking_sigma=self.settings.tracking_sigma,
             reference_episode=self.settings.reference_episode,
         )

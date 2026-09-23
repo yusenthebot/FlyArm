@@ -485,6 +485,9 @@ class KitchenPPOConfig(BaseModel):
     # shaping target); the benchmark's 0.3 is the default and still decides the reported score
     # (research log E52).
     completion_threshold: float = Field(default=0.3, gt=0, le=0.3)
+    # Paid once at an episode's end per element within the strict 0.1 of its goal that was not
+    # there at the start (research log E54); 0 disables it.
+    final_strict_bonus: float = Field(default=0.0, ge=0, le=10_000)
     # Demonstration-augmented PPO (DAPG, Rajeswaran et al. 2018): add bc_weight * bc_decay^k x
     # the squared error between the policy mean and the demonstrated action to the PPO loss at
     # iteration k, on the base run's own training demonstrations. It keeps a warm-started policy
