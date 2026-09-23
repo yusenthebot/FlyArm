@@ -1,0 +1,86 @@
+{
+ "imitation-nominal": {
+  "normalized_score": 25.0,
+  "strict_score": 0.0,
+  "strict_per_task": {
+   "microwave": 0.0,
+   "kettle": 0.0,
+   "light switch": 0.0,
+   "slide cabinet": 0.0
+  },
+  "final_goal_distance": {
+   "microwave": 0.22320838884973593,
+   "kettle": 0.37021560779389917,
+   "light switch": 0.6918311525581736,
+   "slide cabinet": 0.3699999997347516
+  },
+  "stray_contact_fraction": 0.07142857142857142,
+  "mean_abs_action": 0.19437213665588632,
+  "saturated_fraction": 0.0,
+  "mean_abs_action_change": 0.01867532900383045,
+  "disturbance_rad": 0.0023150423663937155
+ },
+ "imitation-perturbed": {
+  "normalized_score": 15.0,
+  "strict_score": 2.5,
+  "strict_per_task": {
+   "microwave": 0.1,
+   "kettle": 0.0,
+   "light switch": 0.0,
+   "slide cabinet": 0.0
+  },
+  "final_goal_distance": {
+   "microwave": 0.5900994866171694,
+   "kettle": 0.40608731694875333,
+   "light switch": 0.6918311525581736,
+   "slide cabinet": 0.36999999972576203
+  },
+  "stray_contact_fraction": 0.06303571428571428,
+  "mean_abs_action": 0.1461924124539124,
+  "saturated_fraction": 1.984126984126984e-05,
+  "mean_abs_action_change": 0.012666692532717233,
+  "disturbance_rad": 0.002315042381290319
+ },
+ "four-task-0600-nominal": {
+  "normalized_score": 100.0,
+  "strict_score": 50.0,
+  "strict_per_task": {
+   "microwave": 1.0,
+   "kettle": 0.0,
+   "light switch": 1.0,
+   "slide cabinet": 0.0
+  },
+  "final_goal_distance": {
+   "microwave": 0.08998222154403446,
+   "kettle": 0.206041901076297,
+   "light switch": 0.009688745957369984,
+   "slide cabinet": 0.28215533026509654
+  },
+  "stray_contact_fraction": 0.31147540983606553,
+  "mean_abs_action": 0.54899681308839,
+  "saturated_fraction": 0.19125683060109294,
+  "mean_abs_action_change": 0.04713758175347835,
+  "disturbance_rad": 0.21128746761385128
+ },
+ "four-task-0600-perturbed": {
+  "normalized_score": 100.0,
+  "strict_score": 50.0,
+  "strict_per_task": {
+   "microwave": 1.0,
+   "kettle": 0.0,
+   "light switch": 1.0,
+   "slide cabinet": 0.0
+  },
+  "final_goal_distance": {
+   "microwave": 0.08951639659985394,
+   "kettle": 0.24413205506327113,
+   "light switch": 0.009675215578313311,
+   "slide cabinet": 0.27807618371221576
+  },
+  "stray_contact_fraction": 0.34230854157642643,
+  "mean_abs_action": 0.5555380566641245,
+  "saturated_fraction": 0.20310205941303955,
+  "mean_abs_action_change": 0.04811501772493984,
+  "disturbance_rad": 0.2973581704381768
+ }
+}

@@ -26,6 +26,7 @@ import numpy as np
 
 from flyarm.config import FlyLegConfig, KitchenPPOConfig, KitchenVariantConfig
 from flyarm.rl.batched_kitchen import ACTION_DIM, OBS_DIM, BatchedKitchen, KitchenVariant
+from flyarm.rl.kitchen_quality import STRICT_THRESHOLD, QualityWeights
 from flyarm.rl.ppo import Controller, MotorHead, rollout_for, train_ppo, trainable_count
 from flyarm.whole_brain.policy import BrainPolicy, DirectPolicy
 
@@ -36,6 +37,16 @@ SCRATCH_SEED = 2_000_000  # random-action rollouts that calibrate a fresh policy
 
 def kitchen_variant(config: KitchenVariantConfig) -> KitchenVariant:
     return KitchenVariant(**config.model_dump())
+
+
+def quality_weights(settings: KitchenPPOConfig) -> QualityWeights:
+    return QualityWeights(
+        depth=settings.depth_weight,
+        disturbance=settings.disturbance_weight,
+        collision=settings.collision_weight,
+        action=settings.action_weight,
+        smoothness=settings.smoothness_weight,
+    )
 
 
 def evaluate_kitchen(
@@ -60,6 +71,8 @@ def evaluate_kitchen(
         task_shaping_weight=settings.task_shaping_weight,
         task_shaping_form=settings.task_shaping_form,
         completion_order=settings.completion_order,
+        quality=quality_weights(settings),
+        terminate_on_all_tasks=settings.terminate_on_all_tasks,
         tracking_sigma=settings.tracking_sigma,
         reference_episode=settings.reference_episode,
     )
@@ -68,16 +81,31 @@ def evaluate_kitchen(
     completed = np.zeros((len(seeds), len(env.tasks)), dtype=bool)
     reward = np.zeros(len(seeds))
     active = np.ones(len(seeds), dtype=bool)
+    stray_steps = np.zeros(len(seeds))
+    steps = np.zeros(len(seeds))
+    magnitude, saturated, change = np.zeros(len(seeds)), np.zeros(len(seeds)), np.zeros(len(seeds))
+    previous = np.zeros((len(seeds), ACTION_DIM))
+    final_distance = np.zeros((len(seeds), len(env.tasks)))
+    disturbance = np.zeros(len(seeds))
     for _ in range(settings.horizon):
         action = np.asarray(head.mean(brain.features(obs)), dtype=np.float64)
         result = env.step(action, auto_reset=False)
         completed |= active[:, None] & result.completed
         reward += active * result.reward
+        stray_steps += active * result.stray_contact
+        steps += active
+        magnitude += active * np.abs(action).mean(1)
+        saturated += active * (np.abs(action) > 0.95).mean(1)
+        change += active * np.abs(action - previous).mean(1)
+        previous = action
+        final_distance[active] = result.goal_distance[active]
+        disturbance[active] = -env.disturbance_potential()[active]
         active &= ~(result.terminated | result.truncated)
         obs = result.obs
         if not active.any():
             break
     counts = completed.sum(1)
+    strict = final_distance < STRICT_THRESHOLD
     return {
         "seeds": seeds,
         "tasks": list(env.tasks),
@@ -90,6 +118,20 @@ def evaluate_kitchen(
         "per_task_success": {
             task: float(completed[:, index].mean()) for index, task in enumerate(env.tasks)
         },
+        # Motion quality (research log E50): the strict score counts a task only if its element
+        # ends the episode within STRICT_THRESHOLD of its goal.
+        "strict_score": float(25.0 * strict.sum(1).mean()),
+        "strict_per_task": {
+            task: float(strict[:, index].mean()) for index, task in enumerate(env.tasks)
+        },
+        "final_goal_distance": {
+            task: float(np.median(final_distance[:, index])) for index, task in enumerate(env.tasks)
+        },
+        "stray_contact_fraction": float((stray_steps / np.maximum(steps, 1)).mean()),
+        "mean_abs_action": float((magnitude / np.maximum(steps, 1)).mean()),
+        "saturated_fraction": float((saturated / np.maximum(steps, 1)).mean()),
+        "mean_abs_action_change": float((change / np.maximum(steps, 1)).mean()),
+        "disturbance_rad": float(disturbance.mean()),
     }
 
 
@@ -122,6 +164,8 @@ class KitchenTask:
             task_shaping_weight=self.settings.task_shaping_weight,
             task_shaping_form=self.settings.task_shaping_form,
             completion_order=self.settings.completion_order,
+            quality=quality_weights(self.settings),
+            terminate_on_all_tasks=self.settings.terminate_on_all_tasks,
             tracking_sigma=self.settings.tracking_sigma,
             reference_episode=self.settings.reference_episode,
         )
@@ -144,7 +188,9 @@ class KitchenTask:
     def describe(self, name: str, scored: dict[str, Any], episodes: int) -> str:
         return (
             f"{name} score {scored['normalized_score']:.1f} "
-            f"({scored['mean_tasks']:.2f} tasks, all four in {scored['completed_all']}/{episodes})"
+            f"({scored['mean_tasks']:.2f} tasks, all four in {scored['completed_all']}/{episodes}) "
+            f"strict {scored['strict_score']:.1f} stray {scored['stray_contact_fraction']:.2f} "
+            f"|a| {scored['mean_abs_action']:.2f} sat {scored['saturated_fraction']:.2f}"
         )
 
 

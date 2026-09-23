@@ -460,6 +460,20 @@ class KitchenPPOConfig(BaseModel):
     # earlier task of the split is done, the order of the demonstrations. The reported score
     # always counts any order, as the benchmark does.
     completion_order: Literal["any", "split_order"] = "any"
+    # Motion quality (flyarm.rl.kitchen_quality, research log E50), all 0 by default: depth pays
+    # for taking each element all the way to its goal (potential form), disturbance charges for
+    # moving object joints outside the split (potential form), collision charges each step the
+    # robot touches anything but the target task's body, action and smoothness charge the mean
+    # squared command and the mean squared change of command.
+    depth_weight: float = Field(default=0.0, ge=0, le=100)
+    disturbance_weight: float = Field(default=0.0, ge=0, le=100)
+    collision_weight: float = Field(default=0.0, ge=0, le=100)
+    action_weight: float = Field(default=0.0, ge=0, le=100)
+    smoothness_weight: float = Field(default=0.0, ge=0, le=100)
+    # End an episode the moment all four tasks cross the benchmark's threshold (every run before
+    # E50), or run it to the horizon so that every element has to reach and stay at its goal,
+    # which is what the strict score measures.
+    terminate_on_all_tasks: bool = True
     # Demonstration-augmented PPO (DAPG, Rajeswaran et al. 2018): add bc_weight * bc_decay^k x
     # the squared error between the policy mean and the demonstrated action to the PPO loss at
     # iteration k, on the base run's own training demonstrations. It keeps a warm-started policy

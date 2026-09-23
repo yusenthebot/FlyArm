@@ -142,6 +142,15 @@ from mjbatch import Batch
 
 from flyarm.benchmarks import _robotics_compat, kitchen
 from flyarm.rl.batched_pick_place import simulation_threads
+from flyarm.rl.kitchen_quality import (
+    QualityWeights,
+    action_costs,
+    build_model_with_contact_sensors,
+    contact_addresses,
+    depth_potential,
+    disturbance_potential,
+    stray_contact,
+)
 
 ACTION_DIM = kitchen.ACTION_DIM  # 9 joint velocity commands
 OBS_DIM = kitchen.FEATURE_DIM  # 30 position features
@@ -295,6 +304,8 @@ class StepResult:
     goal_distance: np.ndarray  # [N, 4] element distance to its goal
     tracking: np.ndarray  # [N] the reference term actually paid this step, before its weight
     prefix: np.ndarray  # [N] int, how many tasks the curriculum pre-completed at reset
+    # [N] bool, the robot touched something other than the target task's body (kitchen_quality)
+    stray_contact: np.ndarray
 
 
 @dataclass(frozen=True)
@@ -362,6 +373,7 @@ class BatchedKitchen:
         reference_episode: int = 0,
         terminate_on_all_tasks: bool = True,
         tasks: tuple[str, ...] = COMPLETE_TASKS,
+        quality: QualityWeights | None = None,
     ) -> None:
         if num_envs < 1 or horizon < 20:
             raise ValueError("num_envs must be positive and horizon at least 20")
@@ -421,7 +433,12 @@ class BatchedKitchen:
         self.terminate_on_all_tasks = bool(terminate_on_all_tasks)
         self.num_envs, self.horizon = num_envs, horizon
         self.variant = variant or KitchenVariant()
-        self.model = model = mujoco.MjModel.from_xml_path(specs.xml_path)
+        # The benchmark's model plus contact counters, which leave its physics untouched.
+        self.model = model = build_model_with_contact_sensors(specs.xml_path, self.tasks)
+        self.quality = quality or QualityWeights()
+        self._contact_any, self._contact_task = contact_addresses(model, self.tasks)
+        if self.quality.collision and (self._contact_task < 0).any():
+            raise ValueError("collision_weight needs a contact body for every task")
         if model.nu != ACTION_DIM:
             raise ValueError(f"Kitchen model has {model.nu} actuators, expected {ACTION_DIM}")
         self.batch = Batch(model, num_envs, simulation_threads(num_threads))
@@ -437,6 +454,7 @@ class BatchedKitchen:
         b = self.batch
         self.qpos, self.qvel, self.ctrl = b.bind("qpos"), b.bind("qvel"), b.bind("ctrl")
         self.site_xpos = b.bind("site_xpos")
+        self.sensordata = b.bind("sensordata")
         if self.variant.randomizes_physics:
             self.body_mass = b.expand("body_mass")
             self.body_inertia = b.expand("body_inertia")
@@ -451,6 +469,15 @@ class BatchedKitchen:
         self.last_robot_qpos = np.zeros((n, ROBOT_JOINTS))
         self.previous_potential = np.zeros(n)
         self.previous_task_potential = np.zeros(n)
+        # Motion-quality state (kitchen_quality): where the non-task objects began, the last
+        # command, and the two quality potentials at the previous step.
+        split = np.concatenate(self._element_indices) - ROBOT_JOINTS
+        self._outside_split = np.ones(model.nq - ROBOT_JOINTS)
+        self._outside_split[split] = 0.0
+        self.initial_object_qpos = np.zeros((n, model.nq - ROBOT_JOINTS))
+        self.last_action = np.zeros((n, ACTION_DIM))
+        self.previous_depth = np.zeros(n)
+        self.previous_disturbance = np.zeros(n)
         self.episode_seed = np.zeros(n, dtype=np.int64)
         self._noise = [np.random.default_rng(0) for _ in range(n)]
         self._next_seed = first_seed
@@ -503,6 +530,14 @@ class BatchedKitchen:
         else:
             index = np.where(remaining, self._target_score(), -np.inf).argmax(1)
         return np.where(remaining.any(1), index, len(self.tasks))
+
+    def depth_potential(self) -> np.ndarray:
+        return depth_potential(self.goal_distance(), BONUS_THRESH)
+
+    def disturbance_potential(self) -> np.ndarray:
+        return disturbance_potential(
+            self.object_qpos(), self.initial_object_qpos, self._outside_split
+        )
 
     def leading_completed(self) -> np.ndarray:
         """[N] how many of the split's tasks are completed in order from the first."""
@@ -640,6 +675,10 @@ class BatchedKitchen:
         self.last_robot_qpos[ids] = observation[ids, :ROBOT_JOINTS]
         self.previous_potential[ids] = self.potential()[ids]
         self.previous_task_potential[ids] = self.task_potential(self.target())[ids]
+        self.initial_object_qpos[ids] = self.object_qpos()[ids]
+        self.last_action[ids] = 0.0
+        self.previous_depth[ids] = self.depth_potential()[ids]
+        self.previous_disturbance[ids] = self.disturbance_potential()[ids]
         return observation
 
     def _apply_prefix(self, row: int, seed: int) -> None:
@@ -674,6 +713,22 @@ class BatchedKitchen:
         self.batch.set_const(ids)
 
     # Step ----------------------------------------------------------------------------------
+    def _quality_term(self, action: np.ndarray, stray: np.ndarray) -> np.ndarray:
+        """The motion-quality part of this step's reward; advances its potentials and memory."""
+        weights = self.quality
+        depth, disturbance = self.depth_potential(), self.disturbance_potential()
+        magnitude, change = action_costs(action, self.last_action)
+        term = (
+            weights.depth * (depth - self.previous_depth)
+            + weights.disturbance * (disturbance - self.previous_disturbance)
+            - weights.collision * stray
+            - weights.action * magnitude
+            - weights.smoothness * change
+        )
+        self.previous_depth, self.previous_disturbance = depth, disturbance
+        self.last_action = action.copy()
+        return term
+
     def _control(self, action: np.ndarray) -> np.ndarray:
         """FrankaRobot.step: velocity command, velocity clip, integrate, position clip."""
         velocity = np.clip(action, -1.0, 1.0) * ACT_RANGE
@@ -726,8 +781,10 @@ class BatchedKitchen:
                 target < len(self.tasks),
                 self.approach_slope,
             )
+        stray = stray_contact(self.sensordata, self._contact_any, self._contact_task, target)
+        quality_term = self._quality_term(action, stray)
         reward = assemble_reward(
-            task_term, paid, self.completion_bonus, tracking, self.tracking_weight
+            task_term + quality_term, paid, self.completion_bonus, tracking, self.tracking_weight
         )
         self.previous_potential = self.potential()
         self.previous_task_potential = self.task_potential(self.target())
@@ -747,6 +804,7 @@ class BatchedKitchen:
             goal_distance=distance,
             tracking=tracking,
             prefix=self.prefix.copy(),
+            stray_contact=stray,
         )
         done = terminated | truncated
         if auto_reset and done.any():
