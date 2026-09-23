@@ -375,11 +375,13 @@ def readable(stem: str) -> str:
     return " · ".join([" ".join(parts), *detail]).strip(" ·")
 
 
-def live(roots: list[Root]) -> dict[str, Any]:
-    """The newest progress clip of every run that has one, newest recording first.
+def live(roots: list[Root], *, include_inactive: bool = False) -> dict[str, Any]:
+    """The newest progress clip of every running run, newest recording first.
 
     Written by `flyarm rl watch`: each run keeps exactly one clip, progress/latest.mp4, and
-    replaces it whenever the run saves a newer checkpoint.
+    replaces it whenever the run saves a newer checkpoint. Runs whose results.json says they
+    are stopped, paused, failed or complete are left out unless ``include_inactive``; their
+    clips stay on disk.
     """
     rows: list[dict[str, Any]] = []
     for root in roots:
@@ -399,6 +401,8 @@ def live(roots: list[Root]) -> dict[str, Any]:
                     status = json.loads(results.read_text()).get("status", "running")
                 except json.JSONDecodeError:
                     status = "running"
+            if status != "running" and not include_inactive:
+                continue
             rows.append(
                 {
                     "root": root.label,

@@ -157,3 +157,7 @@ def test_live_endpoint_lists_the_newest_progress_clip_of_each_run(tmp_path: Path
     assert clips[0]["path"] == "ppo-demo/progress/latest.mp4"
     assert clips[0]["iteration"] == 120 and clips[0]["status"] == "running"
     assert clips[0]["curve"]["mean_reward"] == 1.5
+    (run / "results.json").write_text(json.dumps({"status": "stopped"}))
+    assert live([Root(label="main", path=tmp_path / "runs")])["clips"] == []
+    kept = live([Root(label="main", path=tmp_path / "runs")], include_inactive=True)["clips"]
+    assert [clip["status"] for clip in kept] == ["stopped"]
