@@ -141,6 +141,7 @@ from gymnasium_robotics.envs.franka_kitchen.kitchen_env import (
 from mjbatch import Batch
 
 from flyarm.benchmarks import _robotics_compat, kitchen
+from flyarm.rl.batched_pick_place import simulation_threads
 
 ACTION_DIM = kitchen.ACTION_DIM  # 9 joint velocity commands
 OBS_DIM = kitchen.FEATURE_DIM  # 30 position features
@@ -416,7 +417,7 @@ class BatchedKitchen:
         self.model = model = mujoco.MjModel.from_xml_path(specs.xml_path)
         if model.nu != ACTION_DIM:
             raise ValueError(f"Kitchen model has {model.nu} actuators, expected {ACTION_DIM}")
-        self.batch = Batch(model, num_envs, num_threads)
+        self.batch = Batch(model, num_envs, simulation_threads(num_threads))
         self._element_indices = [OBS_ELEMENT_INDICES[task] for task in self.tasks]
         self._element_goals = [OBS_ELEMENT_GOALS[task] for task in self.tasks]
         self._element_sites = np.array([model.site(ELEMENT_SITES[task]).id for task in self.tasks])
