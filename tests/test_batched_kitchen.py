@@ -519,3 +519,64 @@ def test_the_prefix_curriculum_presets_elements_without_paying_their_bonus() -> 
         BatchedKitchen(1, shaping_scope="product")
     # assemble_reward is the single place the bonus and the reference term are added.
     assert assemble_reward(np.array([0.5]), np.array([2]), 200.0)[0] == pytest.approx(400.5)
+
+
+def test_the_potential_task_form_pays_nothing_for_idleness_and_rebases_on_a_completion() -> None:
+    """The defect of the level form was that idleness out-earned the expert (E44)."""
+    from gymnasium_robotics.envs.franka_kitchen.kitchen_env import (
+        OBS_ELEMENT_GOALS,
+        OBS_ELEMENT_INDICES,
+    )
+
+    level = BatchedKitchen(2, approach_slope=1.0)
+    level.reset(seeds=np.array([0, 1]))
+    assert level.task_shaping_form == "level" and level.task_shaping_weight == 1.0
+    # The level form pays every step for standing where it stands.
+    assert level.step(np.zeros((2, 9)), auto_reset=False).reward.min() > 0.1
+
+    env = BatchedKitchen(2, approach_slope=1.0, task_shaping_form="potential")
+    env.reset(seeds=np.array([0, 1]))
+    # Frozen arm and frozen scene: the potential does not change, so the term is exactly 0.
+    env.previous_task_potential[:] = env.task_potential(env.target())
+    frozen = env.tracking_reward()  # no reference term configured, so this is zero too
+    assert np.allclose(frozen, 0.0)
+    held = env.task_potential(env.target()) - env.previous_task_potential
+    assert np.allclose(held, 0.0)
+
+    # A completion moves the target, and the rebase must absorb that jump rather than charge it.
+    env.qpos[:, OBS_ELEMENT_INDICES["microwave"]] = OBS_ELEMENT_GOALS["microwave"]
+    result = env.step(np.zeros((2, 9)), auto_reset=False)
+    assert (result.newly_completed == 1).all()
+    # The reward is the bonus plus a bounded step term, never a large negative spike.
+    assert (result.reward > env.completion_bonus - 1.0).all()
+    # After the step the potential is rebased onto the new target, so the next idle step is 0.
+    assert np.allclose(env.previous_task_potential, env.task_potential(env.target()))
+    idle = env.step(np.zeros((2, 9)), auto_reset=False)
+    assert np.abs(idle.reward).max() < 0.05
+
+
+def test_task_shaping_weight_scales_the_terms_and_zero_leaves_the_bonus_alone() -> None:
+    off = BatchedKitchen(2, approach_slope=1.0, task_shaping_weight=0.0)
+    off.reset(seeds=np.array([0, 1]))
+    assert off.max_step_reward == pytest.approx(0.0)
+    for _ in range(3):
+        assert np.allclose(off.step(np.zeros((2, 9)), auto_reset=False).reward, 0.0)
+
+    half = BatchedKitchen(2, approach_slope=1.0, task_shaping_weight=0.5)
+    full = BatchedKitchen(2, approach_slope=1.0)
+    for env in (half, full):
+        env.reset(seeds=np.array([0, 1]))
+    assert half.max_step_reward == pytest.approx(0.5 * MAX_STEP_REWARD)
+    assert half.step(np.zeros((2, 9)), auto_reset=False).reward == pytest.approx(
+        0.5 * full.step(np.zeros((2, 9)), auto_reset=False).reward, rel=1e-5
+    )
+
+    # The potential form telescopes, so it never enters the per-step maximum whatever the weight.
+    potential = BatchedKitchen(1, task_shaping_form="potential", task_shaping_weight=50.0)
+    assert potential.max_step_reward == pytest.approx(0.0)
+    with pytest.raises(ValueError, match="task_shaping_weight"):
+        BatchedKitchen(1, task_shaping_weight=-1.0)
+    with pytest.raises(ValueError, match="task_shaping_form"):
+        BatchedKitchen(1, task_shaping_form="derivative")
+    with pytest.raises(ValueError, match="shaping_scope 'target'"):
+        BatchedKitchen(1, task_shaping_form="potential", shaping_scope="sum")

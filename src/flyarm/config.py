@@ -438,6 +438,13 @@ class KitchenPPOConfig(BaseModel):
     # shaping falls from 0.2636 to 0.1823 and the expert-to-random ratio from 2.5x to 1.6x), so
     # "target" stays the default.
     shaping_scope: Literal["target", "sum"] = "target"
+    # Scale on the approach and progress terms; 0 leaves the completion bonus alone.
+    task_shaping_weight: float = Field(default=1.0, ge=0, le=100)
+    # "level" pays the current approach and progress levels, the form of every run before
+    # research log E45. "potential" pays their change within a step, w * (phi(s') - phi(s)),
+    # rebased without payment when a completion moves the target: idleness then pays exactly 0,
+    # it telescopes, and it does not enter the per-step maximum or the E34 floor.
+    task_shaping_form: Literal["level", "potential"] = "level"
     neural_steps: int = Field(default=3, ge=1, le=8)
     eval_every: int = Field(default=50, ge=1)
     eval_episodes: int = Field(default=20, ge=1, le=256)

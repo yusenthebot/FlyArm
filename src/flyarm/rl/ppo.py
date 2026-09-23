@@ -163,6 +163,8 @@ class TaskAdapter(Protocol):
     action_dim: int
     extra_key: str  # curve field for the task's secondary per-episode counter
     extra_label: str  # its name in the progress line
+    # Optional: a per-batch peak worth recording, such as the most tasks any one episode earned.
+    batch_peak_key: str | None
 
     def make_env(self, num_envs: int, first_seed: int) -> Any: ...
 
@@ -171,6 +173,8 @@ class TaskAdapter(Protocol):
     ) -> dict[str, dict[str, Any]]: ...
 
     def extra(self, result: Any, done: np.ndarray) -> int: ...
+
+    def batch_peak(self, result: Any, done: np.ndarray) -> float: ...
 
     def describe(self, name: str, scored: dict[str, Any], episodes: int) -> str: ...
 
@@ -220,6 +224,7 @@ class PickPlaceTask:
     action_dim = ACTION_DIM
     extra_key = "lift_rate"
     extra_label = "lift"
+    batch_peak_key: str | None = None
 
     def __init__(self, model_path: Path, settings: PPOConfig) -> None:
         self.model_path = Path(model_path)
@@ -248,6 +253,9 @@ class PickPlaceTask:
 
     def extra(self, result: Any, done: np.ndarray) -> int:
         return int((done & result.lifted).sum())
+
+    def batch_peak(self, result: Any, done: np.ndarray) -> float:
+        return 0.0  # pick-and-place has no per-episode count to peak over
 
     def describe(self, name: str, scored: dict[str, Any], episodes: int) -> str:
         return f"{name} place {scored['successes']}/{episodes} lift {scored['lifts']}"
@@ -374,6 +382,7 @@ def train_ppo(
         reward_buf = np.zeros((horizon, n), np.float32)
         done_buf = np.zeros((horizon, n), np.float32)
         finished = successes = extras = 0
+        peak = 0.0
         rollout_start = time.monotonic()
         for t in range(horizon):
             feats = brain.features(obs)
@@ -393,6 +402,8 @@ def train_ppo(
             finished += int(done.sum())
             successes += int(result.terminated.sum())
             extras += task.extra(result, done)
+            if getattr(task, "batch_peak_key", None):
+                peak = max(peak, task.batch_peak(result, done))
             brain.reset(done)
             obs = result.obs
             privileged = env.observation(privileged=True)
@@ -474,10 +485,13 @@ def train_ppo(
             "steps_per_second": n * horizon / rollout_seconds,
             "elapsed_seconds": time.monotonic() - started,
         }
+        if getattr(task, "batch_peak_key", None):
+            curve[str(task.batch_peak_key)] = peak
         curves.append(curve)
         print(
             f"it {iteration + 1:4d} steps {env_steps:9d} reward {curve['mean_reward']:.3f} "
             f"episodes {finished:3d} success {successes:3d} {task.extra_label} {extras:4d} "
+            f"peak {peak:.0f} "
             f"vloss {curve['value_loss']:.3f} sps {curve['steps_per_second']:.0f}",
             flush=True,
         )
