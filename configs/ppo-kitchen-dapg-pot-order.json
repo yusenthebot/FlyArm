@@ -1,0 +1,32 @@
+{
+  "base_run": "runs/flyleg-kitchen-body-chunk1-001",
+  "base_kind": "flyleg",
+  "base_seed": 0,
+  "from_scratch": false,
+  "num_envs": 128,
+  "rollout_steps": 64,
+  "iterations": 1000,
+  "encoder_lr": 0.0,
+  "completion_bonus": 200.0,
+  "approach_slope": 1.0,
+  "readout_calibration": "unit_norm",
+  "advantage_clip": 10.0,
+  "critic_warmup": 50,
+  "log_std": -0.7,
+  "eval_every": 50,
+  "eval_episodes": 20,
+  "horizon": 280,
+  "seed": 0,
+  "train_variant": {},
+  "eval_variants": {
+    "nominal": {},
+    "perturbed": {
+      "initial_joint_offset": 0.2
+    }
+  },
+  "best_on": "nominal",
+  "bc_weight": 1.0,
+  "bc_decay": 1.0,
+  "task_shaping_form": "potential",
+  "task_shaping_weight": 10.0
+}
