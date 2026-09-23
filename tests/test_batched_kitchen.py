@@ -466,3 +466,56 @@ def test_the_progress_rule_is_skewed_by_the_span_and_moved_is_not() -> None:
     absolute.qpos[0, OBS_ELEMENT_INDICES["microwave"]] -= 2 * travel
     absolute.qpos[0, OBS_ELEMENT_INDICES["slide cabinet"]] += travel
     assert absolute.target()[0] == 0  # "moved" follows the larger real motion
+
+
+def test_the_prefix_curriculum_presets_elements_without_paying_their_bonus() -> None:
+    from flyarm.rl.batched_kitchen import assemble_reward, averaged_task_shaping
+
+    plain = BatchedKitchen(2)
+    plain.reset(seeds=np.array([0, 1]))
+    assert not plain.variant.uses_curriculum and (plain.prefix == 0).all()
+    assert not plain.preset.any()
+
+    env = BatchedKitchen(
+        16, variant=KitchenVariant(curriculum_prefix=3, curriculum_true_start_share=0.25)
+    )
+    env.reset(seeds=np.arange(16))
+    # Drawn per environment, so one batch mixes true starts with advanced ones.
+    assert env.prefix.min() == 0 and env.prefix.max() >= 1 and len(set(env.prefix.tolist())) > 1
+    assert (env.prefix <= 3).all()
+    for row in range(16):
+        k = int(env.prefix[row])
+        assert env.preset[row, :k].all() and not env.preset[row, k:].any()
+        assert env.completed[row, :k].all()  # marked done, so never the shaping target
+        for index in range(k):
+            # Placed at its goal joint positions, at rest.
+            assert np.allclose(
+                env.qpos[row, env._element_indices[index]], env._element_goals[index]
+            )
+            assert np.allclose(env.qvel[row, env._element_dofs[index]], 0.0)
+        if k < 4:
+            assert env.target()[row] == k
+
+    # A preset element pays no completion bonus and does not count as earned.
+    result = env.step(np.zeros((16, 9)), auto_reset=False)
+    assert (result.newly_completed == 0).all()
+    assert (result.tasks_completed == 0).all()
+    assert np.array_equal(result.prefix, env.prefix)
+    # With the curriculum off, earned tasks are exactly the benchmark's count.
+    assert (plain.step(np.zeros((2, 9)), auto_reset=False).tasks_completed == 0).all()
+
+    with pytest.raises(ValueError, match="curriculum_prefix"):
+        KitchenVariant(curriculum_prefix=-1)
+    with pytest.raises(ValueError, match="curriculum_true_start_share"):
+        KitchenVariant(curriculum_true_start_share=1.5)
+
+    # The averaged scope keeps the per-step maximum, so the E34 floor is untouched.
+    perfect = averaged_task_shaping(np.zeros((1, 4)), np.ones((1, 4)), np.ones((1, 4), bool))
+    assert perfect[0] == pytest.approx(MAX_STEP_REWARD, abs=1e-6)
+    none_left = averaged_task_shaping(np.zeros((1, 4)), np.ones((1, 4)), np.zeros((1, 4), bool))
+    assert none_left[0] == pytest.approx(0.0)
+    assert BatchedKitchen(1, shaping_scope="sum").max_step_reward == pytest.approx(MAX_STEP_REWARD)
+    with pytest.raises(ValueError, match="shaping_scope"):
+        BatchedKitchen(1, shaping_scope="product")
+    # assemble_reward is the single place the bonus and the reference term are added.
+    assert assemble_reward(np.array([0.5]), np.array([2]), 200.0)[0] == pytest.approx(400.5)
