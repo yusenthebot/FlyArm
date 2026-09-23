@@ -325,6 +325,43 @@ class MLPPolicy(_Normalized):
         return [self.layers[0]]
 
 
+class DirectPolicy(_Normalized):
+    """The deep-RL control: a tanh MLP from the normalized observation to the action.
+
+    It is the standard PPO actor (two tanh layers, near-zero last-layer initialization) and
+    exists to answer one question about every reward-only result: does a conventional network
+    trained by the same PPO on the same reward do better or worse than the frozen connectome
+    with trained linear maps? ``decoder`` is the whole network, so the PPO trainer, which trains
+    ``decoder`` through its motor head, trains all of it.
+    """
+
+    kind = "mlp_rl"
+    channels = None
+
+    def __init__(self, *, obs_dim: int, action_dim: int, hidden: int = 256, seed: int = 0) -> None:
+        super().__init__(obs_dim, action_dim, 1)
+        mx.random.seed(seed)
+        last = nn.Linear(hidden, action_dim)
+        last.weight = last.weight * 0.01
+        last.bias = mx.zeros_like(last.bias)
+        self.decoder = nn.Sequential(
+            nn.Linear(obs_dim, hidden), nn.Tanh(), nn.Linear(hidden, hidden), nn.Tanh(), last
+        )
+
+    @property
+    def state_size(self) -> int:
+        return 0
+
+    def initial_state(self, batch: int) -> mx.array:
+        return mx.zeros((batch, 1))
+
+    def step(self, obs: mx.array, state: mx.array) -> tuple[mx.array, mx.array]:
+        return mx.tanh(self.decoder(self.normalize(obs))), state
+
+    def input_modules(self) -> list[nn.Module]:
+        return [self.decoder.layers[0]]
+
+
 Slice = tuple[int, int]  # (first observation index, stop index)
 
 
@@ -430,7 +467,7 @@ class ACTPolicy(_Normalized):
         return self.decode(x, mx.zeros((x.shape[0], self.latent_dim))), state
 
 
-SequencePolicy = BrainPolicy | GRUPolicy | MLPPolicy | ACTPolicy
+SequencePolicy = BrainPolicy | GRUPolicy | MLPPolicy | ACTPolicy | DirectPolicy
 
 
 class MlxController:

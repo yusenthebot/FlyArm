@@ -27,7 +27,7 @@ from mlx.utils import tree_flatten
 
 from flyarm.config import KitchenPPOConfig, PPOConfig, TaskVariantConfig
 from flyarm.rl.batched_pick_place import ACTION_DIM, OBS_DIM, BatchedPickPlace, TaskVariant
-from flyarm.whole_brain.policy import BrainPolicy
+from flyarm.whole_brain.policy import BrainPolicy, DirectPolicy
 
 TRAIN_SEED = 1_000_000  # environment seeds for PPO rollouts, disjoint from every B1a split
 PPOSettings = PPOConfig | KitchenPPOConfig
@@ -105,6 +105,7 @@ class BrainRollout:
     def __init__(self, policy: BrainPolicy, num_envs: int) -> None:
         self.policy = policy
         self.state = policy.initial_state(num_envs)
+        self.feature_dim = policy.dynamics.output_count
 
     def features(self, obs: np.ndarray) -> mx.array:
         current = self.policy.encode(self.policy.normalize(mx.array(obs)))
@@ -118,6 +119,32 @@ class BrainRollout:
     def reset(self, done: np.ndarray) -> None:
         if done.any():
             self.state = self.state * mx.array((~done).astype(np.float32))[None, :]
+
+
+class DirectRollout:
+    """The deep-RL control's features: the normalized observation itself, no memory."""
+
+    def __init__(self, policy: DirectPolicy, num_envs: int) -> None:
+        self.policy = policy
+        self.state = policy.initial_state(num_envs)
+        self.feature_dim = policy.obs_dim
+
+    def features(self, obs: np.ndarray) -> mx.array:
+        features = self.policy.normalize(mx.array(np.asarray(obs, dtype=np.float32)))
+        mx.eval(features)
+        return features
+
+    def reset(self, done: np.ndarray) -> None:
+        pass
+
+
+Controller = BrainPolicy | DirectPolicy
+
+
+def rollout_for(policy: Controller, num_envs: int) -> BrainRollout | DirectRollout:
+    if isinstance(policy, DirectPolicy):
+        return DirectRollout(policy, num_envs)
+    return BrainRollout(policy, num_envs)
 
 
 class RunningNorm:
@@ -180,7 +207,7 @@ class TaskAdapter(Protocol):
 
 
 def evaluate(
-    policy: BrainPolicy,
+    policy: Controller,
     head: MotorHead,
     model_path: Path,
     seeds: list[int],
@@ -190,7 +217,7 @@ def evaluate(
     """Deterministic mean actions on fixed seeds; the benchmark's own success rule."""
     env = BatchedPickPlace(model_path, len(seeds), horizon=horizon, variant=variant)
     obs = env.reset(seeds=np.array(seeds))
-    brain = BrainRollout(policy, len(seeds))
+    brain = rollout_for(policy, len(seeds))
     active = np.ones(len(seeds), dtype=bool)
     success = np.zeros(len(seeds), dtype=bool)
     grasped = np.zeros(len(seeds), dtype=bool)
@@ -309,7 +336,7 @@ def encoder_pass(
 
 
 def train_ppo(
-    policy: BrainPolicy,
+    policy: Controller,
     task: TaskAdapter,
     output: Path,
     settings: PPOSettings,
@@ -333,7 +360,7 @@ def train_ppo(
     env = task.make_env(settings.num_envs, TRAIN_SEED + 100_000 * settings.seed)
     obs = env.reset()
     privileged = env.observation(privileged=True)
-    brain = BrainRollout(policy, settings.num_envs)
+    brain = rollout_for(policy, settings.num_envs)
     n, horizon = settings.num_envs, settings.rollout_steps
     critic_norm = RunningNorm()
 
@@ -373,7 +400,7 @@ def train_ppo(
     env_steps = 0
     best: dict[str, Any] = {"success_rate": -1.0}
     for iteration in range(settings.iterations):
-        feats_buf = np.zeros((horizon, n, policy.dynamics.output_count), np.float32)
+        feats_buf = np.zeros((horizon, n, brain.feature_dim), np.float32)
         obs_buf = np.zeros((horizon, n, task.obs_dim), np.float32)
         rollout_state = brain.state
         critic_buf = np.zeros((horizon, n, task.privileged_dim + 1), np.float32)
@@ -434,7 +461,7 @@ def train_ppo(
         }
         train_policy = iteration >= settings.critic_warmup
         encoder_loss = None
-        if settings.encoder_lr > 0 and train_policy:
+        if settings.encoder_lr > 0 and train_policy and isinstance(policy, BrainPolicy):
             encoder_loss = encoder_pass(
                 policy,
                 head,
@@ -535,7 +562,7 @@ SCRATCH_SEED = 2_000_000  # environment seeds for the random rollouts that calib
 
 def scratch_policy(
     config: PPOConfig, pack_root: Path, model_path: Path, obs_dim: int
-) -> BrainPolicy:
+) -> Controller:
     """A fresh brain policy for reward-only training: no demonstrations anywhere.
 
     The interface and rate model are the base run's, the encoder and decoder are random, and
@@ -546,17 +573,6 @@ def scratch_policy(
     from flyarm.whole_brain.backend_mlx import RateDynamics
     from flyarm.whole_brain.compiler import ConnectomePack
 
-    pack = ConnectomePack.load(pack_root)
-    pack.validate_b1a_provenance()
-    interface = NeuralInterface.load(Path(config.base_run) / "interface.json")
-    policy = BrainPolicy(
-        "connectome",
-        RateDynamics(pack, interface),
-        obs_dim=obs_dim,
-        action_dim=ACTION_DIM,
-        neural_steps=config.neural_steps,
-        seed=config.seed,
-    )
     env = BatchedPickPlace(
         model_path,
         config.scratch_envs,
@@ -571,7 +587,23 @@ def scratch_policy(
         rows.append(env.step(action, auto_reset=True).obs)
     observations = np.stack(rows, axis=1).astype(np.float32)
     flat = observations.reshape(-1, obs_dim)
-    policy.set_normalization(flat.mean(0), np.maximum(flat.std(0), 0.05))
+    mean, scale = flat.mean(0), np.maximum(flat.std(0), 0.05)
+    if config.controller == "mlp":
+        direct = DirectPolicy(obs_dim=obs_dim, action_dim=ACTION_DIM, seed=config.seed)
+        direct.set_normalization(mean, scale)
+        return direct
+    pack = ConnectomePack.load(pack_root)
+    pack.validate_b1a_provenance()
+    interface = NeuralInterface.load(Path(config.base_run) / "interface.json")
+    policy = BrainPolicy(
+        "connectome",
+        RateDynamics(pack, interface),
+        obs_dim=obs_dim,
+        action_dim=ACTION_DIM,
+        neural_steps=config.neural_steps,
+        seed=config.seed,
+    )
+    policy.set_normalization(mean, scale)
     # unit_norm, not scale: with 2,022 readout outputs one PPO iteration shifts the decoder's
     # pre-activation by about 2, which saturates the tanh on the first trained iteration and
     # freezes the policy (research log E26, E32, E39).
@@ -620,11 +652,14 @@ def run_ppo(config: PPOConfig, pack_root: Path, model_path: Path, output: Path) 
         "base": before,
         "trainable_parameters": trainable_count(head),
         "claim": (
-            "reward only: random encoder, frozen connectome, PPO trains the linear motor decoder"
+            "reward only: a tanh MLP trained end to end by the same PPO (deep-RL control)"
+            if config.controller == "mlp"
+            else "reward only: random encoder, frozen connectome, PPO trains the motor decoder"
             if config.from_scratch
             else "PPO tunes only the linear motor decoder; encoder and connectome frozen"
         ),
         "from_scratch": config.from_scratch,
+        "controller": config.controller,
     }
     save_json(output / "results.json", results)
     try:

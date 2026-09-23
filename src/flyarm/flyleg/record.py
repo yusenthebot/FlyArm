@@ -19,6 +19,7 @@ from flyarm.whole_brain.compiler import ConnectomePack
 from flyarm.whole_brain.policy import (
     ACTPolicy,
     BrainPolicy,
+    DirectPolicy,
     GRUPolicy,
     MLPPolicy,
     MlxController,
@@ -110,7 +111,7 @@ def rollout_frames(
     """Annotated frames of one episode; a plain Controller reads the full observation."""
     controller: kitchen.Controller = (
         kitchen.PositionFeatures(MlxController(policy))
-        if isinstance(policy, (BrainPolicy, GRUPolicy, MLPPolicy, ACTPolicy))
+        if isinstance(policy, (BrainPolicy, GRUPolicy, MLPPolicy, ACTPolicy, DirectPolicy))
         else policy
     )
     observation, _ = env.reset(seed=episode_seed)

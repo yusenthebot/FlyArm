@@ -17,11 +17,10 @@ import numpy as np
 
 from flyarm.config import PPOConfig
 from flyarm.dashboard.catalog import readable
-from flyarm.rl.batched_pick_place import BatchedPickPlace
-from flyarm.rl.ppo import BrainRollout, MotorHead, task_variant
+from flyarm.rl.batched_pick_place import ACTION_DIM, BatchedPickPlace
+from flyarm.rl.ppo import Controller, MotorHead, rollout_for, task_variant
 from flyarm.video import annotate, tile, write_video
 from flyarm.whole_brain.experiment import load_trained_policy
-from flyarm.whole_brain.policy import BrainPolicy
 
 FPS = 20
 
@@ -38,7 +37,7 @@ def _stage(env: BatchedPickPlace, row: int, placed: bool) -> str:
 
 
 def _episodes(
-    policy: BrainPolicy,
+    policy: Controller,
     model_path: Path,
     seeds: list[int],
     config: PPOConfig,
@@ -49,8 +48,8 @@ def _episodes(
     variant = task_variant(config.eval_variants[variant_name])
     env = BatchedPickPlace(model_path, len(seeds), horizon=config.horizon, variant=variant)
     obs = env.reset(seeds=np.array(seeds))
-    brain = BrainRollout(policy, len(seeds))
-    head = MotorHead(policy.decoder, config.log_std)
+    brain = rollout_for(policy, len(seeds))
+    head = MotorHead(policy.decoder, config.log_std, ACTION_DIM)
     renderer = mujoco.Renderer(env.model, height=360, width=480)
     data = mujoco.MjData(env.model)
     frames: list[list[np.ndarray]] = [[] for _ in seeds]
