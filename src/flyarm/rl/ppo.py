@@ -342,12 +342,17 @@ def train_ppo(
     settings: PPOSettings,
     eval_seeds: list[int],
     select_seeds: list[int] | None = None,
+    demonstrations: tuple[mx.array, mx.array] | None = None,
 ) -> dict[str, Any]:
     """Fine-tune ``policy``'s decoder in place with PPO; returns curves and evaluations.
 
     At every evaluation point the variants are scored on ``eval_seeds`` (reported) and, when
     given, on ``select_seeds`` (disjoint validation seeds); the kept "best" checkpoint is
     chosen on the validation score only, and its test score is what gets reported.
+
+    ``demonstrations`` (features, actions) turn on the DAPG term: every gradient step also
+    fits the policy mean to a random minibatch of demonstrated actions, weighted by
+    ``settings.bc_weight * settings.bc_decay ** iteration``.
     """
     output.mkdir(parents=True, exist_ok=True)
     mx.random.seed(settings.seed)
@@ -374,7 +379,10 @@ def train_ppo(
         advantages: mx.array,
         returns: mx.array,
         train_policy: bool,
-    ) -> tuple[mx.array, tuple[mx.array, mx.array, mx.array]]:
+        demo_feats: mx.array,
+        demo_actions: mx.array,
+        bc_weight: float,
+    ) -> tuple[mx.array, tuple[mx.array, mx.array, mx.array, mx.array]]:
         log_prob = gaussian_log_prob(actions, head.mean(feats), head.log_std)
         ratio = mx.exp(log_prob - old_log_prob)
         clipped = mx.clip(ratio, 1 - settings.clip, 1 + settings.clip)
@@ -382,9 +390,12 @@ def train_ppo(
         value_loss = ((critic(states) - returns) ** 2).mean()
         entropy = (head.log_std + 0.5 * np.log(2 * np.pi * np.e)).sum()
         total = settings.value_coef * value_loss - settings.entropy_coef * entropy
+        bc_loss = mx.array(0.0)
+        if bc_weight > 0:
+            bc_loss = ((head.mean(demo_feats) - demo_actions) ** 2).sum(-1).mean()
         if train_policy:
-            total = total + policy_loss
-        return total, (policy_loss, value_loss, ratio)
+            total = total + policy_loss + bc_weight * bc_loss
+        return total, (policy_loss, value_loss, ratio, bc_loss)
 
     class Pair(nn.Module):
         def __init__(self) -> None:
@@ -473,12 +484,26 @@ def train_ppo(
                 rollout_state,
                 settings.max_grad_norm,
             )
-        stats: list[tuple[float, float, float]] = []
+        stats: list[tuple[float, float, float, float]] = []
+        bc_weight = (
+            getattr(settings, "bc_weight", 0.0) * getattr(settings, "bc_decay", 1.0) ** iteration
+            if demonstrations is not None
+            else 0.0
+        )
         for _ in range(settings.epochs):
             order = generator.permutation(samples)
             for start in range(0, samples, settings.minibatch):
                 rows = mx.array(order[start : start + settings.minibatch])
-                (_, (policy_loss, value_loss, ratio)), grads = grad_fn(
+                if bc_weight > 0 and demonstrations is not None:
+                    picks = mx.array(
+                        generator.integers(
+                            0, demonstrations[0].shape[0], getattr(settings, "bc_minibatch", 1024)
+                        )
+                    )
+                    demo_feats, demo_actions = demonstrations[0][picks], demonstrations[1][picks]
+                else:
+                    demo_feats = demo_actions = mx.zeros((1, 1))
+                (_, (policy_loss, value_loss, ratio, bc_loss)), grads = grad_fn(
                     pair,
                     data["feats"][rows],
                     data["states"][rows],
@@ -487,6 +512,9 @@ def train_ppo(
                     data["adv"][rows],
                     data["ret"][rows],
                     train_policy,
+                    demo_feats,
+                    demo_actions,
+                    bc_weight,
                 )
                 grads, _ = optim.clip_grad_norm(grads, settings.max_grad_norm)
                 critic_optimizer.update(critic, grads["critic"])
@@ -494,7 +522,12 @@ def train_ppo(
                     head_optimizer.update(head, grads["head"])
                 mx.eval(head.parameters(), critic.parameters(), policy_loss, value_loss)
                 stats.append(
-                    (float(policy_loss), float(value_loss), float(mx.abs(ratio - 1).mean()))
+                    (
+                        float(policy_loss),
+                        float(value_loss),
+                        float(mx.abs(ratio - 1).mean()),
+                        float(bc_loss),
+                    )
                 )
         curve = {
             "iteration": iteration + 1,
@@ -507,6 +540,8 @@ def train_ppo(
             "value_loss": float(np.mean([s[1] for s in stats])),
             "ratio_deviation": float(np.mean([s[2] for s in stats])),
             "encoder_loss": encoder_loss,
+            "bc_loss": float(np.mean([s[3] for s in stats])) if bc_weight > 0 else None,
+            "bc_weight": bc_weight,
             "action_std": np.exp(np.asarray(head.log_std)).round(4).tolist(),
             "policy_trained": train_policy,
             "steps_per_second": n * horizon / rollout_seconds,
