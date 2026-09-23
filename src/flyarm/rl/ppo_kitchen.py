@@ -323,6 +323,12 @@ def run_kitchen_ppo(config: KitchenPPOConfig, pack_root: Path, output: Path) -> 
         if config.from_scratch
         else load_kitchen_policy(config, pack_root)
     )
+    if config.init_checkpoint is not None:
+        checkpoint = Path(config.init_checkpoint)
+        if not checkpoint.is_file():
+            raise FileNotFoundError(f"init_checkpoint not found: {checkpoint}")
+        policy.load(checkpoint)
+        print(f"continuing from {checkpoint}", flush=True)
     task = KitchenTask(config)
     head = MotorHead(policy.decoder, config.log_std, ACTION_DIM)
     eval_seeds = list(range(TEST_SEED, TEST_SEED + config.eval_episodes))
@@ -345,6 +351,7 @@ def run_kitchen_ppo(config: KitchenPPOConfig, pack_root: Path, output: Path) -> 
         ),
         "from_scratch": config.from_scratch,
         "controller": config.controller,
+        "init_checkpoint": config.init_checkpoint,
         "encoder_trained": config.encoder_lr > 0,
         "base_run": config.base_run,
         "base_kind": None if config.from_scratch else config.base_kind,

@@ -462,6 +462,10 @@ class KitchenPPOConfig(BaseModel):
     # leaves every earlier run unchanged; above 0 it needs a warm start and a frozen encoder,
     # because the demonstrations' connectome features are computed once, before training.
     bc_weight: float = Field(default=0.0, ge=0, le=1000)
+    # Continue from a PPO checkpoint (run/policy-XXXX.safetensors) instead of the base run's
+    # imitation checkpoint; the base run still supplies the interface and the demonstrations.
+    # The critic and optimizer state start fresh, so keep critic_warmup above 0.
+    init_checkpoint: str | None = None
     bc_decay: float = Field(default=1.0, gt=0, le=1)
     bc_minibatch: int = Field(default=1024, ge=32, le=100_000)
     neural_steps: int = Field(default=3, ge=1, le=8)
