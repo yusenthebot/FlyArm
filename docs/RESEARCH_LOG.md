@@ -446,6 +446,22 @@ Reading: the advantage clip is the right general guard and stays in, but it cann
 Rerun again (runs/ppo-kitchen-scratch-003, configs/ppo-kitchen-scratch-003.json and its README): the four changes above plus readout_calibration "scale" to "unit_norm".
 A warm-started run needs no such setting, because it loads the imitation checkpoint's own frozen readout_scale.
 
+### E46. A deep-RL MLP control on the same reward, runs stopped, and DAPG for the warm start (commits c01a125, 8c656e8)
+Stopped by hand because they had plateaued, results kept in their run directories with status "stopped": runs/ppo-kitchen-scratch-003 (kettle alone since iteration 150, stopped at 6.35 M steps), runs/ppo-kitchen-warm-001 (kettle alone since iteration 100, stopped at 2.88 M steps; its imitation start solved the microwave, so PPO traded one task for another) and runs/ppo-pick-place-scratch-encoder-003 (no lift in any evaluation over 6.95 M steps).
+The curriculum run (runs/ppo-kitchen-curriculum-001) recorded its first batch with an episode that earned two tasks at iteration 162, the first in 7.6 M steps of any kitchen reward run; its evaluations stay at the kettle alone (25 clean, 21 to 25 perturbed through iteration 400).
+Question: is the reward-only failure the connectome's or the reward's?
+Control (controller "mlp", whole_brain.policy.DirectPolicy): a two-layer tanh MLP (256 units) from the same normalized observation, trained end to end by the same PPO, same reward, same seeds and same evaluation; the observation normalization is measured on the same random rollouts.
+Result at about 1.6 M kitchen steps and 2.3 M pick-and-place steps: the MLP fails in the same places, kettle alone in the kitchen evaluations (runs/ppo-kitchen-mlp-003 25 clean and 15 perturbed, runs/ppo-kitchen-mlp-curriculum-001 25 clean and 10 perturbed) and no lift at all on pick-and-place (runs/ppo-pick-place-mlp-001, 0/24).
+Its stochastic training episodes do reach further: 11 batches of runs/ppo-kitchen-mlp-003 had an episode with three tasks and 12 with two, against one batch with two for the connectome curriculum run.
+Reading: at these budgets the reward-only ceiling is set by the reward and the algorithm, not by the connectome, so reward design is iterated on the cheaper controller first; the MLP is also the conventional baseline the paper needs next to every reward-only number.
+Throughput note: the MLP is about five times faster only on a contended GPU; with the GPU freed the connectome run rose to about 1,900 steps per second and the environment, not the controller, became the bottleneck.
+Tooling note: something outside the project sets the macOS hidden flag on every file in .venv, and Python 3.12 skips hidden .pth files, so the editable install silently stops importing; runs are now launched with PYTHONPATH=src.
+
+DAPG (Rajeswaran et al. 2018) for the warm start: KitchenPPOConfig.bc_weight adds bc_weight x bc_decay^k x the squared error between the policy mean and the demonstrated action at iteration k, on the base run's own training demonstrations (its splits.json training episodes plus its 150 DART episodes, 45,750 steps), replayed once through the frozen encoder and connectome; the encoder stays frozen so the features stay exact.
+Runs: runs/ppo-kitchen-dapg-decay-001 (bc_weight 1.0, decay 0.995 per iteration, half-life about 140 iterations) and runs/ppo-kitchen-dapg-const-001 (bc_weight 1.0, no decay), otherwise the warm-001 config; the smoke run measured the demonstration loss at 0.10 on the imitation checkpoint.
+Decision rule: DAPG counts as working if a validation-selected checkpoint completes two tasks (score 50) on the clean start or raises the perturbed score above warm-001's 23.75.
+Paper control launched at the same time: runs/ppo-pick-place-push2-s3-bonus-shuffled-001, the push2 seed-3 PPO recipe (bonus 500, 300 iterations, 48 test episodes) from the degree-preserving shuffled connectome's imitation checkpoint, which placed 23/48 against the measured connectome's 35/48 before PPO.
+
 ### E41. A reference trajectory in the reward, without cloning any action (commits 57ca067, cfe70bb)
 Question: -003 learns, so keep the reward-only line and give it a dense reference, in the spirit of DeepMimic and AMP.
 Term (flyarm.rl.batched_kitchen): tracking_weight x exp(-||q - q_ref||^2 / tracking_sigma^2) over the 9 robot joints, with q_ref the joint positions of one benchmark demonstration at min(step, len - 1), the demonstration fixed by index so a run is reproducible; default weight 0, so every earlier run is unchanged.
