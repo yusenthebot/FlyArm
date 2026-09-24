@@ -2,7 +2,7 @@
 
 The Panda works a small tabletop kitchen: it pulls drawers open and pushes them shut, swings a cabinet door open and closed, puts scanned household objects into drawers, onto a shelf, into a bin or onto a marked region, and stacks them into towers.
 Every task is a sequence of three to eight of these skills, and every skill has a strict physical success check.
-The code is `src/flyarm/manipulation/`; it builds on the grasp task's arm, objects and physics backends (`src/flyarm/grasp/`), and nothing in it is wired into the imitation or PPO pipelines yet.
+The code is `src/flyarm/manipulation/`; it builds on the grasp task's arm, objects and physics backends (`src/flyarm/grasp/`), and the connectome controller trains on it by imitation and PPO (see Training on the connectome).
 
 ## Why a new package
 
@@ -19,6 +19,8 @@ It therefore lives in its own package and reuses the grasp task through three na
 | `env.py` | `BatchedManipulation` (mjbatch) and `PandaManipulationEnv` (one MjData, rendering) |
 | `splits.py` | the five preregistered splits and their committed record |
 | `teacher.py` | `ManipulationTeacher`, the privileged scripted teacher |
+| `rollout.py` | batched lockstep episodes for any controller: demonstrations, DAgger, evaluation, seed layout |
+| `imitation.py` | behavior cloning and DAgger of the connectome controller (see Training on the connectome) |
 
 ## Scene
 
@@ -206,13 +208,102 @@ The tests cover split disjointness and the committed record, every sampled episo
 - A drawer's placement point is the middle of the part a drawer opened to the threshold leaves outside the carcass, so objects longer than that part cannot go in drawers and the fit rule excludes them.
 - The teacher's rates are on 20 episodes per cell; a cell at 85% could land a few points either way with other seeds.
 
-## Wiring it into training
+## Training on the connectome
 
-Not done here.
+The controller is the B1a whole-body interface: the 217 observation features go through a trainable linear encoder into the 1,846 ascending neurons of the frozen MaleCNS (166,700 neurons), the 1,314 descending and 708 VNC motor neurons are read out through a frozen unit-norm calibration (research log E26) and a trainable linear decoder gives the 5 actions, one per control step.
+Only the two linear maps train; the connectome never changes.
+The recipe is the kitchen's (docs/MILESTONE_KITCHEN.md): imitation, then PPO with a demonstration term, a bonus paid in task order, potential shaping and motion-quality terms.
 
-- Shapes: `obs_dim` 217, `privileged_dim` 230, `action_dim` 5; per-episode horizon `tk.horizon(len(subgoals))` (1,100 to 2,600 steps) in `sim.horizons`, the batched `horizon` is the longest template's.
-- Imitation: collect with `ManipulationTeacher` on `BatchedManipulation(split="train")`, recording `StepResult.current_skill` for skill-balanced weights (articulation steps are far fewer than carry steps); DAgger steps the learner and calls `teacher.act()` for labels each step (it resyncs from the scene); validation on `iid_test`, tests on the other three held-out splits.
-- `reset(seeds=..., templates=[...])` fixes a template per environment for balanced batches; `reset(episodes=[...])` replays an exact episode.
-- PPO: a `TaskAdapter` with `make_env` returning `BatchedManipulation(split="train", reward=RewardConfig(gamma=settings.gamma))`, the privileged observation for the critic, and a `score` reporting success and mean `subgoals_done / subgoals_total` per split; `high_water` is the natural `extra` counter.
-  With these horizons, gamma 0.99 discounts a subgoal 300 steps away by 0.05; the bonus stays above the floor for any gamma, but credit assignment will want gamma 0.995 or higher, or a skill-level curriculum.
-- The no-cue control is `cue=False` on the same splits; controllers whose encoder assumes the grasp task's 54 inputs need one sized for 217.
+```
+PYTHONPATH=src .venv/bin/python -m flyarm.cli manipulation imitate --config configs/whole-brain-manipulation.json --output runs/whole-brain-manipulation-001
+PYTHONPATH=src .venv/bin/python -m flyarm.cli rl manipulation --config configs/ppo-manipulation.json --output runs/ppo-manipulation-001
+PYTHONPATH=src .venv/bin/python -m flyarm.cli rl watch --run runs/ppo-manipulation-001
+```
+
+All three need `FLYARM_SIM_THREADS=4`, the connectome pack at `data/whole_brain/malecns-v1.0-c3` (`--pack` otherwise) and the grasp objects in `assets/objects`.
+The PPO config's `base_run` names the imitation run.
+
+### Imitation (flyarm.manipulation.imitation)
+
+A sibling of flyarm.whole_brain.experiment and flyarm.flyleg.experiment rather than a branch of them: both step one Gymnasium episode at a time, which suits 100 to 400-step episodes, while here episodes last 1,100 to 2,600 steps and every number is a per-split, per-template rate.
+So demonstrations, DAgger, selection and evaluation run batched and in lockstep across environments (flyarm.manipulation.rollout): the connectome is called once per control step for every episode of every split.
+The policy classes, the sequence trainer (truncated BPTT through the frozen connectome), the interface, the shuffle and the phase-selection rule are the existing ones.
+
+1. Teacher demonstrations: `train_episodes_per_template` episodes of each of the 7 training templates (24, so 168 episodes and about 175,000 steps), recorded with the skill of the current subgoal at every step.
+2. Readout calibration (unit norm) and observation normalization on those steps.
+3. Behavior cloning: L1 loss, per-step weights that give every skill the same total weight (capped at 5 times the mean), batches of episodes of similar length (a batch runs until its longest episode ends), 16-step BPTT windows with the state carried across windows, 2 decoder-only warm-up epochs.
+   Episodes stay in host memory and each batch is copied to the GPU cut at its longest episode.
+4. DAgger rounds: the learner drives `dagger_episodes_per_template` new episodes per template, the teacher labels every visited state (it re-derives its phase from the scene), the teacher's action is executed instead with probability 0.5 in round 1 and 0.25 in round 2, and training continues on the aggregate.
+5. Closed-loop selection on validation episodes of the train split: within behavior cloning every `select_every` epochs, and among the phases at the end (research log E33); success rate first, the mean fraction of subgoals done breaks ties.
+6. Evaluation of the selected checkpoint and of the teacher on the same test episodes of every held-out split: success, subgoals completed, mean steps to success, per template, and the motion-quality metrics (stray-contact fraction, mean |a|, saturated fraction, mean |change of a|, final disturbance).
+
+The encoder trains at a tenth of the decoder's learning rate (`encoder_learning_rate_scale`).
+Measured on 21 demonstration episodes, three epochs from the same calibrated start (L1 by quarter of epoch 3; input-current RMS into the ascending neurons after epoch 1):
+
+| Encoder | Epoch 3 L1 | Input RMS |
+| --- | --- | --- |
+| frozen (decoder only) | 0.26 to 0.27 | 0.48 |
+| same rate as the decoder | 0.25 to 0.30 | 2.15 |
+| a tenth of it | 0.23 to 0.26 | 0.51 |
+
+At the full rate, Adam's early steps move all 217 x 1,846 encoder weights by about the learning rate on correlated inputs and drive the ascending neurons into tanh saturation within one epoch, the input-side counterpart of the readout effect in E26; the kitchen's whole-body interface had 30 inputs and did not show it.
+The controls (`policies`: `shuffled`, `gru`, `mlp`) run through the same code; their input modules train at the full rate.
+
+Seeds (flyarm.manipulation.rollout): episode i of a split's template t has seed `seed_start + offset + 1000 t + i`; demonstrations use train offset 0, validation 100,000, DAgger round r 200,000 + 10,000 r, PPO training episodes start at 1,000,000 (below 3,000,000, where the first held-out block starts), and test episodes use each held-out split's own block.
+Adding episodes never changes existing ones.
+
+### PPO (flyarm.rl.ppo_manipulation)
+
+`ManipulationTask` is the `TaskAdapter` for the unchanged `train_ppo`; the trainer gained two optional hooks (per-episode horizons for the critic's time feature, and a selection key).
+
+- Reward: the environment's RewardConfig built from the config: subgoal bonus 50 paid once and in task order, potential shaping at weight 10, stray contact 0.05, disturbance 5, action 0.01, smoothness 0 (the kitchen used it; it is off by default here until a run shows commands need it).
+  Every level term is a penalty, so the stalling floor is 0 at any gamma and the config's check recomputes it for its own gamma (default 0.995: the next subgoal, about 300 steps away, is discounted to 0.22 instead of 0.05 at 0.99).
+- Critic: the 230-feature privileged observation plus the step over the episode's own horizon.
+- DAPG: the squared error to the imitation run's own teacher demonstrations (train.npz), at most `bc_max_steps` steps drawn with the skill-balanced weights, replayed once through the frozen encoder and connectome from a zero state; it needs the encoder frozen (`encoder_lr` 0).
+- Warm start from the imitation checkpoint; `init_checkpoint` continues from a PPO checkpoint (the critic starts fresh, so `critic_warmup` stays above 0; 50 by default, E39, E46).
+- Advantage clip 10 (E39), exploration log std -1.2.
+- Evaluation every `eval_every` iterations: `eval_episodes_per_template` test episodes of every split in `eval_splits` and `val_episodes_per_template` validation episodes of the train split, all in lockstep; checkpoints are selected on validation only.
+- Training curves carry `subgoals_per_episode` (mean over finished episodes) and the batch peak `max_subgoals_in_one_episode`.
+- `flyarm rl watch` re-records one clip of the newest checkpoint (two train-split episodes from seed 60,000, templates by seed) into `progress/latest.mp4`, as for the kitchen.
+
+### Costs and wall-clock estimates
+
+Measured with `scripts/manipulation_training_throughput.py` (docs/results/manipulation-training-throughput.json), Apple M5 Max, 4 simulation threads, other jobs sharing the machine:
+
+| What | Measured |
+| --- | --- |
+| Environment alone, random actions, 128 environments | 1,590 steps/s |
+| Connectome closed loop (encoder, MaleCNS, decoder), 128 environments | 1,310 steps/s (22 ms of each control step is the connectome) |
+| Connectome closed loop, 32 environments | 1,140 steps/s |
+| Behavior cloning with the encoder training, batch 16, BPTT 16 | 3.0 ms per demonstration step (21 episodes; 2 to 3 ms expected on the full set, whose batches are full) |
+| Teacher demonstrations, one environment | 21 episodes (21,900 steps) in 41 s |
+| Evaluation of a failing policy, one episode per template of all four held-out splits (25 episodes) | 140 ms per lockstep step, 6 minutes |
+
+PPO at 128 environments and 64-step rollouts (the smoke run below): 555 steps/s in the first iteration and 410 to 450 afterwards, about 19 s per iteration including the update.
+The environment, not the connectome, sets the pace once a policy drives into contact: profiled over steps 300 to 400 of an undertrained policy, one step of 128 environments took 264 ms of physics, 20 ms of privileged observation and 22 ms of connectome (73, 10 and 23 ms right after reset).
+Two contact sources dominate (single-environment trace): a closed lid resting on the cabinet walls always makes 20 contacts, because the cabinet is welded to the world and MuJoCo's parent-child filter does not apply, although the hinge's joint limit already holds the lid at 0; and a policy that closes the hand on nothing makes up to 44 finger-to-finger contacts and presses the fingers into the table.
+Excluding the lid-to-cabinet and finger-to-finger pairs would remove most of them, but it changes the benchmark's physics after its teacher table was published, so it is left as a decision.
+
+Estimates for the shipped configs (a policy that fails runs every evaluation episode to its horizon, so evaluations are upper bounds):
+
+| Stage | configs/whole-brain-manipulation.json | configs/ppo-manipulation.json |
+| --- | --- | --- |
+| Data | demonstrations and validation episodes 5 to 10 min, teacher evaluation 5 to 8 min | DAPG replay about 2 min |
+| Training | behavior cloning 12 epochs x 6 to 9 min; DAgger 2 rounds x (2 min of rollouts + 4 epochs x 9 to 18 min) | 1,000 iterations x 8 to 19 s (8.2 M steps at 1,200 to 430 steps/s) |
+| Selection and evaluation | about 6 closed-loop validations x 1.5 min, final evaluation 8 min | 11 evaluations x 5 to 8 min |
+| Total | about 3 to 5 hours | about 3.5 to 7 hours |
+
+### Smoke runs
+
+Tiny imitation (one demonstration, validation and test episode per template, 2 behavior-cloning epochs, one DAgger round of one episode per template), `flyarm manipulation imitate`, 19 minutes end to end: the teacher succeeded in 7 of 7 demonstrations (7,154 steps); the training L1 went 0.43 (decoder only) to 0.36 when the encoder joined (validation 0.49 to 0.38); the DAgger rollout (beta 0.5) completed 1 of 7 episodes and 27% of subgoals; validation success was 0 of 7 for both phases, so behavior cloning was kept; the teacher solved 24 of 25 test episodes and the controller none, as expected at this size.
+Before the encoder's learning rate was separated, the same smoke's L1 rose from 0.43 to 0.64 at that point.
+
+PPO from that checkpoint, 128 environments, 6 iterations, critic warm-up 2, DAPG on 5,000 demonstration steps, `flyarm rl manipulation`, 12 minutes: the demonstration loss fell from 1.24 to 0.78, the critic's loss from 0.14 to 0.07, and the base and final evaluations (one test episode per template of all four held-out splits plus one validation episode per template, all in lockstep) ran and selected on validation.
+`flyarm rl watch --run runs/smoke-manip-ppo --once` rendered its two-episode progress clip in 45 s.
+
+### Open items
+
+- Lesion evaluations of the connectome checkpoint (edges off, direct synapses only, state reset every step) are not wired in yet; the kitchen and B1a pipelines have them.
+- PPO starts from brain checkpoints only; the reward-only MLP control of the kitchen (E46) is not ported.
+- The DAPG term uses the teacher's demonstrations only, not the DAgger labels.
+- The no-cue control is `cue: false` in the imitation config; a PPO run inherits the imitation run's setting.
