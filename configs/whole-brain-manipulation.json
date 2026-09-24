@@ -25,9 +25,9 @@
   "selection": "closed_loop",
   "select_every": 4,
   "phase_selection": "validation_success",
-  "dagger_iterations": 2,
+  "dagger_iterations": 4,
   "dagger_episodes_per_template": 8,
-  "dagger_epochs": 4,
+  "dagger_epochs": 6,
   "dagger_beta": 0.5,
   "dagger_beta_decay": 0.5,
   "cue": true,
@@ -37,5 +37,9 @@
   "policies": [
     "connectome"
   ],
-  "max_seconds": 43200
+  "max_seconds": 43200,
+  "velocities": false,
+  "sampling": "windows",
+  "window_batch": 32,
+  "burn_in": 16
 }

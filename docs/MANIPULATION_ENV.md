@@ -95,16 +95,16 @@ The grasp task's `[dx, dy, dz, dyaw, gripper]` in [-1, 1], 25 MuJoCo steps of 2 
 
 ## Observation
 
-217 floats (`OBS_DIM`), in fixed order (`flyarm.manipulation.sim.*_FIELDS`):
+220 floats (`OBS_DIM`; 217 before the imitation failure analysis added three), in fixed order (`flyarm.manipulation.sim.*_FIELDS`):
 
-- robot, 20: joint positions and velocities, end-effector position, gripper yaw (cos, sin), gripper opening;
+- robot, 21: joint positions and velocities, end-effector position, gripper yaw (sin, cos of twice the jaw angle), gripper opening, and the commanded yaw (dyaw integrates into it and the jaws follow with a lag);
 - four object slots, 22 each: presence mask, position, position minus end effector, 6-D rotation, the grasp task's 5-D shape descriptor, linear velocity, grasped flag (zero when the slot is empty);
 - furniture, 46: drawer cabinet xy and facing, drawers present, open fractions, both handle positions and their offsets from the end effector, handle type, cabinet xy and facing, lid angle, lid handle position and offset, lid handle type, shelf height, cabinet interior size, bin xy, facing and size, region xy and size;
-- the cue, 63: the current subgoal's skill one-hot (7), which articulation (3), object slot one-hot (4), the object's position, offset from the end effector, rotation and descriptor, the receptacle one-hot (5 receptacles or "on an object"), the target point for the object's bottom and its offsets from the end effector and from the object, the receptacle's half size and facing, the handle position and its offset, the joint's open fraction, the direction the handle must move, and progress (done over total, left over 8).
+- the cue, 65: the current subgoal's skill one-hot (7), which articulation (3), object slot one-hot (4), the object's position, offset from the end effector, rotation and descriptor, the receptacle one-hot (5 receptacles or "on an object"), the target point for the object's bottom and its offsets from the end effector and from the object, the receptacle's half size and facing, the handle position and its offset, the joint's open fraction, the direction the handle must move, the turn from the commanded jaw heading to the heading the subgoal needs to grasp (its handle or object) and to place (the receptacle's or base object's axis), computed by the same rule the teacher turns by, and progress (done over total, left over 8).
 
 The cue is memoryless: it is recomputed from the scene each step through the same predicates as the reward, so a policy never needs to remember where in the task it is.
 `cue=False` zeroes the whole cue block (the no-cue control); the rest of the observation is unchanged.
-The privileged observation (230, for a critic) adds object masses, the per-subgoal done flags and the commanded yaw.
+The privileged observation (233, for a critic) adds object masses, the per-subgoal done flags and the commanded yaw.
 
 ## Splits
 
@@ -146,7 +146,7 @@ The reward shapes training only; evaluation reports the success rule.
 Each step it takes the current subgoal from the scene and runs that skill's controller:
 
 - articulation: travel above everything, descend beside the handle, centre on it using finger contacts, pinch (the lid bar front to back, knobs along the hinge), move the handle along its joint path to a goal past the stop (so the servos' lag does not leave it a few millimetres short; drawers open all the way, so brushing one while picking from it cannot push it back under the threshold), release and step back;
-- pick, place and stack: the grasp task's rule (jaws across the narrow side, or along a drawer's width when picking from one and that is still across the object, so no finger lands on the front panel; pads at the geometry-derived height, integral xy alignment, closes only when centred within 3 mm), carry above every furniture top and object, turn to the receptacle's axis (finishing the turn before coming within 15 cm of the target, so the hand does not sweep an opened lid shut), lower until the bottom reaches the target surface or the descent stalls, release and rise.
+- pick, place and stack: the grasp task's rule (jaws across the narrow side, or along a drawer's width when picking from one and that is still across the object, so no finger lands on the front panel; pads at the geometry-derived height, proportional xy alignment (an integral term was removed with the gravity compensation, see Imitation failure analysis), closes only when centred within 3 mm), carry above every furniture top and object, turn to the receptacle's axis (finishing the turn before coming within 15 cm of the target, so the hand does not sweep an opened lid shut), lower until the bottom reaches the target surface or the descent stalls, release and rise.
 
 Its memory is the subgoal it is executing, a phase, a counter and a held xy; watchdogs restart a subgoal whose phase stalls.
 It re-derives its phase from the scene whenever the current subgoal changes, so it can label any state a learner reaches (DAgger), and it never writes simulator state.
@@ -155,36 +155,38 @@ It re-derives its phase from the scene whenever the current subgoal changes, so 
 
 Successes over 20 episodes per cell, all cells of a split run in one batched environment on that split's own seed block (`docs/results/manipulation-teacher.json`, with mean steps to success and the subgoal each failure was stuck at).
 
-With the redundant contact pairs excluded (see Excluded contact pairs); the value before the exclusion, on the same seeds, is in brackets where it differs.
+Measured on the task as changed by the imitation failure analysis (gravity-compensated arm with armature 0.3, teacher without its integral term, travel sink and lid leads, see there); the value before those changes, on the same seeds, is in brackets where it differs.
 
 | Task | train | iid test | unseen objects | unseen furniture | unseen composition |
 | --- | --- | --- | --- | --- | --- |
 | `put_away` | 20/20 | 20/20 | 20/20 | 20/20 |  |
-| `retrieve` | 20/20 | 20/20 | 19/20 | 20/20 |  |
-| `shelve` | 19/20 (18) | 20/20 (19) | 18/20 | 16/20 (15) |  |
+| `retrieve` | 20/20 | 20/20 | 20/20 (19) | 20/20 |  |
+| `shelve` | 19/20 | 19/20 (20) | 20/20 (18) | 16/20 |  |
 | `tower` | 20/20 | 20/20 | 20/20 | 20/20 |  |
-| `sort` | 20/20 | 20/20 | 14/20 | 19/20 |  |
-| `tidy` | 20/20 | 18/20 | 19/20 | 17/20 (18) |  |
-| `unpack` | 20/20 | 19/20 (18) | 17/20 (18) | 18/20 |  |
-| `shelve_then_put_away` |  |  |  |  | 18/20 (17) |
+| `sort` | 20/20 | 20/20 | 20/20 (14) | 20/20 (19) |  |
+| `tidy` | 20/20 | 20/20 (18) | 20/20 (19) | 19/20 (17) |  |
+| `unpack` | 20/20 | 20/20 (19) | 16/20 (17) | 18/20 |  |
+| `shelve_then_put_away` |  |  |  |  | 20/20 (18) |
 | `retrieve_to_shelf` |  |  |  |  | 15/20 |
 | `tower_then_put_away` |  |  |  |  | 20/20 |
 | `full_cleanup` |  |  |  |  | 17/20 |
 
-Every train cell is at 90% or above (139/140 overall, 138 before the exclusion); every iid cell too.
-No cell moved by more than one success: five gained one, two lost one (`unpack` on unseen objects, `tidy` on unseen furniture), which is within the seed-to-seed spread of a 20-episode cell; the step counts to success are unchanged to within 2%.
+Every train cell is at 90% or above (139/140, as before); every iid cell too; over all cells 619 successes against 603.
+No cell lost more than one success (two lost one: `shelve` on iid test and `unpack` on unseen objects), and the largest gain is `sort` on unseen objects, 14 to 20: without the sag, tops no longer tip off their base on release.
+Episodes take 2 to 7% more steps on the train and iid splits (the hand no longer sinks toward the next target by itself between moves) and up to 20% fewer on unseen furniture.
+Before those changes, with the redundant contact pairs excluded, every cell was within one success of the table before the exclusion (train 139 against 138).
 Cells under 90%, all on held-out splits:
 
-- `sort` on unseen objects (14/20): all six fail at the stack. `stable_on` is a rule on bounding boxes and masses tuned on training objects; on training objects the stack failures it removed were tops tipping off their base on release, and these six were not diagnosed further.
-- `shelve` on unseen furniture (16/20): the held-out cabinet (knob on the lid, turned further from the robot, lower shelf) makes every subgoal slower, and in the failures (four of five before the exclusion) both objects are on the shelf and the horizon ends while the teacher is still closing the lid.
-- `retrieve_to_shelf` (15/20): the only template that works a drawer while the lid stands open; failures are picks from the drawer (a finger on the front panel pushing the drawer back under its threshold, reduced but not removed by picking with the jaws along the drawer's width) and the hand knocking the open lid while stepping back from it.
-- `shelve_then_put_away` (18/20) and `full_cleanup` (17/20): each failure is stuck at a placement; not diagnosed further.
+- `unpack` on unseen objects (16/20): three failures at the placement on the region and one at the pick from the drawer; not diagnosed further.
+- `shelve` on unseen furniture (16/20): the held-out cabinet (knob on the lid, turned further from the robot, lower shelf); all four failures are at a shelf placement.
+- `retrieve_to_shelf` (15/20): the only template that works a drawer while the lid stands open; all five failures are at the pick from the drawer (a finger on the front panel pushing the drawer back under its threshold, reduced but not removed by picking with the jaws along the drawer's width).
+- `full_cleanup` (17/20): each failure is stuck at a placement; not diagnosed further.
 
 The teacher's episodes are what imitation would learn from, so a teacher failure is also a state the learner will not see solved; DAgger labels still come from the same controllers.
 
 ## Throughput
 
-128 batched environments on the train split, 4 simulation threads (`FLYARM_SIM_THREADS=4`), Apple M5 Max: 2,330 environment steps per second with random actions and 1,820 with the teacher in the loop (`docs/results/manipulation-teacher.json`, `throughput`), against 1,350 and 1,130 before the contact exclusion.
+128 batched environments on the train split, 4 simulation threads (`FLYARM_SIM_THREADS=4`), Apple M5 Max: 3,040 environment steps per second with random actions and 2,200 with the teacher in the loop (`docs/results/manipulation-teacher.json`, `throughput`), against 2,330 and 1,820 before the imitation fixes and 1,350 and 1,130 before the contact exclusion.
 Physics is 75 to 85% of a step (25 MuJoCo steps over 43 furniture geoms, the no-slip solver and up to four object meshes); the task rules, observation and reward cost 10 to 16 ms per step for all 128 environments, 5 ms of it the hull containment test.
 That is five times slower than the grasp task per environment step, and the horizons are 5 to 13 times longer.
 
@@ -223,7 +225,7 @@ The tests cover split disjointness and the committed record, every sampled episo
 
 ## Training on the connectome
 
-The controller is the B1a whole-body interface: the 217 observation features go through a trainable linear encoder into the 1,846 ascending neurons of the frozen MaleCNS (166,700 neurons), the 1,314 descending and 708 VNC motor neurons are read out through a frozen unit-norm calibration (research log E26) and a trainable linear decoder gives the 5 actions, one per control step.
+The controller is the B1a whole-body interface: the 220 observation features go through a trainable linear encoder into the 1,846 ascending neurons of the frozen MaleCNS (166,700 neurons), the 1,314 descending and 708 VNC motor neurons are read out through a frozen unit-norm calibration (research log E26) and a trainable linear decoder gives the 5 actions, one per control step.
 Only the two linear maps train; the connectome never changes.
 The recipe is the kitchen's (docs/MILESTONE_KITCHEN.md): imitation, then PPO with a demonstration term, a bonus paid in task order, potential shaping and motion-quality terms.
 
@@ -244,9 +246,9 @@ The policy classes, the sequence trainer (truncated BPTT through the frozen conn
 
 1. Teacher demonstrations: `train_episodes_per_template` episodes of each of the 7 training templates (24, so 168 episodes and about 175,000 steps), recorded with the skill of the current subgoal at every step.
 2. Readout calibration (unit norm) and observation normalization on those steps.
-3. Behavior cloning: L1 loss, per-step weights that give every skill the same total weight (capped at 5 times the mean), batches of episodes of similar length (a batch runs until its longest episode ends), 16-step BPTT windows with the state carried across windows, 2 decoder-only warm-up epochs.
-   Episodes stay in host memory and each batch is copied to the GPU cut at its longest episode.
-4. DAgger rounds: the learner drives `dagger_episodes_per_template` new episodes per template, the teacher labels every visited state (it re-derives its phase from the scene), the teacher's action is executed instead with probability 0.5 in round 1 and 0.25 in round 2, and training continues on the aggregate.
+3. Behavior cloning: L1 loss, per-step weights that give every skill the same total weight (capped at 5 times the mean), window sampling (every update fits 32 windows of 16 steps drawn from all demonstrated steps, each after a 16-step burn-in without gradient; the earlier episode sweep is `sampling: episodes`), 2 decoder-only warm-up epochs, joint and object velocities removed from the policy's input (`velocities: false`).
+   Episodes stay in host memory and each batch is copied to the GPU when it is used.
+4. DAgger rounds: the learner drives `dagger_episodes_per_template` new episodes per template, the teacher labels every visited state (it re-derives its phase from the scene), the teacher's action is executed instead with probability 0.5 in round 1, halving each round (four rounds in the shipped configs), and training continues on the aggregate.
 5. Closed-loop selection on validation episodes of the train split: within behavior cloning every `select_every` epochs, and among the phases at the end (research log E33); success rate first, the mean fraction of subgoals done breaks ties.
 6. Evaluation of the selected checkpoint and of the teacher on the same test episodes of every held-out split: success, subgoals completed, mean steps to success, per template, and the motion-quality metrics (stray-contact fraction, mean |a|, saturated fraction, mean |change of a|, final disturbance).
 
@@ -259,7 +261,7 @@ Measured on 21 demonstration episodes, three epochs from the same calibrated sta
 | same rate as the decoder | 0.25 to 0.30 | 2.15 |
 | a tenth of it | 0.23 to 0.26 | 0.51 |
 
-At the full rate, Adam's early steps move all 217 x 1,846 encoder weights by about the learning rate on correlated inputs and drive the ascending neurons into tanh saturation within one epoch, the input-side counterpart of the readout effect in E26; the kitchen's whole-body interface had 30 inputs and did not show it.
+At the full rate, Adam's early steps move all 217 x 1,846 encoder weights (220 x 1,846 now) by about the learning rate on correlated inputs and drive the ascending neurons into tanh saturation within one epoch, the input-side counterpart of the readout effect in E26; the kitchen's whole-body interface had 30 inputs and did not show it.
 The controls (`policies`: `shuffled`, `gru`, `mlp`) run through the same code; their input modules train at the full rate.
 
 Seeds (flyarm.manipulation.rollout): episode i of a split's template t has seed `seed_start + offset + 1000 t + i`; demonstrations use train offset 0, validation 100,000, DAgger round r 200,000 + 10,000 r, PPO training episodes start at 1,000,000 (below 3,000,000, where the first held-out block starts), and test episodes use each held-out split's own block.
@@ -271,13 +273,100 @@ Adding episodes never changes existing ones.
 
 - Reward: the environment's RewardConfig built from the config: subgoal bonus 50 paid once and in task order, potential shaping at weight 10, stray contact 0.05, disturbance 5, action 0.01, smoothness 0 (the kitchen used it; it is off by default here until a run shows commands need it).
   Every level term is a penalty, so the stalling floor is 0 at any gamma and the config's check recomputes it for its own gamma (default 0.995: the next subgoal, about 300 steps away, is discounted to 0.22 instead of 0.05 at 0.99).
-- Critic: the 230-feature privileged observation plus the step over the episode's own horizon.
+- Critic: the 233-feature privileged observation plus the step over the episode's own horizon.
 - DAPG: the squared error to the imitation run's own teacher demonstrations (train.npz), at most `bc_max_steps` steps drawn with the skill-balanced weights, replayed once through the frozen encoder and connectome from a zero state; it needs the encoder frozen (`encoder_lr` 0).
 - Warm start from the imitation checkpoint; `init_checkpoint` continues from a PPO checkpoint (the critic starts fresh, so `critic_warmup` stays above 0; 50 by default, E39, E46).
 - Advantage clip 10 (E39), exploration log std -1.2.
 - Evaluation every `eval_every` iterations: `eval_episodes_per_template` test episodes of every split in `eval_splits` and `val_episodes_per_template` validation episodes of the train split, all in lockstep; checkpoints are selected on validation only.
 - Training curves carry `subgoals_per_episode` (mean over finished episodes) and the batch peak `max_subgoals_in_one_episode`.
 - `flyarm rl watch` re-records one clip of the newest checkpoint (two train-split episodes from seed 60,000, templates by seed) into `progress/latest.mp4`, as for the kitchen.
+
+### Imitation failure analysis
+
+The first full imitation runs (runs/whole-brain-manipulation-001 and -diagnostic-001 in the main checkout) completed no episode on any split with any controller: subgoal fraction 0.01 to 0.03 for the connectome and the GRU and 0.000 for the MLP, although the MLP fit best (L1 0.078) and the teacher solves 91 to 98% of the same episodes.
+Each hypothesis below was tested on its own, in order; the scripts are in `scripts/manipulation_imitation_probe.py` and the session's scratch probes, and every number is from a real closed-loop run.
+
+**H1, a pipeline bug.**
+Test 1: the evaluation path (lockstep batched environments, action casting and clipping) driven by an oracle that returns the teacher's action: 36 of 36 episodes succeed (iid test, unseen composition, validation), the teacher's own rate.
+Test 2: an MLP overfit to one put_away demonstration (L1 0.021) and replayed on the same seed: the trajectories part at step 2 and the replay completes no subgoal; the first visible divergence is the wrist turn, where the demonstration stops turning at step 30 and the replay turns past it.
+Reading: no bug in the plumbing; the single-demonstration replay only shows that a policy off its one trajectory has nothing to go on.
+
+**H2, the teacher is not a function of the observation.**
+Test: a large frame-wise MLP (3 x 512) fit on 28 teacher episodes (27,257 steps), L1 by input set, training / held-out episodes:
+
+| Input | L1 | Turning steps with the direction right (held out) |
+| --- | --- | --- |
+| observation (217) | 0.010 / 0.061 | 70% |
+| plus the commanded yaw | 0.010 / 0.072 | 64% |
+| plus the teacher's phase | 0.008 / 0.060 | |
+| plus all teacher state (integral, anchor, centring, counters) | 0.007 / 0.056 | |
+
+The aggregate is nearly Markov, but one decision is not learnable from the observation: the direction of the wrist turn.
+The teacher turns by the half-turn-wrapped difference between the heading it needs and the commanded heading, flipped near the yaw limit, and the commanded heading is an integrator inside the action that the observation did not contain (only the lagging actual jaw angle); half the turns go each way.
+Fix: the heading rules move from the teacher into the sim (`pick_headings`, `articulation_headings`, `place_headings`, `turn_to`; the teacher calls them and its actions are bit-identical over 36 episodes x 1,500 steps), the cue carries the turn to the grasp and to the place heading, and the commanded yaw joins the proprioception (observation 217 to 220).
+With it the rule clip(turn / 0.05) matches the teacher's turn on 100% of 2,846 turning steps, and the frame MLP's held-out dyaw error falls from 0.069 to 0.028.
+A second hidden state came out of H4 (below): the teacher's xy integral.
+
+**H3, averaged multimodal actions (the gripper).**
+Test: the trained diagnostic MLP on the teacher's own validation states.
+The gripper is not the problem: its sign is right on 98.4% of the steps where the teacher commands it; the wrist turn is: right on only 34% of turning steps, L1 0.66 there, because the turn direction is split 50/50 over the data (H2).
+No discretized gripper head was needed.
+
+**H4, compounding error; and what the closed-loop traces showed.**
+Tracing the trained MLP against the teacher's labels, episode by episode, gave three findings in turn:
+
+1. The copycat problem.
+   A frame MLP fit to L1 0.012 on 56 episodes outputs a zero action from the start pose for 100 steps while the teacher says (-1, +1, 0, +1, +1).
+   In the demonstrations the arm rests only for the four steps in which the teacher opens the hand, and is moving afterwards, so "do what the joint velocities say" fits the data.
+   With joint and object velocities zeroed in its input the same MLP leaves the start correctly.
+   The kitchen protocol excludes velocities for the same reason (research log E4).
+   Fix: an environment switch `velocities` (the critic's privileged observation keeps them); `velocities: false` is the imitation default.
+2. The arm sank under its own weight.
+   A zero action moved the hand 88 mm down in 50 steps (1.8 mm per step): actions are Cartesian steps from the measured joint positions, every position servo holds its target short by its gravity load, and the next step starts from the sagged pose.
+   The teacher fought it with an integral term on its xy error, hidden state that sat at its 12 mm clip on 22% of the steps where it was active.
+   Fix: the arm is gravity-compensated, as a real Panda is (drift 0.1 mm in 50 steps at home, 2 mm at a low far pose), and the integral is removed.
+   Quick teacher checks (8 episodes per training template): 84% with gravity compensation alone (the limit cycle below), 96% with the armature fix, 98% with the integral removed as well.
+   Two teacher rules had silently relied on the sag and were made explicit: while travelling the hand sinks toward the transit height at 2 mm per step (the sag's rate, which keeps the time budget), and the lid is opened with the handle led 0.16 rad along its arc instead of 0.08 (lifting the lid's weight takes that much servo error; closing keeps 0.08, since a longer lead pulled the pinch off the bar).
+   Gravity compensation exposed a numerical limit cycle: near an upright shoulder joints 1 and 3 are coaxial, their counter-rotation mode has almost no inertia, and the two actuators swapped between +87 and -87 Nm every 2 ms step with the hand still; arm armature 0.3 (Menagerie 0.1) removes it.
+3. Underfitting by the trainer.
+   The sequence trainer walks batches of whole episodes window by window, so consecutive Adam updates see nearly the same states; the pipeline's MLP ended at L1 0.096 after 80 epochs (0.194 after 12) where frame-wise training reached 0.016.
+   Fix: window sampling (`sampling: windows`): every update fits 32 windows of 16 steps drawn uniformly from all demonstrated steps, each entered after a 16-step burn-in without gradient from the zero state (the connectome keeps information for about 0.2 s at the default gain, E15 and E16); the pipeline's MLP reaches L1 0.053 in 40 epochs.
+
+With the three fixes the remaining gap is the ordinary one, compounding error, which DAgger closes step by step.
+A frame-trained MLP with three DAgger rounds: subgoal fraction 0.000, 0.056, 0.093, 0.139 on 21 held-out train-split episodes, with the first subgoal (opening a drawer) done in 11 of 12 drawer episodes by round 3.
+
+**Results through the pipeline** (`scripts/manipulation_imitation_probe.py`, 21 test episodes of the train split that no stage trains or selects on, three per template; at least k subgoals per template):
+
+| Run | Training L1 (train / val) | Success | Subgoal fraction | Episodes with at least 1, 2, ... subgoals |
+| --- | --- | --- | --- | --- |
+| MLP with the heading features, before the physics and velocity fixes (episode sweep, behavior cloning only), 8 demos per template | 0.084 / 0.106 | 0/21 | 0.000 | none |
+| the same with the heading features zeroed | 0.083 / 0.097 | 0/21 | 0.000 | none |
+| MLP, all fixes, episode sweep, 12 epochs, 1 DAgger round | 0.194 / 0.200 | 0/21 | 0.000 | none |
+| MLP, all fixes, episode sweep, 80 epochs, 1 DAgger round | 0.117 / 0.136 | 0/21 | 0.000 | none |
+| MLP, all fixes, window sampling, 40 epochs, 3 DAgger rounds (8 per template) | 0.081 / 0.104 | 1/21 | 0.143 | put_away 3, 0, 0; retrieve 2, 1, 1, 1; tidy 2; unpack 2, 1 |
+| Connectome, all fixes, window sampling, 4 demos per template, 15 epochs, 2 DAgger rounds | 0.241 / 0.242 | 0/21 | 0.012 | shelve 1 |
+| MLP, as the 3-round run, on the final teacher (travel sink and lid leads added after the runs above) | 0.085 / 0.109 | 0/21 | 0.075 | put_away 2; retrieve 3; tidy 1 |
+
+The MLP now completes whole episodes (a retrieve: open the drawer, pick, place in the bin, close) and its first skill, opening a drawer, succeeds in 9 of 12 drawer episodes (6 of 12 in the repeat on the final teacher; with 21 test episodes and one seed these probes differ by a few episodes); DAgger rounds keep adding (best validation subgoal fraction 0.01, 0.03, 0.05, 0.11 for behavior cloning and rounds 1 to 3), so the full configs now run four rounds.
+
+**The connectome is a near-linear controller here.**
+Its fit stalls at L1 0.22 to 0.24 where the MLP reaches 0.05 to 0.08, so the question is what the frozen connectome can express through the B1a interface.
+Test: frame-wise fits on the same 28 demonstrations (one episode in seven held out), a linear readout of the connectome's features against policies on the raw observation:
+
+| Model | L1 train / held out |
+| --- | --- |
+| linear policy on the observation, tanh(W x + b) | 0.211 / 0.267 |
+| decoder only on connectome features, untrained calibrated encoder | 0.216 / 0.247 |
+| decoder only on connectome features, the probe's trained encoder | 0.195 / 0.237 |
+| MLP 3 x 512 on the observation | 0.021 / 0.140 |
+
+The same decoder-only fit across the rate model's regimes stays at the linear level or worse: recurrent gain 0.99 (0.214 / 0.245), four times the input drive (0.202 / 0.280), weight-norm power 2 (0.262 / 0.308), gain 0.99 with power 2 and four times the drive (0.234 / 0.282).
+Reading: with a linear encoder and a linear readout the frozen connectome adds no usable nonlinearity for this task, as research log E27 found on the kitchen (the fly controller fit the demonstrations about as well as a linear policy); the teacher's decisions (descend once aligned, close once centred, switch heading when the object is held) are switches a linear policy cannot make.
+The pipeline is no longer the limit for the connectome; this is a property of the controller class, and what to do about it (reward fine-tuning from the weak imitation start, as on the kitchen, or a richer interface) is a research decision, not a fix.
+
+**What changed** (all verified by tests and the runs above): the arm is gravity-compensated with armature 0.3 (docs of `scene.py`), the teacher's integral is removed and its heading rules live in the sim, the observation gains the commanded yaw and two heading errors (220 features), `velocities: false` is the imitation default, window sampling is the imitation default, and the imitation configs run four DAgger rounds.
+The teacher table below was re-measured on the changed task.
+
 
 ### Costs and wall-clock estimates
 
@@ -288,7 +377,8 @@ Measured with `scripts/manipulation_training_throughput.py` (docs/results/manipu
 | Environment alone, random actions, 128 environments | 2,310 steps/s (1,590 before the contact exclusion) |
 | Connectome closed loop (encoder, MaleCNS, decoder), 128 environments, fresh episodes | 1,260 steps/s (1,310 before; 22 to 26 ms of each control step is the connectome, and GPU sharing moves this row by about 5%) |
 | Connectome closed loop, 32 environments | 1,200 steps/s (1,140 before) |
-| Behavior cloning with the encoder training, batch 16, BPTT 16 | 3.0 to 3.7 ms per demonstration step (two measurements, 21 episodes; no physics involved) |
+| Behavior cloning with the encoder training, episode sweep, batch 16, BPTT 16 | 3.0 to 3.7 ms per demonstration step (two measurements, 21 episodes; no physics involved) |
+| Behavior cloning with the encoder training, window sampling (32 windows of 16 steps, 16-step burn-in), connectome probe | 1.2 to 1.6 ms per demonstration step (28,842 steps in about 46 s per epoch; 69,000 in 81 s) |
 | Teacher demonstrations, one environment | 21 episodes (21,900 steps) in 37 s (41 before) |
 | Evaluation of a failing policy, one episode per template of all four held-out splits (25 episodes) | 64 ms per lockstep step, 2.8 minutes (140 ms and 6 minutes before) |
 
@@ -300,9 +390,9 @@ Estimates for the shipped configs, after the contact exclusion (a policy that fa
 | Stage | configs/whole-brain-manipulation.json | configs/ppo-manipulation.json |
 | --- | --- | --- |
 | Data | demonstrations and validation episodes 3 to 6 min, teacher evaluation 3 to 5 min | DAPG replay about 2 min |
-| Training | behavior cloning 12 epochs x 9 to 11 min (175,000 steps at 3.0 to 3.7 ms); DAgger round 1: 3 min of rollouts + 4 epochs x 15 to 19 min (about 300,000 steps), round 2: 3 min + 4 epochs x 21 to 27 min (about 430,000 steps) | 1,000 iterations x 10 to 15 s (8.2 M steps at 820 to 550 steps/s) |
-| Selection and evaluation | about 6 closed-loop validations x 1 to 1.5 min, final evaluation 7 to 11 min | 11 evaluations x 3 to 6 min |
-| Total | about 4.5 to 6 hours (the DAgger aggregate dominates; imitation does no physics in training, so the exclusion saves only its rollouts and evaluations) | about 3.5 to 5 hours |
+| Training | behavior cloning 12 epochs x 4 to 5 min (175,000 steps at 1.2 to 1.6 ms, window sampling); 4 DAgger rounds of 56 learner episodes (about 100,000 steps each, 3 min of rollouts), then 6 epochs on aggregates of about 275,000, 375,000, 475,000 and 575,000 steps: about 4 hours together | 1,000 iterations x 10 to 15 s (8.2 M steps at 820 to 550 steps/s) |
+| Selection and evaluation | about 11 closed-loop validations x 1 to 1.5 min, final evaluation 7 to 11 min | 11 evaluations x 3 to 6 min |
+| Total | about 5 to 6 hours for configs/whole-brain-manipulation.json after the imitation fixes (four DAgger rounds; the aggregate dominates) | about 3.5 to 5 hours |
 
 ### Smoke runs
 
