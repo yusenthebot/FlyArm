@@ -1,0 +1,1143 @@
+{
+  "source": "https://github.com/kevinzakka/mujoco_scanned_objects",
+  "commit": "6ff8d275cebfd5b47e49685e3cfbe64b20e49a3c",
+  "license": "CC-BY-4.0 (Google Scanned Objects mesh and texture); MIT (MJCF conversion)",
+  "units": "metres and kilograms; size is (long, narrow, height) of the oriented box",
+  "objects": [
+    {
+      "name": "paper_cup",
+      "upstream": "ACE_Coffee_Mug_Kristen_16_oz_cup",
+      "family": "mug",
+      "scale": 0.61,
+      "yaw": 0.44426937072537065,
+      "offset": [
+        0.0007496166301669861,
+        0.005442098964193147,
+        -0.0411384
+      ],
+      "size": [
+        0.07291107514508052,
+        0.05490426612892517,
+        0.08231096
+      ],
+      "mass": 0.066,
+      "grasp_offset": -0.0043,
+      "grasp_height": 0.0683,
+      "hull_volume": 0.000188675,
+      "mesh_sha256": "058f146c142d742c4f11a9bbbe62c8159c0ef73700fe35b8aebf0368bd64adfb",
+      "texture_sha256": "965ffb2bdd07c36449e4df413da892c4851e4af837628a7a256d8b72f0bc4a4a",
+      "source_url": "https://github.com/kevinzakka/mujoco_scanned_objects/tree/6ff8d275cebfd5b47e49685e3cfbe64b20e49a3c/models/ACE_Coffee_Mug_Kristen_16_oz_cup",
+      "license": "CC-BY-4.0 (Google Scanned Objects mesh and texture); MIT (MJCF conversion)"
+    },
+    {
+      "name": "classic_blue_mug",
+      "upstream": "Cole_Hardware_Mug_Classic_Blue",
+      "family": "mug",
+      "scale": 0.43,
+      "yaw": 0.4651733614865621,
+      "offset": [
+        0.0012926115004109895,
+        0.004574060819744975,
+        -0.020369315
+      ],
+      "size": [
+        0.0660235142038466,
+        0.05395165254053908,
+        0.04075067
+      ],
+      "mass": 0.0323,
+      "grasp_offset": -0.0032,
+      "grasp_height": 0.0255,
+      "hull_volume": 9.2314e-05,
+      "mesh_sha256": "cc225c31be36ea28e8bd6d8f8cedb8811665c7d82e910b006c78cd3212ea6dfc",
+      "texture_sha256": "2e668eb41aa4279b36465bf3e219c3bb15b19b6886900e931c180fd57c797ad1",
+      "source_url": "https://github.com/kevinzakka/mujoco_scanned_objects/tree/6ff8d275cebfd5b47e49685e3cfbe64b20e49a3c/models/Cole_Hardware_Mug_Classic_Blue",
+      "license": "CC-BY-4.0 (Google Scanned Objects mesh and texture); MIT (MJCF conversion)"
+    },
+    {
+      "name": "white_yellow_mug",
+      "upstream": "Room_Essentials_Mug_White_Yellow",
+      "family": "mug",
+      "scale": 0.53,
+      "yaw": 0.3446667767125158,
+      "offset": [
+        0.0011180579409424234,
+        0.0053907497385394,
+        -0.027764580000000004
+      ],
+      "size": [
+        0.06774602925616488,
+        0.05402424136141085,
+        0.055540820000000005
+      ],
+      "mass": 0.0398,
+      "grasp_offset": -0.0023,
+      "grasp_height": 0.044,
+      "hull_volume": 0.000113718,
+      "mesh_sha256": "25b1444606bdb4dbb547e06da4874750232a2e613ad17fd51753a5a297f52e3f",
+      "texture_sha256": "c814220c6ebf67a8a1f402cbfc9366df7731f3b4089fbaee443ec330f5b666b5",
+      "source_url": "https://github.com/kevinzakka/mujoco_scanned_objects/tree/6ff8d275cebfd5b47e49685e3cfbe64b20e49a3c/models/Room_Essentials_Mug_White_Yellow",
+      "license": "CC-BY-4.0 (Google Scanned Objects mesh and texture); MIT (MJCF conversion)"
+    },
+    {
+      "name": "bead_mug",
+      "upstream": "Threshold_Porcelain_Coffee_Mug_All_Over_Bead_White",
+      "family": "mug",
+      "scale": 0.56,
+      "yaw": -0.5486972576253057,
+      "offset": [
+        -0.0007357503732222902,
+        0.005739185843438684,
+        -0.03209192
+      ],
+      "size": [
+        0.06742377748186351,
+        0.054176780531174897,
+        0.06418944
+      ],
+      "mass": 0.0504,
+      "grasp_offset": 0.0035,
+      "grasp_height": 0.0381,
+      "hull_volume": 0.000143895,
+      "mesh_sha256": "2f2610d6f976cddac47e746308767a760f935101b96d119105b084b3cfae86fe",
+      "texture_sha256": "b396863c30e118c7c09a4d1d7d0ff7e49b0cacd423ee5a678069c3a09eb661f6",
+      "source_url": "https://github.com/kevinzakka/mujoco_scanned_objects/tree/6ff8d275cebfd5b47e49685e3cfbe64b20e49a3c/models/Threshold_Porcelain_Coffee_Mug_All_Over_Bead_White",
+      "license": "CC-BY-4.0 (Google Scanned Objects mesh and texture); MIT (MJCF conversion)"
+    },
+    {
+      "name": "sand_cup",
+      "upstream": "Ecoforms_Cup_B4_SAN",
+      "family": "mug",
+      "scale": 0.55,
+      "yaw": -1.3881324888164412,
+      "offset": [
+        -3.7440956120928653e-06,
+        1.479843934955316e-06,
+        -0.019685875000000002
+      ],
+      "size": [
+        0.054939398204333134,
+        0.05488707942301887,
+        0.03938605
+      ],
+      "mass": 0.03,
+      "grasp_offset": 0.0001,
+      "grasp_height": 0.0303,
+      "hull_volume": 6.3536e-05,
+      "mesh_sha256": "313d2d81439a32d752055b1125c430b3b39765e1a46ab9770571c5adfe5b4017",
+      "texture_sha256": "c7234975ec247dc8a02839b717247e6ea3dd532e10d6b16b182988ac4bb7b07e",
+      "source_url": "https://github.com/kevinzakka/mujoco_scanned_objects/tree/6ff8d275cebfd5b47e49685e3cfbe64b20e49a3c/models/Ecoforms_Cup_B4_SAN",
+      "license": "CC-BY-4.0 (Google Scanned Objects mesh and texture); MIT (MJCF conversion)"
+    },
+    {
+      "name": "scirocco_bowl",
+      "upstream": "Cole_Hardware_Bowl_Scirocco_YellowBlue",
+      "family": "bowl",
+      "scale": 0.48,
+      "yaw": 1.0600048970214173,
+      "offset": [
+        -1.5274677615665852e-05,
+        -9.724327647315546e-05,
+        -0.01483464
+      ],
+      "size": [
+        0.05505334625153055,
+        0.054320966950898275,
+        0.029695199999999998
+      ],
+      "mass": 0.03,
+      "grasp_offset": -0.0001,
+      "grasp_height": 0.0213,
+      "hull_volume": 4.5447e-05,
+      "mesh_sha256": "0e28d9ba22ac8f211a25e94b956fd1a58b5f9f723f2bd2beed93ef69062413ab",
+      "texture_sha256": "33ab17c23761ca548a9dce16be4385b1a0a83247e1486a1245c1cb8faaf4e0d0",
+      "source_url": "https://github.com/kevinzakka/mujoco_scanned_objects/tree/6ff8d275cebfd5b47e49685e3cfbe64b20e49a3c/models/Cole_Hardware_Bowl_Scirocco_YellowBlue",
+      "license": "CC-BY-4.0 (Google Scanned Objects mesh and texture); MIT (MJCF conversion)"
+    },
+    {
+      "name": "glazed_ramekin",
+      "upstream": "BIA_Porcelain_Ramekin_With_Glazed_Rim_35_45_oz_cup",
+      "family": "bowl",
+      "scale": 0.62,
+      "yaw": -0.16705885422370856,
+      "offset": [
+        4.1333083506947185e-05,
+        -3.863907632705929e-05,
+        -0.01343416
+      ],
+      "size": [
+        0.05490841116752368,
+        0.05487451247766048,
+        0.026864600000000002
+      ],
+      "mass": 0.03,
+      "grasp_offset": 0.0,
+      "grasp_height": 0.0171,
+      "hull_volume": 5.5483e-05,
+      "mesh_sha256": "63adfcc66f4fbe507e0b9ba7d1155295007e1f92490b90ca8e7c73304c3a2ce1",
+      "texture_sha256": "7323b1d08b6242dd9127f853e23bb5b2651c8665dcb3c78ed00a632aef567750",
+      "source_url": "https://github.com/kevinzakka/mujoco_scanned_objects/tree/6ff8d275cebfd5b47e49685e3cfbe64b20e49a3c/models/BIA_Porcelain_Ramekin_With_Glazed_Rim_35_45_oz_cup",
+      "license": "CC-BY-4.0 (Google Scanned Objects mesh and texture); MIT (MJCF conversion)"
+    },
+    {
+      "name": "cereal_bowl",
+      "upstream": "Threshold_Bead_Cereal_Bowl_White",
+      "family": "bowl",
+      "scale": 0.32,
+      "yaw": -0.4986464008141698,
+      "offset": [
+        7.802374182491745e-06,
+        -8.823491052012931e-05,
+        -0.011305280000000001
+      ],
+      "size": [
+        0.05409806319562611,
+        0.05338491259995466,
+        0.02263168
+      ],
+      "mass": 0.03,
+      "grasp_offset": -0.0,
+      "grasp_height": 0.013,
+      "hull_volume": 3.9017e-05,
+      "mesh_sha256": "6763410af3f3038156a685c9e7c15a4be2aa4fb4564b6cfd737437ee6932730f",
+      "texture_sha256": "99a5374016ebdd44973c399ae6b97fadb63851162530feed9d6ebf256f72d8ec",
+      "source_url": "https://github.com/kevinzakka/mujoco_scanned_objects/tree/6ff8d275cebfd5b47e49685e3cfbe64b20e49a3c/models/Threshold_Bead_Cereal_Bowl_White",
+      "license": "CC-BY-4.0 (Google Scanned Objects mesh and texture); MIT (MJCF conversion)"
+    },
+    {
+      "name": "turquoise_bowl",
+      "upstream": "Room_Essentials_Bowl_Turquiose",
+      "family": "bowl",
+      "scale": 0.35,
+      "yaw": -1.5594813924387716,
+      "offset": [
+        1.0059009514873027e-05,
+        -1.494582538705963e-05,
+        -0.01445815
+      ],
+      "size": [
+        0.05502193853598332,
+        0.054906424148722516,
+        0.028898099999999996
+      ],
+      "mass": 0.03,
+      "grasp_offset": 0.0001,
+      "grasp_height": 0.0195,
+      "hull_volume": 4.7318e-05,
+      "mesh_sha256": "cebc07417256f862f22f9d961249e50934940011e1b75ccff0b2b7618f91e0be",
+      "texture_sha256": "1546b4325f8f5bafb779e5f8df518ee9c8ec7735670a11fb902d34c07034aee6",
+      "source_url": "https://github.com/kevinzakka/mujoco_scanned_objects/tree/6ff8d275cebfd5b47e49685e3cfbe64b20e49a3c/models/Room_Essentials_Bowl_Turquiose",
+      "license": "CC-BY-4.0 (Google Scanned Objects mesh and texture); MIT (MJCF conversion)"
+    },
+    {
+      "name": "coq10_bottle",
+      "upstream": "CoQ10",
+      "family": "bottle",
+      "scale": 1.0,
+      "yaw": -0.06372845258767024,
+      "offset": [
+        -2.3819361103369005e-05,
+        4.909963555613413e-05,
+        -0.0421815
+      ],
+      "size": [
+        0.04740793288947179,
+        0.04733968741585287,
+        0.084399
+      ],
+      "mass": 0.0487,
+      "grasp_offset": 0.0001,
+      "grasp_height": 0.0544,
+      "hull_volume": 0.000139206,
+      "mesh_sha256": "836dea1c2870f4bfb3374f502b0b26ccc92893727c09d382c14be8caca513513",
+      "texture_sha256": "c4b582188962eda8ee40e67cbdcc5ea5ffb8a26b7a469e50e0b9c4b8e828932f",
+      "source_url": "https://github.com/kevinzakka/mujoco_scanned_objects/tree/6ff8d275cebfd5b47e49685e3cfbe64b20e49a3c/models/CoQ10",
+      "license": "CC-BY-4.0 (Google Scanned Objects mesh and texture); MIT (MJCF conversion)"
+    },
+    {
+      "name": "htp_bottle",
+      "upstream": "5_HTP",
+      "family": "bottle",
+      "scale": 1.0,
+      "yaw": 0.1824845400683417,
+      "offset": [
+        -6.15470941867785e-08,
+        5.078200960592291e-05,
+        -0.044406499999999995
+      ],
+      "size": [
+        0.053177504876155635,
+        0.05225829314130176,
+        0.088823
+      ],
+      "mass": 0.0617,
+      "grasp_offset": 0.0,
+      "grasp_height": 0.0588,
+      "hull_volume": 0.000176226,
+      "mesh_sha256": "dd68bf89865769f01e33961a6c4844cc3d65f45342d669891a3ae7405e079053",
+      "texture_sha256": "f5321c94a6b5d2672db796621c714cdd400f81bdbddeeb695c3c232aae2d1ecc",
+      "source_url": "https://github.com/kevinzakka/mujoco_scanned_objects/tree/6ff8d275cebfd5b47e49685e3cfbe64b20e49a3c/models/5_HTP",
+      "license": "CC-BY-4.0 (Google Scanned Objects mesh and texture); MIT (MJCF conversion)"
+    },
+    {
+      "name": "sprinkles_jar",
+      "upstream": "Wilton_Pearlized_Sugar_Sprinkles_525_oz_Gold",
+      "family": "bottle",
+      "scale": 0.74,
+      "yaw": 0.5331392858204266,
+      "offset": [
+        -2.3400861728875566e-05,
+        2.0097747292068674e-05,
+        -0.04974391
+      ],
+      "size": [
+        0.03381586512713347,
+        0.03372902024136238,
+        0.09951446
+      ],
+      "mass": 0.0303,
+      "grasp_offset": -0.0001,
+      "grasp_height": 0.0695,
+      "hull_volume": 8.651e-05,
+      "mesh_sha256": "1de31d8b32798299634ab09bb4cab579af0570f4b9471b303edbf7c79c885d1b",
+      "texture_sha256": "b52dbb2ca5b232c9036eaffba1bf394653bbf066c6497e367bbb1e51e46132d4",
+      "source_url": "https://github.com/kevinzakka/mujoco_scanned_objects/tree/6ff8d275cebfd5b47e49685e3cfbe64b20e49a3c/models/Wilton_Pearlized_Sugar_Sprinkles_525_oz_Gold",
+      "license": "CC-BY-4.0 (Google Scanned Objects mesh and texture); MIT (MJCF conversion)"
+    },
+    {
+      "name": "tonic_bottle",
+      "upstream": "Weston_No_22_Cajun_Jerky_Tonic_12_fl_oz_nLj64ZnGwDh",
+      "family": "bottle",
+      "scale": 0.5,
+      "yaw": 0.02129890892447861,
+      "offset": [
+        -9.812580353119396e-06,
+        -7.1861134993099485e-06,
+        -0.04975275
+      ],
+      "size": [
+        0.03205904721775754,
+        0.03129034042203076,
+        0.0995405
+      ],
+      "mass": 0.03,
+      "grasp_offset": 0.0004,
+      "grasp_height": 0.0695,
+      "hull_volume": 6.4574e-05,
+      "mesh_sha256": "71149058de0e9466b4b127c4afb00a97e4de8f3cae85af9c79847ce89e4a2c01",
+      "texture_sha256": "cfae85e2f834dbfb790348bdc7f516549f199508246e6d17d0ffae96e60ab326",
+      "source_url": "https://github.com/kevinzakka/mujoco_scanned_objects/tree/6ff8d275cebfd5b47e49685e3cfbe64b20e49a3c/models/Weston_No_22_Cajun_Jerky_Tonic_12_fl_oz_nLj64ZnGwDh",
+      "license": "CC-BY-4.0 (Google Scanned Objects mesh and texture); MIT (MJCF conversion)"
+    },
+    {
+      "name": "supplement_tub",
+      "upstream": "Twinlab_Nitric_Fuel",
+      "family": "bottle",
+      "scale": 0.88,
+      "yaw": -0.06159599065339938,
+      "offset": [
+        -6.751348402310106e-05,
+        6.122780589629985e-05,
+        -0.04983132
+      ],
+      "size": [
+        0.05241852763606303,
+        0.052259944368579475,
+        0.09965736
+      ],
+      "mass": 0.0674,
+      "grasp_offset": 0.0001,
+      "grasp_height": 0.0697,
+      "hull_volume": 0.000192586,
+      "mesh_sha256": "cee9291a2568ae43939d1e52ab03372a9083ba4eca379dc7420120f7ef79c59a",
+      "texture_sha256": "15f3b696ed8425c5eddfed547c2f1f76a3894bad40697ed2f81c0d59a5fbd3e7",
+      "source_url": "https://github.com/kevinzakka/mujoco_scanned_objects/tree/6ff8d275cebfd5b47e49685e3cfbe64b20e49a3c/models/Twinlab_Nitric_Fuel",
+      "license": "CC-BY-4.0 (Google Scanned Objects mesh and texture); MIT (MJCF conversion)"
+    },
+    {
+      "name": "coffee_can",
+      "upstream": "Don_Franciscos_Gourmet_Coffee_Medium_Decaf_100_Colombian_12_oz_340_g",
+      "family": "can",
+      "scale": 0.53,
+      "yaw": -1.112692666538964,
+      "offset": [
+        4.764405302815945e-05,
+        -1.8796981819184724e-05,
+        -0.037374275000000005
+      ],
+      "size": [
+        0.05455316179546958,
+        0.05454896278776912,
+        0.07475173
+      ],
+      "mass": 0.0601,
+      "grasp_offset": 0.0001,
+      "grasp_height": 0.0448,
+      "hull_volume": 0.000171679,
+      "mesh_sha256": "56d8f13909ec8b6413248d1abdd211d785f8a6a6779cd90356060a92f5660e9b",
+      "texture_sha256": "4263e550ba32f7c4074c4225166de140aba585d7d7ccea001030575393ee0034",
+      "source_url": "https://github.com/kevinzakka/mujoco_scanned_objects/tree/6ff8d275cebfd5b47e49685e3cfbe64b20e49a3c/models/Don_Franciscos_Gourmet_Coffee_Medium_Decaf_100_Colombian_12_oz_340_g",
+      "license": "CC-BY-4.0 (Google Scanned Objects mesh and texture); MIT (MJCF conversion)"
+    },
+    {
+      "name": "xylitol_tub",
+      "upstream": "Xyli_Pure_Xylitol",
+      "family": "can",
+      "scale": 0.58,
+      "yaw": -0.23309978926759012,
+      "offset": [
+        8.905645310624405e-07,
+        3.130267550243218e-05,
+        -0.042640439999999995
+      ],
+      "size": [
+        0.056256355987478024,
+        0.05488778788699794,
+        0.08533655999999999
+      ],
+      "mass": 0.0699,
+      "grasp_offset": 0.0,
+      "grasp_height": 0.0553,
+      "hull_volume": 0.000199577,
+      "mesh_sha256": "b8a67f49b6fabac7e0bd8af8e56c626007e96460aa111a8f247b83eb078502a2",
+      "texture_sha256": "666ff4ff725e0698a9e7073fca70ce1ff943cfa2c247aa6c422350e64cbaaa1c",
+      "source_url": "https://github.com/kevinzakka/mujoco_scanned_objects/tree/6ff8d275cebfd5b47e49685e3cfbe64b20e49a3c/models/Xyli_Pure_Xylitol",
+      "license": "CC-BY-4.0 (Google Scanned Objects mesh and texture); MIT (MJCF conversion)"
+    },
+    {
+      "name": "instant_coffee_jar",
+      "upstream": "Nescafe_Tasters_Choice_Instant_Coffee_Decaf_House_Blend_Light_7_oz",
+      "family": "can",
+      "scale": 0.53,
+      "yaw": -0.012527992356340601,
+      "offset": [
+        1.476029309555038e-06,
+        6.404970444418359e-05,
+        -0.04920308
+      ],
+      "size": [
+        0.051318811487613296,
+        0.041985828122909775,
+        0.09843796
+      ],
+      "mass": 0.0598,
+      "grasp_offset": -0.0,
+      "grasp_height": 0.0684,
+      "hull_volume": 0.000170791,
+      "mesh_sha256": "72bf2dd8d95d1b2d5806de3c514311a5f6de495db1a4978003e1f61473d21dc4",
+      "texture_sha256": "7b2abdb1a7215f80951052355126d948f1034c8f2b0e237e0c29c67130ecb55a",
+      "source_url": "https://github.com/kevinzakka/mujoco_scanned_objects/tree/6ff8d275cebfd5b47e49685e3cfbe64b20e49a3c/models/Nescafe_Tasters_Choice_Instant_Coffee_Decaf_House_Blend_Light_7_oz",
+      "license": "CC-BY-4.0 (Google Scanned Objects mesh and texture); MIT (MJCF conversion)"
+    },
+    {
+      "name": "cocoa_canister",
+      "upstream": "Nestle_Nesquik_Chocolate_Powder_Flavored_Milk_Additive_109_Oz_Canister",
+      "family": "can",
+      "scale": 0.69,
+      "yaw": -1.5689916817880512,
+      "offset": [
+        7.0202288120699285e-06,
+        -6.028392394215147e-05,
+        -0.049586849999999995
+      ],
+      "size": [
+        0.07364525410234499,
+        0.04292466293363441,
+        0.09917922
+      ],
+      "mass": 0.0922,
+      "grasp_offset": 0.0002,
+      "grasp_height": 0.0692,
+      "hull_volume": 0.000263296,
+      "mesh_sha256": "68d07d6dda9f428ca7a9dd175436efe068197d515cf9bc89a89e5807b3a191d0",
+      "texture_sha256": "67ce6f76882aaec3a3d9c5cdfed8258e433e6a829d1135d98bc51e4e0e79b8da",
+      "source_url": "https://github.com/kevinzakka/mujoco_scanned_objects/tree/6ff8d275cebfd5b47e49685e3cfbe64b20e49a3c/models/Nestle_Nesquik_Chocolate_Powder_Flavored_Milk_Additive_109_Oz_Canister",
+      "license": "CC-BY-4.0 (Google Scanned Objects mesh and texture); MIT (MJCF conversion)"
+    },
+    {
+      "name": "camera_lens",
+      "upstream": "Nikon_1_AW1_w11275mm_Lens_Silver",
+      "family": "can",
+      "scale": 0.87,
+      "yaw": 0.173856364910014,
+      "offset": [
+        9.023992710750252e-05,
+        -3.431987274624994e-05,
+        -0.03421014
+      ],
+      "size": [
+        0.054601097757911124,
+        0.05446682309035586,
+        0.06840984
+      ],
+      "mass": 0.0527,
+      "grasp_offset": -0.0,
+      "grasp_height": 0.0384,
+      "hull_volume": 0.000150486,
+      "mesh_sha256": "8e599edce9cff6c017d419ba664c087312d669abeeaf9a01056252373d4df8b6",
+      "texture_sha256": "a54ac593b8f9a445274e855104996b635bb9009e883b1c49018587793109eb80",
+      "source_url": "https://github.com/kevinzakka/mujoco_scanned_objects/tree/6ff8d275cebfd5b47e49685e3cfbe64b20e49a3c/models/Nikon_1_AW1_w11275mm_Lens_Silver",
+      "license": "CC-BY-4.0 (Google Scanned Objects mesh and texture); MIT (MJCF conversion)"
+    },
+    {
+      "name": "crayon_box",
+      "upstream": "Crayola_Crayons_24_count",
+      "family": "box",
+      "scale": 0.85,
+      "yaw": -0.0015971997370445301,
+      "offset": [
+        -1.1895200829808994e-05,
+        3.0408601310426796e-05,
+        -0.049540975
+      ],
+      "size": [
+        0.0628988220374935,
+        0.025163253475594845,
+        0.09910574999999999
+      ],
+      "mass": 0.0473,
+      "grasp_offset": 0.0002,
+      "grasp_height": 0.0691,
+      "hull_volume": 0.000135213,
+      "mesh_sha256": "db51be830e16124d78c4cd40de680969bbeb327ffad6005070c8dc12a518f849",
+      "texture_sha256": "8cd88ba1f2004610382d8dd516e3077da67069a559b793066fffde29afe273ce",
+      "source_url": "https://github.com/kevinzakka/mujoco_scanned_objects/tree/6ff8d275cebfd5b47e49685e3cfbe64b20e49a3c/models/Crayola_Crayons_24_count",
+      "license": "CC-BY-4.0 (Google Scanned Objects mesh and texture); MIT (MJCF conversion)"
+    },
+    {
+      "name": "caplet_box",
+      "upstream": "Phillips_Caplets_Size_24",
+      "family": "box",
+      "scale": 1.0,
+      "yaw": 0.0075157575007311905,
+      "offset": [
+        0.00011759467441978602,
+        0.00028898933249424386,
+        -0.042852
+      ],
+      "size": [
+        0.07913114255176038,
+        0.04470828669197459,
+        0.08574000000000001
+      ],
+      "mass": 0.1007,
+      "grasp_offset": 0.0001,
+      "grasp_height": 0.0557,
+      "hull_volume": 0.000287816,
+      "mesh_sha256": "17c9032359e98a3d8bb579f043a1550f0ee8035cc0054fdc6aa849910e5e552c",
+      "texture_sha256": "7bd6b095deba4fba7c4f52b9435c4657a6b53a0abbf706e03e2738ce480aa99b",
+      "source_url": "https://github.com/kevinzakka/mujoco_scanned_objects/tree/6ff8d275cebfd5b47e49685e3cfbe64b20e49a3c/models/Phillips_Caplets_Size_24",
+      "license": "CC-BY-4.0 (Google Scanned Objects mesh and texture); MIT (MJCF conversion)"
+    },
+    {
+      "name": "raisinets_box",
+      "upstream": "Nestle_Raisinets_Milk_Chocolate_35_oz_992_g",
+      "family": "box",
+      "scale": 0.98,
+      "yaw": 0.0005904099852371836,
+      "offset": [
+        8.60854500844832e-05,
+        0.00022329387789007168,
+        -0.04058425
+      ],
+      "size": [
+        0.158887355100688,
+        0.020980311926469965,
+        0.08121358000000001
+      ],
+      "mass": 0.0818,
+      "grasp_offset": -0.0002,
+      "grasp_height": 0.051,
+      "hull_volume": 0.000233838,
+      "mesh_sha256": "62dc260f14d6c494860f2eeada6ebd52b2fb68c53f9327224591591794c6d1dd",
+      "texture_sha256": "b542caf0148f5c5098e969ef180a68437905195854b85eb5029bfc524adea2a5",
+      "source_url": "https://github.com/kevinzakka/mujoco_scanned_objects/tree/6ff8d275cebfd5b47e49685e3cfbe64b20e49a3c/models/Nestle_Raisinets_Milk_Chocolate_35_oz_992_g",
+      "license": "CC-BY-4.0 (Google Scanned Objects mesh and texture); MIT (MJCF conversion)"
+    },
+    {
+      "name": "lipstick_box",
+      "upstream": "Perricone_MD_No_Lipstick_Lipstick",
+      "family": "box",
+      "scale": 1.0,
+      "yaw": -0.0006565987237645565,
+      "offset": [
+        1.526690412861388e-05,
+        1.571240633066115e-06,
+        -0.0395165
+      ],
+      "size": [
+        0.05052349337699853,
+        0.04304946150156845,
+        0.079021
+      ],
+      "mass": 0.0572,
+      "grasp_offset": -0.0,
+      "grasp_height": 0.049,
+      "hull_volume": 0.000163445,
+      "mesh_sha256": "a982665db649ef0673816db629a6ddad7102228d49be3dfad2afdca6f1ba5eea",
+      "texture_sha256": "c2a73ad6e8f8e5a37e110d8b67237342666d35c81e827f50b1e83e9fe7578362",
+      "source_url": "https://github.com/kevinzakka/mujoco_scanned_objects/tree/6ff8d275cebfd5b47e49685e3cfbe64b20e49a3c/models/Perricone_MD_No_Lipstick_Lipstick",
+      "license": "CC-BY-4.0 (Google Scanned Objects mesh and texture); MIT (MJCF conversion)"
+    },
+    {
+      "name": "cereal_box",
+      "upstream": "Vans_Cereal_Honey_Nut_Crunch_11_oz_box",
+      "family": "box",
+      "scale": 0.35,
+      "yaw": -0.0022352176594950812,
+      "offset": [
+        -4.6921554920850705e-06,
+        -4.7084395147570235e-05,
+        -0.049282275
+      ],
+      "size": [
+        0.0708764761509582,
+        0.019465752280878528,
+        0.09853375
+      ],
+      "mass": 0.0429,
+      "grasp_offset": 0.0001,
+      "grasp_height": 0.0685,
+      "hull_volume": 0.000122452,
+      "mesh_sha256": "19550b22f3c13ca574546066869dc0ad2e600830f6d98dfb668bdbb19b6e21fa",
+      "texture_sha256": "7a8d910e5c0eae1d51e39c32be2f0c6ff5d726e7fc95d022575cc3c813103f7c",
+      "source_url": "https://github.com/kevinzakka/mujoco_scanned_objects/tree/6ff8d275cebfd5b47e49685e3cfbe64b20e49a3c/models/Vans_Cereal_Honey_Nut_Crunch_11_oz_box",
+      "license": "CC-BY-4.0 (Google Scanned Objects mesh and texture); MIT (MJCF conversion)"
+    },
+    {
+      "name": "hair_color_box",
+      "upstream": "Just_For_Men_ShampooIn_Haircolor_Jet_Black_60",
+      "family": "box",
+      "scale": 0.63,
+      "yaw": -0.009172885792414487,
+      "offset": [
+        0.00010740987902196214,
+        6.822928384540589e-05,
+        -0.049268205
+      ],
+      "size": [
+        0.050004603135396,
+        0.03015189112695238,
+        0.09852759000000001
+      ],
+      "mass": 0.0481,
+      "grasp_offset": 0.0001,
+      "grasp_height": 0.0685,
+      "hull_volume": 0.00013757,
+      "mesh_sha256": "8106cffaa38faab42c72cca22625b9ef85508d393d28fc8d30b894598c6e945b",
+      "texture_sha256": "12cfb04b8578f96210441647d3daa363225ae706ccf8c6fc892ec02abd899094",
+      "source_url": "https://github.com/kevinzakka/mujoco_scanned_objects/tree/6ff8d275cebfd5b47e49685e3cfbe64b20e49a3c/models/Just_For_Men_ShampooIn_Haircolor_Jet_Black_60",
+      "license": "CC-BY-4.0 (Google Scanned Objects mesh and texture); MIT (MJCF conversion)"
+    },
+    {
+      "name": "hammer",
+      "upstream": "Cole_Hardware_Hammer_Black",
+      "family": "tool",
+      "scale": 0.54,
+      "yaw": -0.06961742157252626,
+      "offset": [
+        0.0006694425428279763,
+        0.008948677907571916,
+        -0.02593296
+      ],
+      "size": [
+        0.1573071930552617,
+        0.0324371404091103,
+        0.05187564000000001
+      ],
+      "mass": 0.0429,
+      "grasp_offset": 0.0223,
+      "grasp_height": 0.024,
+      "hull_volume": 0.000122674,
+      "mesh_sha256": "1ee71417fc0ee16517320ba74b463d800f309a737a29bffcd14253948a16069a",
+      "texture_sha256": "51762866afa8bdafd44eb1a4be184039e70c991a928f4a7a8f5ba376965ef9bf",
+      "source_url": "https://github.com/kevinzakka/mujoco_scanned_objects/tree/6ff8d275cebfd5b47e49685e3cfbe64b20e49a3c/models/Cole_Hardware_Hammer_Black",
+      "license": "CC-BY-4.0 (Google Scanned Objects mesh and texture); MIT (MJCF conversion)"
+    },
+    {
+      "name": "can_opener",
+      "upstream": "OXO_Soft_Works_Can_Opener_SnapLock",
+      "family": "tool",
+      "scale": 0.78,
+      "yaw": -0.1665990806306008,
+      "offset": [
+        -0.00018197153541720662,
+        -0.0037487198088236116,
+        -0.02193438
+      ],
+      "size": [
+        0.13588795071838178,
+        0.054866034733887056,
+        0.04385004
+      ],
+      "mass": 0.0529,
+      "grasp_offset": -0.0108,
+      "grasp_height": 0.0215,
+      "hull_volume": 0.000151034,
+      "mesh_sha256": "403e44debb3de860ce3b9fc735a2495e5e0b45f48bbff44fc9ba340232ce6194",
+      "texture_sha256": "84ea9e31ce0a62b90a715df8fa6cecf96fc47033348f3f6abe3a7be43faf5131",
+      "source_url": "https://github.com/kevinzakka/mujoco_scanned_objects/tree/6ff8d275cebfd5b47e49685e3cfbe64b20e49a3c/models/OXO_Soft_Works_Can_Opener_SnapLock",
+      "license": "CC-BY-4.0 (Google Scanned Objects mesh and texture); MIT (MJCF conversion)"
+    },
+    {
+      "name": "lime_squeezer",
+      "upstream": "Focus_8643_Lime_Squeezer_10x35x188_Enamelled_Aluminum_Light",
+      "family": "tool",
+      "scale": 0.46,
+      "yaw": -0.005023436380678524,
+      "offset": [
+        -0.00283479826237841,
+        -0.004417893211770968,
+        -0.01452979
+      ],
+      "size": [
+        0.15438333815431013,
+        0.054159408286505104,
+        0.029116620000000003
+      ],
+      "mass": 0.03,
+      "grasp_offset": -0.0046,
+      "grasp_height": 0.0139,
+      "hull_volume": 8.3379e-05,
+      "mesh_sha256": "aab4fd8a1b88c2ee4b418e25940820c63e3b810841cb4d514245c03ce17042b1",
+      "texture_sha256": "fff0e0887e55fd8e0c02c6567d898cf22f6acbf0047df58b54f877ea58cf6739",
+      "source_url": "https://github.com/kevinzakka/mujoco_scanned_objects/tree/6ff8d275cebfd5b47e49685e3cfbe64b20e49a3c/models/Focus_8643_Lime_Squeezer_10x35x188_Enamelled_Aluminum_Light",
+      "license": "CC-BY-4.0 (Google Scanned Objects mesh and texture); MIT (MJCF conversion)"
+    },
+    {
+      "name": "flashlight",
+      "upstream": "HeavyDuty_Flashlight",
+      "family": "tool",
+      "scale": 0.43,
+      "yaw": -1.5570096180758257,
+      "offset": [
+        0.0019006392511967136,
+        -0.0008382433688830498,
+        -0.049252844999999996
+      ],
+      "size": [
+        0.033522544547408994,
+        0.03328167789848949,
+        0.09855815
+      ],
+      "mass": 0.03,
+      "grasp_offset": 0.0014,
+      "grasp_height": 0.0686,
+      "hull_volume": 6.9582e-05,
+      "mesh_sha256": "7dfa60a1c42e544523f71b4e754c39c9f4d260fc30118555c56732b152abc900",
+      "texture_sha256": "e958a201f3aec1091ce25d87996c3f89d3430f178475aa5d3097e7239616c191",
+      "source_url": "https://github.com/kevinzakka/mujoco_scanned_objects/tree/6ff8d275cebfd5b47e49685e3cfbe64b20e49a3c/models/HeavyDuty_Flashlight",
+      "license": "CC-BY-4.0 (Google Scanned Objects mesh and texture); MIT (MJCF conversion)"
+    },
+    {
+      "name": "tape_roll",
+      "upstream": "Shurtape_Tape_Purple_CP28",
+      "family": "tool",
+      "scale": 0.46,
+      "yaw": 0.22776277464519235,
+      "offset": [
+        -3.0602764696640444e-06,
+        -9.786968926853157e-06,
+        -0.011544619999999998
+      ],
+      "size": [
+        0.054146490001392655,
+        0.05385195670734022,
+        0.02309108
+      ],
+      "mass": 0.03,
+      "grasp_offset": 0.0,
+      "grasp_height": 0.0145,
+      "hull_volume": 5.0891e-05,
+      "mesh_sha256": "2402cabb1d334ffd39c3bceeb52d87901482323c80c33a188f554c6a3f7d8867",
+      "texture_sha256": "b166d156757e2763ce83d39408aebd5baa80beb276aecbaec033ec9f43028ecf",
+      "source_url": "https://github.com/kevinzakka/mujoco_scanned_objects/tree/6ff8d275cebfd5b47e49685e3cfbe64b20e49a3c/models/Shurtape_Tape_Purple_CP28",
+      "license": "CC-BY-4.0 (Google Scanned Objects mesh and texture); MIT (MJCF conversion)"
+    },
+    {
+      "name": "tape_measure",
+      "upstream": "SNAIL_MEASURING_TAPE",
+      "family": "tool",
+      "scale": 0.82,
+      "yaw": -1.5650895973093346,
+      "offset": [
+        9.581540490133378e-05,
+        0.0007926406946135271,
+        -0.026955039999999996
+      ],
+      "size": [
+        0.15941234913821853,
+        0.05236277881779044,
+        0.053883839999999995
+      ],
+      "mass": 0.0691,
+      "grasp_offset": -0.0128,
+      "grasp_height": 0.0244,
+      "hull_volume": 0.000197503,
+      "mesh_sha256": "061890cb0bab45b64ed85acde39dfecbd89152c42a7d322d514cbb3de8417539",
+      "texture_sha256": "5086483af005837c51aae54e7086454922fa1f5486149bcf6b25c23817955731",
+      "source_url": "https://github.com/kevinzakka/mujoco_scanned_objects/tree/6ff8d275cebfd5b47e49685e3cfbe64b20e49a3c/models/SNAIL_MEASURING_TAPE",
+      "license": "CC-BY-4.0 (Google Scanned Objects mesh and texture); MIT (MJCF conversion)"
+    },
+    {
+      "name": "hand_bell",
+      "upstream": "Cole_Hardware_School_Bell_Solid_Brass_38",
+      "family": "tool",
+      "scale": 0.62,
+      "yaw": -1.0917072951768274,
+      "offset": [
+        -4.154611602514603e-05,
+        -1.0160677615564731e-05,
+        -0.04948127
+      ],
+      "size": [
+        0.051373138521829315,
+        0.051308521125545445,
+        0.09898238
+      ],
+      "mass": 0.03,
+      "grasp_offset": -0.0001,
+      "grasp_height": 0.069,
+      "hull_volume": 8.3213e-05,
+      "mesh_sha256": "e7e88697469b643aa9c44fee7c0d4490139e47466ac483f4afbd52c49182c2a0",
+      "texture_sha256": "e8bf22ccfc07bd5182d4ebc5022889dca93eb93aee36652189086fe667f378ad",
+      "source_url": "https://github.com/kevinzakka/mujoco_scanned_objects/tree/6ff8d275cebfd5b47e49685e3cfbe64b20e49a3c/models/Cole_Hardware_School_Bell_Solid_Brass_38",
+      "license": "CC-BY-4.0 (Google Scanned Objects mesh and texture); MIT (MJCF conversion)"
+    },
+    {
+      "name": "android_figure",
+      "upstream": "Android_Figure_Orange",
+      "family": "toy",
+      "scale": 1.0,
+      "yaw": 0.3451540973280651,
+      "offset": [
+        0.0002708041363705515,
+        0.000718303482689673,
+        -0.040342499999999996
+      ],
+      "size": [
+        0.05761428678829916,
+        0.04736472430507523,
+        0.080687
+      ],
+      "mass": 0.0424,
+      "grasp_offset": 0.0003,
+      "grasp_height": 0.0507,
+      "hull_volume": 0.000121122,
+      "mesh_sha256": "abc98444507d6c298a5a3b95ee095c02a2e9a19cb540884a71e079fca6e8d6bb",
+      "texture_sha256": "698ffb3db63897bed863317b985e450195d9c8466e8961e314829bcc97365624",
+      "source_url": "https://github.com/kevinzakka/mujoco_scanned_objects/tree/6ff8d275cebfd5b47e49685e3cfbe64b20e49a3c/models/Android_Figure_Orange",
+      "license": "CC-BY-4.0 (Google Scanned Objects mesh and texture); MIT (MJCF conversion)"
+    },
+    {
+      "name": "mario_figure",
+      "upstream": "Nintendo_Mario_Action_Figure",
+      "family": "toy",
+      "scale": 0.97,
+      "yaw": -0.04264011584597682,
+      "offset": [
+        0.00585362401866414,
+        0.006275773811766765,
+        -0.049669334999999995
+      ],
+      "size": [
+        0.05982212794054044,
+        0.05315099485943016,
+        0.09930569
+      ],
+      "mass": 0.0495,
+      "grasp_offset": 0.0048,
+      "grasp_height": 0.0693,
+      "hull_volume": 0.000141388,
+      "mesh_sha256": "07088a4910a8e369807f6b4e2ab4dcff161b25b6fff5b8587d76d23a863a157c",
+      "texture_sha256": "b52624859ee58f0c6d55da76091fd5f2b0c4c79090ad5e25224d3017fefa7121",
+      "source_url": "https://github.com/kevinzakka/mujoco_scanned_objects/tree/6ff8d275cebfd5b47e49685e3cfbe64b20e49a3c/models/Nintendo_Mario_Action_Figure",
+      "license": "CC-BY-4.0 (Google Scanned Objects mesh and texture); MIT (MJCF conversion)"
+    },
+    {
+      "name": "yoshi_figure",
+      "upstream": "Nintendo_Yoshi_Action_Figure",
+      "family": "toy",
+      "scale": 0.86,
+      "yaw": -1.120013711201366,
+      "offset": [
+        0.004384959673936784,
+        0.006876096181143876,
+        -0.04860505
+      ],
+      "size": [
+        0.05466137112474319,
+        0.0543882844338011,
+        0.09721526
+      ],
+      "mass": 0.0483,
+      "grasp_offset": 0.0037,
+      "grasp_height": 0.0672,
+      "hull_volume": 0.000138003,
+      "mesh_sha256": "cbaae9700e2751eff5929e2bfd7f1d0d1c95449c169581a4846fc5368d096eee",
+      "texture_sha256": "b19aeb9efe14c6f8a8dc99419a050f01fcf8a1e933e95c69ec1cf4aaefa32a3b",
+      "source_url": "https://github.com/kevinzakka/mujoco_scanned_objects/tree/6ff8d275cebfd5b47e49685e3cfbe64b20e49a3c/models/Nintendo_Yoshi_Action_Figure",
+      "license": "CC-BY-4.0 (Google Scanned Objects mesh and texture); MIT (MJCF conversion)"
+    },
+    {
+      "name": "triceratops",
+      "upstream": "Great_Dinos_Triceratops_Toy",
+      "family": "toy",
+      "scale": 1.0,
+      "yaw": -0.03313181095223672,
+      "offset": [
+        -8.142782507835483e-06,
+        3.4422386216131223e-06,
+        -0.039554
+      ],
+      "size": [
+        0.0694352427069001,
+        0.045794319808522735,
+        0.07918399999999999
+      ],
+      "mass": 0.045,
+      "grasp_offset": -0.0001,
+      "grasp_height": 0.0492,
+      "hull_volume": 0.000128637,
+      "mesh_sha256": "8835f827a86895ef208bbcbe248769beca67a1489c132ff003d3a095425054bb",
+      "texture_sha256": "231379bda434587e35db456c38a8941dc96ecdc71aa0946aa389b179a98f7727",
+      "source_url": "https://github.com/kevinzakka/mujoco_scanned_objects/tree/6ff8d275cebfd5b47e49685e3cfbe64b20e49a3c/models/Great_Dinos_Triceratops_Toy",
+      "license": "CC-BY-4.0 (Google Scanned Objects mesh and texture); MIT (MJCF conversion)"
+    },
+    {
+      "name": "school_bus",
+      "upstream": "SCHOOL_BUS",
+      "family": "toy",
+      "scale": 1.0,
+      "yaw": -1.569425667538169,
+      "offset": [
+        9.713050939365309e-06,
+        7.354214983557213e-05,
+        -0.019107
+      ],
+      "size": [
+        0.09779944131847523,
+        0.031826992447529096,
+        0.038286
+      ],
+      "mass": 0.0357,
+      "grasp_offset": 0.0014,
+      "grasp_height": 0.0218,
+      "hull_volume": 0.000101896,
+      "mesh_sha256": "2a44571dac469c6407f4b3773723c78cba607df71967cd5d8db79e0b8ded6e74",
+      "texture_sha256": "e69bc934ff69c2e446d20f16dc83686d8a8cf09256dc323bb41210b2a4b7f56f",
+      "source_url": "https://github.com/kevinzakka/mujoco_scanned_objects/tree/6ff8d275cebfd5b47e49685e3cfbe64b20e49a3c/models/SCHOOL_BUS",
+      "license": "CC-BY-4.0 (Google Scanned Objects mesh and texture); MIT (MJCF conversion)"
+    },
+    {
+      "name": "henry_engine",
+      "upstream": "Thomas_Friends_Woodan_Railway_Henry",
+      "family": "toy",
+      "scale": 0.89,
+      "yaw": 0.0011410525337207504,
+      "offset": [
+        1.1489765081688919e-05,
+        -9.934709873576399e-05,
+        -0.022434675
+      ],
+      "size": [
+        0.15929291076101937,
+        0.03318164404667845,
+        0.044920970000000005
+      ],
+      "mass": 0.0594,
+      "grasp_offset": -0.0012,
+      "grasp_height": 0.0233,
+      "hull_volume": 0.000169679,
+      "mesh_sha256": "0cb9dfd286c617f73cdad9bbd5c4df0ed98e9e525242ac58cff9aacee6877bbf",
+      "texture_sha256": "2ae80567cfe25f7455885c51d0e048c9c8f11cb4fef446014bcab20d94ae38a4",
+      "source_url": "https://github.com/kevinzakka/mujoco_scanned_objects/tree/6ff8d275cebfd5b47e49685e3cfbe64b20e49a3c/models/Thomas_Friends_Woodan_Railway_Henry",
+      "license": "CC-BY-4.0 (Google Scanned Objects mesh and texture); MIT (MJCF conversion)"
+    },
+    {
+      "name": "lion_figure",
+      "upstream": "Schleich_Lion_Action_Figure",
+      "family": "toy",
+      "scale": 1.0,
+      "yaw": -0.011058075089310372,
+      "offset": [
+        -2.2610022817413922e-05,
+        -0.00211765846207489,
+        -0.035223000000000004
+      ],
+      "size": [
+        0.11499712338435468,
+        0.04145676545006207,
+        0.070442
+      ],
+      "mass": 0.0565,
+      "grasp_offset": -0.007,
+      "grasp_height": 0.0404,
+      "hull_volume": 0.000161548,
+      "mesh_sha256": "9902556a98db7e4f728266e1e805efe754764f2c155da415851d080e50e92e7a",
+      "texture_sha256": "ba7fdd7cfd88bfa7ccb6601a009fab66769e61fc4035db2221f3625f1df7b455",
+      "source_url": "https://github.com/kevinzakka/mujoco_scanned_objects/tree/6ff8d275cebfd5b47e49685e3cfbe64b20e49a3c/models/Schleich_Lion_Action_Figure",
+      "license": "CC-BY-4.0 (Google Scanned Objects mesh and texture); MIT (MJCF conversion)"
+    },
+    {
+      "name": "pineapple_maraca",
+      "upstream": "PINEAPPLE_MARACA_6_PCSSET",
+      "family": "rounded",
+      "scale": 0.79,
+      "yaw": 1.563189132670511,
+      "offset": [
+        -0.0002868040753876838,
+        0.0006891345750242462,
+        -0.02117358
+      ],
+      "size": [
+        0.0791915078839145,
+        0.05435276682456906,
+        0.04240404
+      ],
+      "mass": 0.03,
+      "grasp_offset": 0.0036,
+      "grasp_height": 0.0242,
+      "hull_volume": 7.8824e-05,
+      "mesh_sha256": "218cb4fcfb5833f2d7ed8289a5a960d69121e1b58d82c3bf09ffbbd68fb45b56",
+      "texture_sha256": "3fc21508bf13b569e01f0312848c9b56df2447c17d50d3a9ca1d2b1e876f94ee",
+      "source_url": "https://github.com/kevinzakka/mujoco_scanned_objects/tree/6ff8d275cebfd5b47e49685e3cfbe64b20e49a3c/models/PINEAPPLE_MARACA_6_PCSSET",
+      "license": "CC-BY-4.0 (Google Scanned Objects mesh and texture); MIT (MJCF conversion)"
+    },
+    {
+      "name": "fruit_basket_toy",
+      "upstream": "Squirt_Strain_Fruit_Basket",
+      "family": "rounded",
+      "scale": 0.62,
+      "yaw": -0.0008503098039249757,
+      "offset": [
+        0.00010875844961060616,
+        -0.00026118481788994785,
+        -0.03498908
+      ],
+      "size": [
+        0.07062156638361146,
+        0.054958788009070364,
+        0.06999924
+      ],
+      "mass": 0.0469,
+      "grasp_offset": -0.0001,
+      "grasp_height": 0.04,
+      "hull_volume": 0.00013396,
+      "mesh_sha256": "b032ad7b58390b3ff537b364d7d8b9ae7f40aaf961b3a442f0918c7d960afc01",
+      "texture_sha256": "4eabf25aa848c9a1ba3d673a8a7b0b5285762f775e3f55b07d13d78b4959c259",
+      "source_url": "https://github.com/kevinzakka/mujoco_scanned_objects/tree/6ff8d275cebfd5b47e49685e3cfbe64b20e49a3c/models/Squirt_Strain_Fruit_Basket",
+      "license": "CC-BY-4.0 (Google Scanned Objects mesh and texture); MIT (MJCF conversion)"
+    },
+    {
+      "name": "ladybug_bead",
+      "upstream": "LADYBUG_BEAD",
+      "family": "rounded",
+      "scale": 0.96,
+      "yaw": -1.4844471082984994,
+      "offset": [
+        1.1448619194297238e-06,
+        -1.9741645346672138e-05,
+        -0.014532479999999999
+      ],
+      "size": [
+        0.08085162262521384,
+        0.05472207639062069,
+        0.029080319999999996
+      ],
+      "mass": 0.03,
+      "grasp_offset": -0.001,
+      "grasp_height": 0.016,
+      "hull_volume": 7.5231e-05,
+      "mesh_sha256": "2b6de473bdf66918fc29f6ada3ba7d468ea52d5266dbd1a19830f2d4f13efed2",
+      "texture_sha256": "c065b69f2fe36407ab8f691d80db5c2bea1cf80e820989f62171e7f691be1eb1",
+      "source_url": "https://github.com/kevinzakka/mujoco_scanned_objects/tree/6ff8d275cebfd5b47e49685e3cfbe64b20e49a3c/models/LADYBUG_BEAD",
+      "license": "CC-BY-4.0 (Google Scanned Objects mesh and texture); MIT (MJCF conversion)"
+    },
+    {
+      "name": "rubber_chew_toy",
+      "upstream": "Kong_Puppy_Teething_Rubber_Small_Pink",
+      "family": "rounded",
+      "scale": 1.0,
+      "yaw": -0.5753575229257998,
+      "offset": [
+        1.571566655953968e-05,
+        -2.765051409992121e-05,
+        -0.035819500000000004
+      ],
+      "size": [
+        0.04449412233575119,
+        0.04433612075139605,
+        0.071657
+      ],
+      "mass": 0.03,
+      "grasp_offset": -0.0001,
+      "grasp_height": 0.0417,
+      "hull_volume": 7.266e-05,
+      "mesh_sha256": "e6c4585d3c363be547097605c788504d17e4b53053ba2039676fbb525d61fe0e",
+      "texture_sha256": "8d085f408690bdb01b53b431cbb0dc3f6ef89b9826c7500ef2f415792f28c7e8",
+      "source_url": "https://github.com/kevinzakka/mujoco_scanned_objects/tree/6ff8d275cebfd5b47e49685e3cfbe64b20e49a3c/models/Kong_Puppy_Teething_Rubber_Small_Pink",
+      "license": "CC-BY-4.0 (Google Scanned Objects mesh and texture); MIT (MJCF conversion)"
+    },
+    {
+      "name": "whale_whistle",
+      "upstream": "WHALE_WHISTLE_6PCS_SET",
+      "family": "rounded",
+      "scale": 0.98,
+      "yaw": -1.1613412119665119,
+      "offset": [
+        -0.0007422311575805696,
+        0.0015092485636025964,
+        -0.01861657
+      ],
+      "size": [
+        0.07165929625673755,
+        0.05498747462932629,
+        0.03726646
+      ],
+      "mass": 0.03,
+      "grasp_offset": -0.0052,
+      "grasp_height": 0.0184,
+      "hull_volume": 6.672e-05,
+      "mesh_sha256": "ada1fb1958296ee18c096e8320140379ba3e87a2391e7137ccb4925986dedc91",
+      "texture_sha256": "3510cd157e41d134445b766e583ca4a4de6266e8fda3aa8d5ae311f8105fa8de",
+      "source_url": "https://github.com/kevinzakka/mujoco_scanned_objects/tree/6ff8d275cebfd5b47e49685e3cfbe64b20e49a3c/models/WHALE_WHISTLE_6PCS_SET",
+      "license": "CC-BY-4.0 (Google Scanned Objects mesh and texture); MIT (MJCF conversion)"
+    },
+    {
+      "name": "bird_rattle",
+      "upstream": "BIRD_RATTLE",
+      "family": "rounded",
+      "scale": 0.87,
+      "yaw": 1.5475075574143222,
+      "offset": [
+        0.0019425239417532533,
+        0.007415907948108156,
+        -0.03941361
+      ],
+      "size": [
+        0.09629907874362645,
+        0.05438251065852759,
+        0.07886724
+      ],
+      "mass": 0.0627,
+      "grasp_offset": 0.0044,
+      "grasp_height": 0.059,
+      "hull_volume": 0.000179235,
+      "mesh_sha256": "ec4841240af7c1bbecabf85a63e7770275d6293024240f486e5e84f87c904132",
+      "texture_sha256": "25c4097095eff6ce27d0aadaaa286afc72f712ffca1c043a5a4f44349177390e",
+      "source_url": "https://github.com/kevinzakka/mujoco_scanned_objects/tree/6ff8d275cebfd5b47e49685e3cfbe64b20e49a3c/models/BIRD_RATTLE",
+      "license": "CC-BY-4.0 (Google Scanned Objects mesh and texture); MIT (MJCF conversion)"
+    }
+  ],
+  "rejected": [
+    {
+      "name": "screwdriver",
+      "upstream": "Craftsman_Grip_Screwdriver_Phillips_Cushion",
+      "family": "tool",
+      "reason": "the palm would hit the object before the pads overlap it (lowest pad centre 0.013 m, local top 0.020 m)",
+      "mesh_sha256": "6f2b5a3a64d750d92205797eff6d184839ab8395e6b4855ef76035632b44a88b",
+      "texture_sha256": "8a174f2961bf2ebaa57509e02efac37d377bb5a1d7806541f93befb1a79ec224"
+    }
+  ]
+}

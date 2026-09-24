@@ -1,0 +1,606 @@
+{
+  "benchmark": "articulated multi-step manipulation (flyarm.manipulation)",
+  "machine": "macOS-26.3.2-arm64-arm-64bit",
+  "episodes_per_cell": 20,
+  "teacher": {
+    "train": {
+      "split": "train",
+      "seeds": [
+        0,
+        139
+      ],
+      "wall_seconds": 219.7,
+      "cells": {
+        "put_away": {
+          "episodes": 20,
+          "successes": 20,
+          "success_rate": 1.0,
+          "subgoals": 3,
+          "horizon": 1100,
+          "mean_steps_to_success": 597.85,
+          "mean_subgoals_done": 3.0,
+          "failures_stuck_at": {}
+        },
+        "retrieve": {
+          "episodes": 20,
+          "successes": 20,
+          "success_rate": 1.0,
+          "subgoals": 4,
+          "horizon": 1400,
+          "mean_steps_to_success": 591.65,
+          "mean_subgoals_done": 4.0,
+          "failures_stuck_at": {}
+        },
+        "shelve": {
+          "episodes": 20,
+          "successes": 18,
+          "success_rate": 0.9,
+          "subgoals": 4,
+          "horizon": 1400,
+          "mean_steps_to_success": 1048.5,
+          "mean_subgoals_done": 3.85,
+          "failures_stuck_at": {
+            "close_door": 1,
+            "place": 1
+          }
+        },
+        "tower": {
+          "episodes": 20,
+          "successes": 20,
+          "success_rate": 1.0,
+          "subgoals": 3,
+          "horizon": 1100,
+          "mean_steps_to_success": 783.05,
+          "mean_subgoals_done": 3.0,
+          "failures_stuck_at": {}
+        },
+        "sort": {
+          "episodes": 20,
+          "successes": 20,
+          "success_rate": 1.0,
+          "subgoals": 3,
+          "horizon": 1100,
+          "mean_steps_to_success": 855.35,
+          "mean_subgoals_done": 3.0,
+          "failures_stuck_at": {}
+        },
+        "tidy": {
+          "episodes": 20,
+          "successes": 20,
+          "success_rate": 1.0,
+          "subgoals": 6,
+          "horizon": 2000,
+          "mean_steps_to_success": 1495.45,
+          "mean_subgoals_done": 6.0,
+          "failures_stuck_at": {}
+        },
+        "unpack": {
+          "episodes": 20,
+          "successes": 20,
+          "success_rate": 1.0,
+          "subgoals": 7,
+          "horizon": 2300,
+          "mean_steps_to_success": 1380.35,
+          "mean_subgoals_done": 7.0,
+          "failures_stuck_at": {}
+        }
+      }
+    },
+    "iid_test": {
+      "split": "iid_test",
+      "seeds": [
+        3000000,
+        3000139
+      ],
+      "wall_seconds": 413.5,
+      "cells": {
+        "put_away": {
+          "episodes": 20,
+          "successes": 20,
+          "success_rate": 1.0,
+          "subgoals": 3,
+          "horizon": 1100,
+          "mean_steps_to_success": 585.55,
+          "mean_subgoals_done": 3.0,
+          "failures_stuck_at": {}
+        },
+        "retrieve": {
+          "episodes": 20,
+          "successes": 20,
+          "success_rate": 1.0,
+          "subgoals": 4,
+          "horizon": 1400,
+          "mean_steps_to_success": 595.5,
+          "mean_subgoals_done": 4.0,
+          "failures_stuck_at": {}
+        },
+        "shelve": {
+          "episodes": 20,
+          "successes": 19,
+          "success_rate": 0.95,
+          "subgoals": 4,
+          "horizon": 1400,
+          "mean_steps_to_success": 1030.842105263158,
+          "mean_subgoals_done": 3.95,
+          "failures_stuck_at": {
+            "close_door": 1
+          }
+        },
+        "tower": {
+          "episodes": 20,
+          "successes": 20,
+          "success_rate": 1.0,
+          "subgoals": 3,
+          "horizon": 1100,
+          "mean_steps_to_success": 769.5,
+          "mean_subgoals_done": 3.0,
+          "failures_stuck_at": {}
+        },
+        "sort": {
+          "episodes": 20,
+          "successes": 20,
+          "success_rate": 1.0,
+          "subgoals": 3,
+          "horizon": 1100,
+          "mean_steps_to_success": 860.4,
+          "mean_subgoals_done": 3.0,
+          "failures_stuck_at": {}
+        },
+        "tidy": {
+          "episodes": 20,
+          "successes": 18,
+          "success_rate": 0.9,
+          "subgoals": 6,
+          "horizon": 2000,
+          "mean_steps_to_success": 1452.0,
+          "mean_subgoals_done": 5.65,
+          "failures_stuck_at": {
+            "place": 2
+          }
+        },
+        "unpack": {
+          "episodes": 20,
+          "successes": 18,
+          "success_rate": 0.9,
+          "subgoals": 7,
+          "horizon": 2300,
+          "mean_steps_to_success": 1374.7777777777778,
+          "mean_subgoals_done": 6.65,
+          "failures_stuck_at": {
+            "place": 2
+          }
+        }
+      }
+    },
+    "unseen_objects": {
+      "split": "unseen_objects",
+      "seeds": [
+        4000000,
+        4000139
+      ],
+      "wall_seconds": 410.4,
+      "cells": {
+        "put_away": {
+          "episodes": 20,
+          "successes": 20,
+          "success_rate": 1.0,
+          "subgoals": 3,
+          "horizon": 1100,
+          "mean_steps_to_success": 597.1,
+          "mean_subgoals_done": 3.0,
+          "failures_stuck_at": {}
+        },
+        "retrieve": {
+          "episodes": 20,
+          "successes": 19,
+          "success_rate": 0.95,
+          "subgoals": 4,
+          "horizon": 1400,
+          "mean_steps_to_success": 577.4736842105264,
+          "mean_subgoals_done": 3.85,
+          "failures_stuck_at": {
+            "pick": 1
+          }
+        },
+        "shelve": {
+          "episodes": 20,
+          "successes": 18,
+          "success_rate": 0.9,
+          "subgoals": 4,
+          "horizon": 1400,
+          "mean_steps_to_success": 1031.9444444444443,
+          "mean_subgoals_done": 3.75,
+          "failures_stuck_at": {
+            "place": 2
+          }
+        },
+        "tower": {
+          "episodes": 20,
+          "successes": 20,
+          "success_rate": 1.0,
+          "subgoals": 3,
+          "horizon": 1100,
+          "mean_steps_to_success": 765.0,
+          "mean_subgoals_done": 3.0,
+          "failures_stuck_at": {}
+        },
+        "sort": {
+          "episodes": 20,
+          "successes": 14,
+          "success_rate": 0.7,
+          "subgoals": 3,
+          "horizon": 1100,
+          "mean_steps_to_success": 850.1428571428571,
+          "mean_subgoals_done": 2.7,
+          "failures_stuck_at": {
+            "stack": 6
+          }
+        },
+        "tidy": {
+          "episodes": 20,
+          "successes": 19,
+          "success_rate": 0.95,
+          "subgoals": 6,
+          "horizon": 2000,
+          "mean_steps_to_success": 1437.7368421052631,
+          "mean_subgoals_done": 5.9,
+          "failures_stuck_at": {
+            "place": 1
+          }
+        },
+        "unpack": {
+          "episodes": 20,
+          "successes": 18,
+          "success_rate": 0.9,
+          "subgoals": 7,
+          "horizon": 2300,
+          "mean_steps_to_success": 1400.9444444444443,
+          "mean_subgoals_done": 6.4,
+          "failures_stuck_at": {
+            "pick": 2
+          }
+        }
+      }
+    },
+    "unseen_furniture": {
+      "split": "unseen_furniture",
+      "seeds": [
+        5000000,
+        5000139
+      ],
+      "wall_seconds": 365.2,
+      "cells": {
+        "put_away": {
+          "episodes": 20,
+          "successes": 20,
+          "success_rate": 1.0,
+          "subgoals": 3,
+          "horizon": 1100,
+          "mean_steps_to_success": 631.05,
+          "mean_subgoals_done": 3.0,
+          "failures_stuck_at": {}
+        },
+        "retrieve": {
+          "episodes": 20,
+          "successes": 20,
+          "success_rate": 1.0,
+          "subgoals": 4,
+          "horizon": 1400,
+          "mean_steps_to_success": 651.35,
+          "mean_subgoals_done": 4.0,
+          "failures_stuck_at": {}
+        },
+        "shelve": {
+          "episodes": 20,
+          "successes": 15,
+          "success_rate": 0.75,
+          "subgoals": 4,
+          "horizon": 1400,
+          "mean_steps_to_success": 1206.0666666666666,
+          "mean_subgoals_done": 3.5,
+          "failures_stuck_at": {
+            "place": 4,
+            "close_door": 1
+          }
+        },
+        "tower": {
+          "episodes": 20,
+          "successes": 20,
+          "success_rate": 1.0,
+          "subgoals": 3,
+          "horizon": 1100,
+          "mean_steps_to_success": 820.0,
+          "mean_subgoals_done": 3.0,
+          "failures_stuck_at": {}
+        },
+        "sort": {
+          "episodes": 20,
+          "successes": 19,
+          "success_rate": 0.95,
+          "subgoals": 3,
+          "horizon": 1100,
+          "mean_steps_to_success": 903.1052631578947,
+          "mean_subgoals_done": 2.95,
+          "failures_stuck_at": {
+            "stack": 1
+          }
+        },
+        "tidy": {
+          "episodes": 20,
+          "successes": 18,
+          "success_rate": 0.9,
+          "subgoals": 6,
+          "horizon": 2000,
+          "mean_steps_to_success": 1703.9444444444443,
+          "mean_subgoals_done": 5.8,
+          "failures_stuck_at": {
+            "place": 2
+          }
+        },
+        "unpack": {
+          "episodes": 20,
+          "successes": 18,
+          "success_rate": 0.9,
+          "subgoals": 7,
+          "horizon": 2300,
+          "mean_steps_to_success": 1583.2777777777778,
+          "mean_subgoals_done": 6.8,
+          "failures_stuck_at": {
+            "place": 2
+          }
+        }
+      }
+    },
+    "unseen_composition": {
+      "split": "unseen_composition",
+      "seeds": [
+        6000000,
+        6000079
+      ],
+      "wall_seconds": 215.3,
+      "cells": {
+        "shelve_then_put_away": {
+          "episodes": 20,
+          "successes": 17,
+          "success_rate": 0.85,
+          "subgoals": 6,
+          "horizon": 2000,
+          "mean_steps_to_success": 1453.0588235294117,
+          "mean_subgoals_done": 5.4,
+          "failures_stuck_at": {
+            "place": 3
+          }
+        },
+        "retrieve_to_shelf": {
+          "episodes": 20,
+          "successes": 15,
+          "success_rate": 0.75,
+          "subgoals": 6,
+          "horizon": 2000,
+          "mean_steps_to_success": 1460.0666666666666,
+          "mean_subgoals_done": 5.0,
+          "failures_stuck_at": {
+            "pick": 5
+          }
+        },
+        "tower_then_put_away": {
+          "episodes": 20,
+          "successes": 20,
+          "success_rate": 1.0,
+          "subgoals": 5,
+          "horizon": 1700,
+          "mean_steps_to_success": 1108.55,
+          "mean_subgoals_done": 5.0,
+          "failures_stuck_at": {}
+        },
+        "full_cleanup": {
+          "episodes": 20,
+          "successes": 17,
+          "success_rate": 0.85,
+          "subgoals": 8,
+          "horizon": 2600,
+          "mean_steps_to_success": 2001.1764705882354,
+          "mean_subgoals_done": 7.45,
+          "failures_stuck_at": {
+            "place": 3
+          }
+        }
+      }
+    }
+  },
+  "throughput": {
+    "num_envs": 128,
+    "steps": 200,
+    "threads": 4,
+    "random_actions_steps_per_second": 1347.3,
+    "teacher_steps_per_second": 1127.3
+  },
+  "video": {
+    "path": "runs/manipulation/teacher-smoke.mp4",
+    "stride": 3,
+    "episodes": [
+      {
+        "split": "train",
+        "template": "put_away",
+        "seed": 700000,
+        "success": true,
+        "subgoals": [
+          "open_drawer(0)",
+          "place(classic_blue_mug, drawer_0)",
+          "close_drawer(0)"
+        ],
+        "steps": 605
+      },
+      {
+        "split": "train",
+        "template": "retrieve",
+        "seed": 700001,
+        "success": true,
+        "subgoals": [
+          "open_drawer(1)",
+          "pick(bead_mug)",
+          "place(bead_mug, bin)",
+          "close_drawer(1)"
+        ],
+        "steps": 545
+      },
+      {
+        "split": "train",
+        "template": "shelve",
+        "seed": 700002,
+        "success": true,
+        "subgoals": [
+          "open_door",
+          "place(sprinkles_jar, shelf)",
+          "place(instant_coffee_jar, shelf)",
+          "close_door"
+        ],
+        "steps": 1007
+      },
+      {
+        "split": "train",
+        "template": "tower",
+        "seed": 700003,
+        "success": true,
+        "subgoals": [
+          "place(xylitol_tub, region)",
+          "stack(turquoise_bowl on xylitol_tub)",
+          "stack(glazed_ramekin on turquoise_bowl)"
+        ],
+        "steps": 868
+      },
+      {
+        "split": "train",
+        "template": "sort",
+        "seed": 700004,
+        "success": false,
+        "subgoals": [
+          "place(fruit_basket_toy, bin)",
+          "place(scirocco_bowl, region)",
+          "stack(glazed_ramekin on scirocco_bowl)"
+        ],
+        "steps": 1100
+      },
+      {
+        "split": "train",
+        "template": "tidy",
+        "seed": 700005,
+        "success": true,
+        "subgoals": [
+          "open_drawer(0)",
+          "place(glazed_ramekin, drawer_0)",
+          "close_drawer(0)",
+          "open_door",
+          "place(classic_blue_mug, shelf)",
+          "close_door"
+        ],
+        "steps": 1795
+      },
+      {
+        "split": "train",
+        "template": "unpack",
+        "seed": 700006,
+        "success": true,
+        "subgoals": [
+          "open_drawer(0)",
+          "pick(classic_blue_mug)",
+          "place(classic_blue_mug, region)",
+          "close_drawer(0)",
+          "open_door",
+          "place(lion_figure, shelf)",
+          "close_door"
+        ],
+        "steps": 1345
+      },
+      {
+        "split": "unseen_composition",
+        "template": "shelve_then_put_away",
+        "seed": 6700007,
+        "success": true,
+        "subgoals": [
+          "open_door",
+          "place(cocoa_canister, shelf)",
+          "close_door",
+          "open_drawer(0)",
+          "place(scirocco_bowl, drawer_0)",
+          "close_drawer(0)"
+        ],
+        "steps": 1337
+      },
+      {
+        "split": "unseen_composition",
+        "template": "retrieve_to_shelf",
+        "seed": 6700008,
+        "success": false,
+        "subgoals": [
+          "open_door",
+          "open_drawer(1)",
+          "pick(glazed_ramekin)",
+          "place(glazed_ramekin, shelf)",
+          "close_drawer(1)",
+          "close_door"
+        ],
+        "steps": 2000
+      },
+      {
+        "split": "unseen_composition",
+        "template": "tower_then_put_away",
+        "seed": 6700009,
+        "success": true,
+        "subgoals": [
+          "place(glazed_ramekin, region)",
+          "stack(turquoise_bowl on glazed_ramekin)",
+          "open_drawer(0)",
+          "place(bead_mug, drawer_0)",
+          "close_drawer(0)"
+        ],
+        "steps": 1217
+      },
+      {
+        "split": "unseen_composition",
+        "template": "full_cleanup",
+        "seed": 6700010,
+        "success": true,
+        "subgoals": [
+          "open_drawer(0)",
+          "place(scirocco_bowl, drawer_0)",
+          "close_drawer(0)",
+          "place(xylitol_tub, region)",
+          "stack(glazed_ramekin on xylitol_tub)",
+          "open_door",
+          "place(whale_whistle, shelf)",
+          "close_door"
+        ],
+        "steps": 1912
+      },
+      {
+        "split": "unseen_objects",
+        "template": "tidy",
+        "seed": 4700011,
+        "success": true,
+        "subgoals": [
+          "open_drawer(0)",
+          "place(white_yellow_mug, drawer_0)",
+          "close_drawer(0)",
+          "open_door",
+          "place(cereal_box, shelf)",
+          "close_door"
+        ],
+        "steps": 1685
+      },
+      {
+        "split": "unseen_furniture",
+        "template": "shelve",
+        "seed": 5700012,
+        "success": true,
+        "subgoals": [
+          "open_door",
+          "place(sprinkles_jar, shelf)",
+          "place(coq10_bottle, shelf)",
+          "close_door"
+        ],
+        "steps": 1173
+      }
+    ]
+  }
+}

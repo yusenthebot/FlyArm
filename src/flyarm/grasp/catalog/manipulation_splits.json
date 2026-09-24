@@ -1,0 +1,615 @@
+{
+  "splits": {
+    "train": {
+      "name": "train",
+      "objects": "train",
+      "furniture": "train",
+      "templates": [
+        "put_away",
+        "retrieve",
+        "shelve",
+        "tower",
+        "sort",
+        "tidy",
+        "unpack"
+      ],
+      "seed_start": 0
+    },
+    "iid_test": {
+      "name": "iid_test",
+      "objects": "train",
+      "furniture": "train",
+      "templates": [
+        "put_away",
+        "retrieve",
+        "shelve",
+        "tower",
+        "sort",
+        "tidy",
+        "unpack"
+      ],
+      "seed_start": 3000000
+    },
+    "unseen_objects": {
+      "name": "unseen_objects",
+      "objects": "test",
+      "furniture": "train",
+      "templates": [
+        "put_away",
+        "retrieve",
+        "shelve",
+        "tower",
+        "sort",
+        "tidy",
+        "unpack"
+      ],
+      "seed_start": 4000000
+    },
+    "unseen_furniture": {
+      "name": "unseen_furniture",
+      "objects": "train",
+      "furniture": "held_out",
+      "templates": [
+        "put_away",
+        "retrieve",
+        "shelve",
+        "tower",
+        "sort",
+        "tidy",
+        "unpack"
+      ],
+      "seed_start": 5000000
+    },
+    "unseen_composition": {
+      "name": "unseen_composition",
+      "objects": "train",
+      "furniture": "train",
+      "templates": [
+        "shelve_then_put_away",
+        "retrieve_to_shelf",
+        "tower_then_put_away",
+        "full_cleanup"
+      ],
+      "seed_start": 6000000
+    }
+  },
+  "furniture_ranges": {
+    "train": {
+      "drawer_width": {
+        "low": 0.13,
+        "high": 0.16
+      },
+      "drawer_depth": {
+        "low": 0.18,
+        "high": 0.22
+      },
+      "drawer_height": {
+        "low": 0.09,
+        "high": 0.11
+      },
+      "drawer_handles": [
+        0,
+        1
+      ],
+      "drawer_handle_height": {
+        "low": 0.35,
+        "high": 0.6
+      },
+      "cabinet_width": {
+        "low": 0.26,
+        "high": 0.3
+      },
+      "cabinet_depth": {
+        "low": 0.17,
+        "high": 0.2
+      },
+      "shelf_height": {
+        "low": 0.025,
+        "high": 0.045
+      },
+      "interior_height": {
+        "low": 0.105,
+        "high": 0.12
+      },
+      "lid_handles": [
+        0
+      ],
+      "side_azimuth": {
+        "low": 50.0,
+        "high": 62.0
+      },
+      "drawer_front_radius": {
+        "low": 0.55,
+        "high": 0.6
+      },
+      "cabinet_front_radius": {
+        "low": 0.4,
+        "high": 0.44
+      },
+      "facing_jitter": {
+        "low": 0.0,
+        "high": 10.0
+      },
+      "bin_size": {
+        "low": 0.16,
+        "high": 0.2
+      }
+    },
+    "held_out": {
+      "drawer_width": {
+        "low": 0.16,
+        "high": 0.18
+      },
+      "drawer_depth": {
+        "low": 0.22,
+        "high": 0.24
+      },
+      "drawer_height": {
+        "low": 0.11,
+        "high": 0.12
+      },
+      "drawer_handles": [
+        0,
+        1
+      ],
+      "drawer_handle_height": {
+        "low": 0.6,
+        "high": 0.7
+      },
+      "cabinet_width": {
+        "low": 0.3,
+        "high": 0.32
+      },
+      "cabinet_depth": {
+        "low": 0.16,
+        "high": 0.17
+      },
+      "shelf_height": {
+        "low": 0.015,
+        "high": 0.025
+      },
+      "interior_height": {
+        "low": 0.12,
+        "high": 0.13
+      },
+      "lid_handles": [
+        1
+      ],
+      "side_azimuth": {
+        "low": 62.0,
+        "high": 68.0
+      },
+      "drawer_front_radius": {
+        "low": 0.6,
+        "high": 0.63
+      },
+      "cabinet_front_radius": {
+        "low": 0.37,
+        "high": 0.4
+      },
+      "facing_jitter": {
+        "low": 10.0,
+        "high": 16.0
+      },
+      "bin_size": {
+        "low": 0.2,
+        "high": 0.22
+      }
+    }
+  },
+  "templates": {
+    "put_away": {
+      "steps": [
+        [
+          "open_drawer",
+          "",
+          "D"
+        ],
+        [
+          "place",
+          "A",
+          "D"
+        ],
+        [
+          "close_drawer",
+          "",
+          "D"
+        ]
+      ],
+      "starts_in_drawer": [],
+      "signature": [
+        "open_drawer:drawer",
+        "place:drawer",
+        "close_drawer:drawer"
+      ]
+    },
+    "retrieve": {
+      "steps": [
+        [
+          "open_drawer",
+          "",
+          "D"
+        ],
+        [
+          "pick",
+          "A",
+          ""
+        ],
+        [
+          "place",
+          "A",
+          "bin"
+        ],
+        [
+          "close_drawer",
+          "",
+          "D"
+        ]
+      ],
+      "starts_in_drawer": [
+        "A"
+      ],
+      "signature": [
+        "open_drawer:drawer",
+        "pick",
+        "place:bin",
+        "close_drawer:drawer"
+      ]
+    },
+    "shelve": {
+      "steps": [
+        [
+          "open_door",
+          "",
+          ""
+        ],
+        [
+          "place",
+          "A",
+          "shelf"
+        ],
+        [
+          "place",
+          "B",
+          "shelf"
+        ],
+        [
+          "close_door",
+          "",
+          ""
+        ]
+      ],
+      "starts_in_drawer": [],
+      "signature": [
+        "open_door",
+        "place:shelf",
+        "place:shelf",
+        "close_door"
+      ]
+    },
+    "tower": {
+      "steps": [
+        [
+          "place",
+          "A",
+          "region"
+        ],
+        [
+          "stack",
+          "B",
+          "A"
+        ],
+        [
+          "stack",
+          "C",
+          "B"
+        ]
+      ],
+      "starts_in_drawer": [],
+      "signature": [
+        "place:region",
+        "stack:object",
+        "stack:object"
+      ]
+    },
+    "sort": {
+      "steps": [
+        [
+          "place",
+          "A",
+          "bin"
+        ],
+        [
+          "place",
+          "B",
+          "region"
+        ],
+        [
+          "stack",
+          "C",
+          "B"
+        ]
+      ],
+      "starts_in_drawer": [],
+      "signature": [
+        "place:bin",
+        "place:region",
+        "stack:object"
+      ]
+    },
+    "tidy": {
+      "steps": [
+        [
+          "open_drawer",
+          "",
+          "D"
+        ],
+        [
+          "place",
+          "A",
+          "D"
+        ],
+        [
+          "close_drawer",
+          "",
+          "D"
+        ],
+        [
+          "open_door",
+          "",
+          ""
+        ],
+        [
+          "place",
+          "B",
+          "shelf"
+        ],
+        [
+          "close_door",
+          "",
+          ""
+        ]
+      ],
+      "starts_in_drawer": [],
+      "signature": [
+        "open_drawer:drawer",
+        "place:drawer",
+        "close_drawer:drawer",
+        "open_door",
+        "place:shelf",
+        "close_door"
+      ]
+    },
+    "unpack": {
+      "steps": [
+        [
+          "open_drawer",
+          "",
+          "D"
+        ],
+        [
+          "pick",
+          "A",
+          ""
+        ],
+        [
+          "place",
+          "A",
+          "region"
+        ],
+        [
+          "close_drawer",
+          "",
+          "D"
+        ],
+        [
+          "open_door",
+          "",
+          ""
+        ],
+        [
+          "place",
+          "B",
+          "shelf"
+        ],
+        [
+          "close_door",
+          "",
+          ""
+        ]
+      ],
+      "starts_in_drawer": [
+        "A"
+      ],
+      "signature": [
+        "open_drawer:drawer",
+        "pick",
+        "place:region",
+        "close_drawer:drawer",
+        "open_door",
+        "place:shelf",
+        "close_door"
+      ]
+    },
+    "shelve_then_put_away": {
+      "steps": [
+        [
+          "open_door",
+          "",
+          ""
+        ],
+        [
+          "place",
+          "A",
+          "shelf"
+        ],
+        [
+          "close_door",
+          "",
+          ""
+        ],
+        [
+          "open_drawer",
+          "",
+          "D"
+        ],
+        [
+          "place",
+          "B",
+          "D"
+        ],
+        [
+          "close_drawer",
+          "",
+          "D"
+        ]
+      ],
+      "starts_in_drawer": [],
+      "signature": [
+        "open_door",
+        "place:shelf",
+        "close_door",
+        "open_drawer:drawer",
+        "place:drawer",
+        "close_drawer:drawer"
+      ]
+    },
+    "retrieve_to_shelf": {
+      "steps": [
+        [
+          "open_door",
+          "",
+          ""
+        ],
+        [
+          "open_drawer",
+          "",
+          "D"
+        ],
+        [
+          "pick",
+          "A",
+          ""
+        ],
+        [
+          "place",
+          "A",
+          "shelf"
+        ],
+        [
+          "close_drawer",
+          "",
+          "D"
+        ],
+        [
+          "close_door",
+          "",
+          ""
+        ]
+      ],
+      "starts_in_drawer": [
+        "A"
+      ],
+      "signature": [
+        "open_door",
+        "open_drawer:drawer",
+        "pick",
+        "place:shelf",
+        "close_drawer:drawer",
+        "close_door"
+      ]
+    },
+    "tower_then_put_away": {
+      "steps": [
+        [
+          "place",
+          "A",
+          "region"
+        ],
+        [
+          "stack",
+          "B",
+          "A"
+        ],
+        [
+          "open_drawer",
+          "",
+          "D"
+        ],
+        [
+          "place",
+          "C",
+          "D"
+        ],
+        [
+          "close_drawer",
+          "",
+          "D"
+        ]
+      ],
+      "starts_in_drawer": [],
+      "signature": [
+        "place:region",
+        "stack:object",
+        "open_drawer:drawer",
+        "place:drawer",
+        "close_drawer:drawer"
+      ]
+    },
+    "full_cleanup": {
+      "steps": [
+        [
+          "open_drawer",
+          "",
+          "D"
+        ],
+        [
+          "place",
+          "A",
+          "D"
+        ],
+        [
+          "close_drawer",
+          "",
+          "D"
+        ],
+        [
+          "place",
+          "B",
+          "region"
+        ],
+        [
+          "stack",
+          "C",
+          "B"
+        ],
+        [
+          "open_door",
+          "",
+          ""
+        ],
+        [
+          "place",
+          "E",
+          "shelf"
+        ],
+        [
+          "close_door",
+          "",
+          ""
+        ]
+      ],
+      "starts_in_drawer": [],
+      "signature": [
+        "open_drawer:drawer",
+        "place:drawer",
+        "close_drawer:drawer",
+        "place:region",
+        "stack:object",
+        "open_door",
+        "place:shelf",
+        "close_door"
+      ]
+    }
+  }
+}

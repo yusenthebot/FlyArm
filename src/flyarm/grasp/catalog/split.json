@@ -1,0 +1,60 @@
+{
+  "rule": "objects with scripted-teacher success below 0.8 over 20 episodes are dropped; the rest are split per family with test fraction 0.333 and seed 0",
+  "train": [
+    "bead_mug",
+    "classic_blue_mug",
+    "sand_cup",
+    "glazed_ramekin",
+    "scirocco_bowl",
+    "turquoise_bowl",
+    "coq10_bottle",
+    "htp_bottle",
+    "sprinkles_jar",
+    "cocoa_canister",
+    "instant_coffee_jar",
+    "xylitol_tub",
+    "caplet_box",
+    "hair_color_box",
+    "lipstick_box",
+    "raisinets_box",
+    "hammer",
+    "hand_bell",
+    "tape_measure",
+    "android_figure",
+    "henry_engine",
+    "lion_figure",
+    "mario_figure",
+    "yoshi_figure",
+    "fruit_basket_toy",
+    "ladybug_bead",
+    "whale_whistle"
+  ],
+  "test": [
+    "paper_cup",
+    "white_yellow_mug",
+    "cereal_bowl",
+    "supplement_tub",
+    "tonic_bottle",
+    "camera_lens",
+    "coffee_can",
+    "cereal_box",
+    "crayon_box",
+    "flashlight",
+    "tape_roll",
+    "school_bus",
+    "triceratops",
+    "rubber_chew_toy"
+  ],
+  "dropped": [
+    "bird_rattle",
+    "can_opener",
+    "lime_squeezer",
+    "pineapple_maraca"
+  ],
+  "dropped_teacher_success": {
+    "bird_rattle": 0.0,
+    "can_opener": 0.05,
+    "lime_squeezer": 0.45,
+    "pineapple_maraca": 0.65
+  }
+}

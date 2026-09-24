@@ -31,9 +31,8 @@ def physical_stage(info: dict[str, Any]) -> str:
 CUBE_HALF = 0.02
 
 
-def build_pick_place_spec(model_path: Path) -> mujoco.MjSpec:
-    """The Menagerie Panda scene plus the FlyArm pads, cube, goal marker and EE site."""
-    spec = mujoco.MjSpec.from_file(str(model_path))
+def add_flyarm_gripper(spec: mujoco.MjSpec) -> None:
+    """The FlyArm EE site between the finger pads and the rubber jaw pads on each finger."""
     hand = spec.body("hand")
     if hand is None:
         raise ValueError("expected Menagerie Panda body named 'hand'")
@@ -59,6 +58,11 @@ def build_pick_place_spec(model_path: Path) -> mujoco.MjSpec:
             rgba=[0.12, 0.12, 0.12, 1.0],
         )
 
+
+def build_pick_place_spec(model_path: Path) -> mujoco.MjSpec:
+    """The Menagerie Panda scene plus the FlyArm pads, cube, goal marker and EE site."""
+    spec = mujoco.MjSpec.from_file(str(model_path))
+    add_flyarm_gripper(spec)
     cube = spec.worldbody.add_body(name="flyarm_cube", pos=[0.45, 0.0, 0.10])
     cube.add_freejoint(name="flyarm_cube_free")
     cube.add_geom(
