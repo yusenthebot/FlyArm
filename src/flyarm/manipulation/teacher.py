@@ -62,7 +62,11 @@ LOST_STEPS = 4
 SAFE_MARGIN = 0.05  # carried objects clear every furniture top and object by this much
 DESCENT = 0.6
 DRAWER_STEP = 0.02  # m of drawer travel commanded ahead of the handle per step
-LID_STEP = 0.08  # rad
+# rad of lid angle commanded ahead of the handle per step. Opening lifts the lid's weight, which
+# a stiff position servo only pushes through with a lead of about 0.16 rad (the teacher's removed
+# integral used to add the rest); closing past vertical with that lead pulls the pinch off the bar.
+LID_OPEN_STEP = 0.16
+LID_CLOSE_STEP = 0.08
 # Aim past the joint's stop, so the servos' steady-state lag does not leave the drawer or the
 # lid a few millimetres short; the stop itself ends the motion.
 OVERSHOOT = 0.015  # m
@@ -82,6 +86,7 @@ LID_BAR_GRIP = -0.3  # grip command that opens the pads about 1.4 cm each side o
 FINISHED_PATIENCE = 30  # steps a finished motion waits for the scene to count its subgoal
 ARRIVING = 0.15  # m from the place target inside which the hand turns before moving on
 TURN_BEFORE_ARRIVING = 0.3  # rad of heading error that still counts as turning
+TRAVEL_SINK = 0.002  # m per control step
 PHASE_PATIENCE = 250  # steps any phase may last before the subgoal starts over
 
 
@@ -337,8 +342,11 @@ class ManipulationTeacher:
             transit = max(hover[2], self._transit_z(row, scene))
             if ee[2] < transit - 0.02:
                 return self._command(row, ee, np.array([ee[0], ee[1], transit]), grip, yaw), False
-            # Never descend while still travelling: an opened lid stands up to 0.45 m high.
-            height = max(transit, ee[2])
+            # Sink only slowly while still travelling (an opened lid stands up to 0.45 m high):
+            # TRAVEL_SINK per step toward the transit height, the rate at which the hand used to
+            # sag under its own weight before the arm was gravity-compensated, so the episodes
+            # keep the time budget they were measured with.
+            height = max(transit, ee[2] - TRAVEL_SINK)
             return self._command(row, ee, np.array([hover[0], hover[1], height]), grip, yaw), False
         opened = (grip + 1.0) / 2.0  # the opening this grip command settles at
         aligned = (
@@ -439,7 +447,7 @@ class ManipulationTeacher:
                 return self._command(row, ee, ee, 1.0, None)
             if lid:
                 goal = LID_OPEN_GOAL if opening else -OVERSHOOT_ANGLE
-                step = LID_STEP
+                step = LID_OPEN_STEP if opening else LID_CLOSE_STEP
                 finished = joint >= LID_DONE_OPEN if opening else joint <= LID_DONE_CLOSED
             else:
                 travel = float(sim.travel[row, articulation])
