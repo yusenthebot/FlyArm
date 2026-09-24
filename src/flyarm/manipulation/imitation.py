@@ -139,10 +139,11 @@ class Workbench:
     ) -> None:
         self.model_path, self.asset_root, self.cue = Path(model_path), Path(asset_root), cue
         self.velocities = velocities
-        self._envs: dict[tuple[str, int], BatchedManipulation] = {}
+        self._envs: dict[tuple[str, int, str], BatchedManipulation] = {}
 
     def env(self, episodes: rollout.EpisodePlan) -> BatchedManipulation:
-        key = (episodes.split, len(episodes))
+        """One environment per split, size and label: plans run in lockstep never share one."""
+        key = (episodes.split, len(episodes), episodes.label)
         if key not in self._envs:
             self._envs[key] = rollout.make_env(
                 self.model_path,

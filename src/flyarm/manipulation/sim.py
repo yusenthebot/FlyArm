@@ -327,6 +327,10 @@ class ManipulationSim(ArmSim):
         self.sub_obj = np.zeros((n, M), dtype=np.int64)
         self.sub_target = np.zeros((n, M), dtype=np.int64)
         self.sub_count = np.zeros(n, dtype=np.int64)
+        # Subgoal resets (flyarm.manipulation.curriculum): the first ``preset`` subgoals count as
+        # done, and the episode succeeds once ``goal_count`` are done (sub_count otherwise).
+        self.preset = np.zeros(n, dtype=np.int64)
+        self.goal_count = np.zeros(n, dtype=np.int64)
         self.consumer = np.zeros((n, M, M), dtype=bool)
         self.place_point = np.zeros((n, M, 3))  # receptacle frame, object bottom centre
         self.involved = np.zeros((n, S), dtype=bool)
@@ -669,7 +673,8 @@ class ManipulationSim(ArmSim):
             has = consumers.any(1)
             consumed = (done | ~consumers).all(1) & has
             done[:, k] = effect[:, k] | consumed
-        return done | (np.arange(M) >= self.sub_count[:, None])
+        padding = np.arange(M) >= self.sub_count[:, None]
+        return done | padding | (np.arange(M) < self.preset[:, None])
 
     def leading(self, done: np.ndarray) -> np.ndarray:
         """[N] how many subgoals are done in task order from the first."""
@@ -966,6 +971,8 @@ class ManipulationSim(ArmSim):
                 names = self.templates if templates is None else (templates[k],)
                 episode = tk.sample_episode(generator, names, self.ranges, self.objects)
             self._load_episode(row, episode)
+        self.preset[ids] = 0
+        self.goal_count[ids] = self.sub_count[ids]
         # The furniture's model fields are written; the reset below applies them.
         arm = self.qpos[np.ix_(ids, self._qadr)].copy()
         self.physics.reset(ids)
@@ -979,6 +986,75 @@ class ManipulationSim(ArmSim):
         self.high_water[ids] = 0
         self.start_pos[ids] = self.object_pos()[ids]
         self.start_joints[ids] = self.joints()[ids]
+        self.remember_poses(ids)
+        state = self.scene_state()
+        done = self.subgoal_done(self.effects(state))
+        leading = self.leading(done)
+        self.high_water[ids] = leading[ids]
+        self.previous_potential[ids] = self.potential(state, leading)[ids]
+        self.previous_disturbance[ids] = self.disturbance()[ids]
+        return self._observe(state, done, leading, False)
+
+    # ------------------------------------------------------------------------------ snapshots
+    SNAPSHOT_PHYSICS = ("qpos", "qvel", "ctrl", "qacc_warmstart", "xfrc_applied")
+    # What the controller and the observation read between steps. After mj_step these still
+    # describe the state before the last 2 ms substep, while a forward pass on the restored
+    # state would describe the final one; restoring them keeps a reset bit-for-bit on the
+    # recorded trajectory (tests/test_manipulation_curriculum.py).
+    SNAPSHOT_DERIVED = ("site_xpos", "site_xmat", "xanchor", "xaxis", "sensordata")
+
+    def snapshot(self, rows: np.ndarray) -> dict[str, np.ndarray]:
+        """Everything that, with the episode (its seed and template), is the state of ``rows``:
+        the physics state, the arm controller's state and the task's counters and baselines."""
+        rows = np.asarray(rows, dtype=np.int64)
+        fields = self.SNAPSHOT_PHYSICS + self.SNAPSHOT_DERIVED
+        state = {name: self.physics.field(name)[rows].copy() for name in fields}
+        state.update(
+            yaw_command=self.yaw_command[rows].copy(),
+            base_rotation=self.base_rotation[rows].copy(),
+            last_action=self.last_action[rows].copy(),
+            place_count=self.place_count[rows].copy(),
+            stack_count=self.stack_count[rows].copy(),
+            start_pos=self.start_pos[rows].copy(),
+            start_joints=self.start_joints[rows].copy(),
+        )
+        return state
+
+    def reset_to_subgoal(
+        self,
+        ids: np.ndarray,
+        seeds: np.ndarray,
+        templates: Sequence[str],
+        states: dict[str, np.ndarray],
+        subgoal: np.ndarray,
+        budget: np.ndarray,
+    ) -> np.ndarray:
+        """Start ``ids`` from recorded states at the start of subgoal ``subgoal``.
+
+        The seed and template rebuild the recorded episode (furniture, objects, poses), then the
+        recorded state replaces the physics and task state. Subgoals before ``subgoal`` count as
+        done and pay no bonus; the episode succeeds after ``budget`` more subgoals (or the
+        template's end) and is cut after SUBGOAL_HORIZON steps per subgoal it has to do.
+        """
+        ids = np.asarray(ids, dtype=np.int64)
+        ManipulationSim.reset(self, ids, np.asarray(seeds), templates)
+        for name in self.SNAPSHOT_PHYSICS:
+            self.physics.field(name)[ids] = states[name]
+        self.physics.forward(ids)
+        for name in self.SNAPSHOT_DERIVED:
+            self.physics.field(name)[ids] = states[name]
+        self.yaw_command[ids] = states["yaw_command"]
+        self.base_rotation[ids] = states["base_rotation"]
+        self.last_action[ids] = states["last_action"]
+        self.place_count[ids] = states["place_count"]
+        self.stack_count[ids] = states["stack_count"]
+        self.start_pos[ids] = states["start_pos"]
+        self.start_joints[ids] = states["start_joints"]
+        subgoal = np.asarray(subgoal, dtype=np.int64)
+        self.preset[ids] = subgoal
+        self.goal_count[ids] = np.minimum(self.sub_count[ids], subgoal + np.asarray(budget))
+        self.horizons[ids] = tk.HORIZON_PER_SUBGOAL * (self.goal_count[ids] - subgoal)
+        self.steps[ids] = 0
         self.remember_poses(ids)
         state = self.scene_state()
         done = self.subgoal_done(self.effects(state))
@@ -1164,7 +1240,7 @@ class ManipulationSim(ArmSim):
         ).astype(np.float32)
         self.previous_potential = potential
         self.previous_disturbance = disturbance
-        success = leading >= self.sub_count
+        success = leading >= self.goal_count
         truncated = (self.steps >= self.horizons) & ~success
         result = StepResult(
             obs=self._observe(state, done, leading, False),
