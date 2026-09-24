@@ -21,7 +21,7 @@ i, so adding episodes never changes existing ones and every block below is disjo
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -49,6 +49,12 @@ class EpisodePlan:
     split: str
     seeds: tuple[int, ...]
     templates: tuple[str, ...]
+    # Subgoal resets (flyarm.manipulation.curriculum): entries of ``bank`` to start from, each
+    # episode ending after ``budget`` subgoals; empty for true starts.
+    starts: tuple[int, ...] = ()
+    budget: int = 0
+    bank: Any = field(default=None, compare=False, repr=False)
+    label: str = ""  # the summary's name ("" names it by the split)
 
     def __len__(self) -> int:
         return len(self.seeds)
@@ -156,7 +162,9 @@ def run_episodes(
         if env.split.name != episodes.split:
             raise ValueError(f"environment is split {env.split.name}, plan is {episodes.split}")
     obs = [
-        env.reset(seeds=np.array(p.seeds), templates=list(p.templates))
+        p.bank.reset(env, env.rows, np.array(p.starts), np.full(len(p), p.budget))
+        if p.starts
+        else env.reset(seeds=np.array(p.seeds), templates=list(p.templates))
         for env, p in zip(envs, plans, strict=True)
     ]
     teachers = []
@@ -281,7 +289,7 @@ def summarize(log: EpisodeLog) -> dict[str, Any]:
     success_rate = float(log.success.mean())
     subgoal_fraction = float(fraction.mean())
     return {
-        "split": log.plan.split,
+        "split": log.plan.label or log.plan.split,
         "episodes": len(names),
         "seeds": [int(seed) for seed in log.plan.seeds],
         "successes": int(log.success.sum()),

@@ -32,6 +32,7 @@ BOUND_FIELDS = (
     "xanchor",
     "xaxis",
     "sensordata",
+    "qacc_warmstart",  # solver warm start: part of the state a snapshot must restore exactly
 )
 
 

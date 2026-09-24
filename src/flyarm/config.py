@@ -648,6 +648,29 @@ class ManipulationImitationConfig(BaseModel):
 MANIPULATION_MAX_LEVEL_REWARD = 0.0
 
 
+class CurriculumStage(BaseModel):
+    """One stage of the skill curriculum (flyarm.manipulation.curriculum).
+
+    Each training episode starts from a true start with probability ``true_start_share``;
+    otherwise from a teacher state at the start of a random subgoal (skills balanced) and ends
+    after between ``min_subgoals`` and ``max_subgoals`` further subgoals, or the template's end.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+    name: str
+    iterations: int = Field(ge=1, le=100_000)
+    min_subgoals: int = Field(default=1, ge=1, le=8)
+    max_subgoals: int = Field(default=1, ge=1, le=8)
+    # Every stage keeps some true starts, so the full task is never absent from training.
+    true_start_share: float = Field(gt=0, le=1)
+
+    @model_validator(mode="after")
+    def ordered_range(self) -> CurriculumStage:
+        if self.max_subgoals < self.min_subgoals:
+            raise ValueError("max_subgoals must be at least min_subgoals")
+        return self
+
+
 class ManipulationPPOConfig(BaseModel):
     """PPO on the batched manipulation benchmark from an imitation checkpoint.
 
@@ -714,6 +737,14 @@ class ManipulationPPOConfig(BaseModel):
     # PPO environment seeds are 1,000,000 + 100,000 seed onward; seeds below 10 keep them under
     # the first held-out block (iid_test starts at 3,000,000).
     seed: int = Field(default=0, ge=0, le=9)
+    # Skill curriculum with subgoal resets (flyarm.manipulation.curriculum); empty trains on
+    # true starts only. The stages' iterations must add up to ``iterations``.
+    curriculum: list[CurriculumStage] = Field(default_factory=list)
+    # Teacher episodes per template whose subgoal-start states the curriculum resets to, and
+    # the separate validation bank of the per-skill evaluation (single-subgoal episodes).
+    bank_episodes_per_template: int = Field(default=20, ge=1, le=999)
+    validation_bank_episodes_per_template: int = Field(default=4, ge=1, le=999)
+    skill_eval_episodes: int = Field(default=4, ge=1, le=100)
 
     @property
     def best_on(self) -> str:
@@ -729,6 +760,11 @@ class ManipulationPPOConfig(BaseModel):
 
     @model_validator(mode="after")
     def bonus_outweighs_stalling(self) -> ManipulationPPOConfig:
+        if (
+            self.curriculum
+            and sum(stage.iterations for stage in self.curriculum) != self.iterations
+        ):
+            raise ValueError("the curriculum stages' iterations must add up to iterations")
         if self.bc_weight > 0 and self.encoder_lr > 0:
             raise ValueError("bc_weight needs a frozen encoder (encoder_lr 0)")
         # flyarm.manipulation.sim.MAX_LEVEL_REWARD: every level term is a penalty, so stalling
