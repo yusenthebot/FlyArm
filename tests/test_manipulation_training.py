@@ -291,3 +291,30 @@ def test_an_action_array_passed_to_step_is_not_changed_by_a_later_reset() -> Non
 def test_config_record_is_json_serialisable() -> None:
     json.dumps(ManipulationPPOConfig().model_dump())
     json.dumps(ManipulationImitationConfig().model_dump())
+
+
+@needs_env
+def test_the_redundant_contact_pairs_are_excluded() -> None:
+    from flyarm.manipulation.env import PandaManipulationEnv
+    from flyarm.manipulation.scene import EXCLUDED_PAIRS
+
+    env = PandaManipulationEnv(Path(MODEL), asset_root=OBJECTS)
+    model, data = env.model, env.data
+    env.reset(seed=3, options={"template": "shelve"})
+    for _ in range(30):  # hand down onto the table, fingers closing on nothing
+        env.step(np.array([0.0, 0.0, -1.0, 0.0, -1.0]))
+    touching = {
+        frozenset(
+            (
+                model.body(model.geom_bodyid[contact.geom1]).name,
+                model.body(model.geom_bodyid[contact.geom2]).name,
+            )
+        )
+        for contact in data.contact[: data.ncon]
+    }
+    for pair in EXCLUDED_PAIRS:
+        assert frozenset(pair) not in touching
+    # The hinge limit holds the lid; its soft constraint lets it sit 1.5 mrad past (0.3 mm at
+    # the front edge), far inside the closed threshold.
+    assert -0.005 < env.sim.joints()[0, 2] <= 1e-3 < tk.LID_CLOSED
+    assert env.sim.gripper_opening()[0] == pytest.approx(0.0, abs=1e-3)  # fingers stop at the limit

@@ -31,6 +31,14 @@ CAMERA_TARGET = np.array([0.42, 0.0, 0.08])
 NOSLIP_ITERATIONS = 4
 _FOUND = 1  # contact sensor data: number of matching contacts
 _REDUCE_MAXFORCE, _ONE = 2, 1
+# Contact pairs that carry no information because a joint limit already enforces them, and that
+# dominated the physics cost: a closed lid rests on the four cabinet walls with 20 contacts in
+# every episode (the cabinet is welded to the world, so MuJoCo's parent-child filter does not
+# apply), although the hinge's lower limit already holds it at 0; and fingers closed on nothing
+# made up to 44 finger-to-finger contacts, although the finger joints' lower limit already stops
+# them at touching. Excluding them cut a 128-environment step of an undertrained policy from
+# 264 to 176 ms (docs/MANIPULATION_ENV.md, "Excluded contact pairs").
+EXCLUDED_PAIRS = (("cabinet", "lid"), ("left_finger", "right_finger"))
 
 
 def robot_sensor_name(target: str) -> str:
@@ -66,6 +74,8 @@ def build_manipulation_spec(
     for index, item in enumerate(objects):
         add_object(spec, item, index, asset_root)
     add_furniture(spec, compile_config())
+    for first, second in EXCLUDED_PAIRS:
+        spec.add_exclude(bodyname1=first, bodyname2=second)
     _robot_contact(spec, robot_sensor_name("any"), None)
     _robot_contact(spec, robot_sensor_name("self"), ROBOT_ROOT, subtree=True)
     for item in objects:
