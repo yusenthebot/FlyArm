@@ -48,7 +48,15 @@ def _curve(run: Path, iteration: int) -> dict[str, Any]:
         return {}
     matching = [row for row in rows if row.get("iteration") == iteration]
     row = matching[-1] if matching else (rows[-1] if rows else {})
-    keys = ("iteration", "mean_reward", "success_rate", "lift_rate", "env_steps", "encoder_loss")
+    keys = (
+        "iteration",
+        "mean_reward",
+        "success_rate",
+        "lift_rate",
+        "subgoals_per_episode",
+        "env_steps",
+        "encoder_loss",
+    )
     return {key: row[key] for key in keys if key in row}
 
 
@@ -80,6 +88,68 @@ def _kitchen_frames(
     return clips, outcomes
 
 
+MANIPULATION_STRIDE = 3  # render every third control step of a manipulation episode
+
+
+def _manipulation_frames(
+    run: Path,
+    pack_root: Path,
+    model_path: Path,
+    asset_root: Path,
+    checkpoint: Path,
+    seeds: list[int],
+    title: str,
+) -> tuple[list[list[np.ndarray]], list[str]]:
+    """Labelled manipulation episodes of one PPO checkpoint (train split, unseen seeds).
+
+    Seed s runs template (s mod the number of templates) of the train split; the default
+    watch seeds 60,000 onward are in no block that imitation or PPO trains or selects on.
+    """
+    from flyarm.config import ManipulationPPOConfig
+    from flyarm.manipulation.env import PandaManipulationEnv
+    from flyarm.manipulation.imitation import load_manipulation_policy
+    from flyarm.video import annotate
+    from flyarm.whole_brain.policy import MlxController
+
+    config = ManipulationPPOConfig.model_validate_json((run / "config.json").read_text())
+    base, policy = load_manipulation_policy(
+        Path(config.base_run), config.base_kind, config.base_seed, pack_root, checkpoint
+    )
+    env = PandaManipulationEnv(
+        model_path, split="train", asset_root=asset_root, cue=base.cue, render_size=(304, 400)
+    )
+    clips, outcomes = [], []
+    try:
+        for seed in seeds:
+            template = env.split.templates[seed % len(env.split.templates)]
+            obs, info = env.reset(seed=seed, options={"template": template})
+            controller = MlxController(policy)
+            frames = []
+            for step in range(env.horizon):
+                if step % MANIPULATION_STRIDE == 0:
+                    status = f"step {step} · {info['subgoals_done']}/{len(info['subgoals'])} done"
+                    frames.append(
+                        annotate(
+                            env.render(),
+                            f"{title} · {template}",
+                            f"{status}\nnow: {info['current']}",
+                            success=info["is_success"],
+                        )
+                    )
+                obs, _, terminated, truncated, info = env.step(controller.act(obs))
+                if terminated or truncated:
+                    break
+            frames.append(
+                annotate(env.render(), f"{title} · {template}", "done", success=info["is_success"])
+            )
+            clips.append(frames)
+            outcome = f"{template} {info['subgoals_done']}/{len(info['subgoals'])} subgoals"
+            outcomes.append(outcome + (" success" if info["is_success"] else ""))
+    finally:
+        env.close()
+    return clips, outcomes
+
+
 def record_progress(
     run: Path,
     pack_root: Path,
@@ -88,10 +158,19 @@ def record_progress(
     checkpoint: Path,
     seeds: list[int],
     variant: str = "nominal",
+    asset_root: Path = Path("assets/objects"),
 ) -> dict[str, Any]:
     """Render ``seeds`` episodes of one checkpoint into run/progress/latest.mp4."""
     settings = json.loads((run / "config.json").read_text())
     iteration = _iteration(checkpoint)
+    if "subgoal_bonus" in settings:  # a manipulation run (ManipulationPPOConfig)
+        title = f"{run.name} · iteration {iteration}"
+        clips, outcomes = _manipulation_frames(
+            run, pack_root, model_path, asset_root, checkpoint, seeds, title
+        )
+        return _write_clip(
+            run, checkpoint, seeds, clips, outcomes, iteration, variant="manipulation"
+        )
     if "completion_bonus" in settings:  # a kitchen run (KitchenPPOConfig)
         title = f"{run.name} · iteration {iteration}"
         clips, outcomes = _kitchen_frames(run, pack_root, checkpoint, seeds, title)
@@ -161,6 +240,7 @@ def watch(
     variant: str = "nominal",
     first_seed: int = 60_000,
     once: bool = False,
+    asset_root: Path = Path("assets/objects"),
 ) -> None:
     """Re-record the newest checkpoint of ``run`` until the run is finished."""
     seeds = list(range(first_seed, first_seed + episodes))
@@ -169,7 +249,13 @@ def watch(
         latest = checkpoints(run)[-1] if checkpoints(run) else None
         if latest is not None and latest.name != recorded:
             manifest = record_progress(
-                run, pack_root, model_path, checkpoint=latest, seeds=seeds, variant=variant
+                run,
+                pack_root,
+                model_path,
+                checkpoint=latest,
+                seeds=seeds,
+                variant=variant,
+                asset_root=asset_root,
             )
             recorded = latest.name
             stages = ", ".join(

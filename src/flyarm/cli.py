@@ -161,6 +161,20 @@ def main() -> None:
     leg_record.add_argument("--pack", type=Path, default=Path(DEFAULT_PACK))
     leg_record.add_argument("--annotations", type=Path, default=Path(DEFAULT_ANNOTATIONS))
     leg_record.add_argument("--output", type=Path, required=True)
+    manipulation = sub.add_parser(
+        "manipulation", help="Articulated multi-step manipulation on the frozen connectome"
+    )
+    manipulation_sub = manipulation.add_subparsers(dest="manipulation_command", required=True)
+    imitate = manipulation_sub.add_parser(
+        "imitate", help="Behavior cloning and DAgger from the scripted teacher, then evaluation"
+    )
+    imitate.add_argument("--config", type=Path, required=True)
+    imitate.add_argument("--pack", type=Path, default=Path(DEFAULT_PACK))
+    imitate.add_argument(
+        "--model", type=Path, default=Path("assets/menagerie/franka_emika_panda/scene.xml")
+    )
+    imitate.add_argument("--asset-root", type=Path, default=Path("assets/objects"))
+    imitate.add_argument("--output", type=Path, required=True)
     report = sub.add_parser("report", help="Aggregate completed runs into a Markdown report")
     report.add_argument("--output", type=Path, required=True)
     board = sub.add_parser("dashboard", help="Local run history, curves, logs and rollouts")
@@ -181,6 +195,16 @@ def main() -> None:
     kitchen_ppo.add_argument("--config", type=Path, required=True)
     kitchen_ppo.add_argument("--pack", type=Path, default=Path(DEFAULT_PACK))
     kitchen_ppo.add_argument("--output", type=Path, required=True)
+    manipulation_ppo = rl_sub.add_parser(
+        "manipulation", help="PPO on the batched manipulation benchmark from an imitation run"
+    )
+    manipulation_ppo.add_argument("--config", type=Path, required=True)
+    manipulation_ppo.add_argument("--pack", type=Path, default=Path(DEFAULT_PACK))
+    manipulation_ppo.add_argument(
+        "--model", type=Path, default=Path("assets/menagerie/franka_emika_panda/scene.xml")
+    )
+    manipulation_ppo.add_argument("--asset-root", type=Path, default=Path("assets/objects"))
+    manipulation_ppo.add_argument("--output", type=Path, required=True)
     rl_record = rl_sub.add_parser("record", help="Before/after videos of a PPO run")
     rl_record.add_argument("--run", type=Path, required=True)
     rl_record.add_argument("--variant", default="nominal")
@@ -202,6 +226,7 @@ def main() -> None:
     rl_watch.add_argument(
         "--model", type=Path, default=Path("assets/menagerie/franka_emika_panda/scene.xml")
     )
+    rl_watch.add_argument("--asset-root", type=Path, default=Path("assets/objects"))
     leg_serve = leg_sub.add_parser("serve", help="Live kitchen UI driven by a B2 checkpoint")
     leg_serve.add_argument("--run", type=Path, required=True)
     leg_serve.add_argument("--seed", type=int, default=0)
@@ -258,6 +283,24 @@ def main() -> None:
         kitchen_config = KitchenPPOConfig.model_validate_json(args.config.read_text())
         kitchen_outcome = run_kitchen_ppo(kitchen_config, args.pack, args.output)
         print(json.dumps({k: kitchen_outcome[k] for k in ("base", "best")}, indent=2))
+    elif args.command == "manipulation":
+        from flyarm.config import ManipulationImitationConfig
+        from flyarm.manipulation.imitation import run_manipulation_imitation
+
+        imitation_config = ManipulationImitationConfig.model_validate_json(args.config.read_text())
+        imitation = run_manipulation_imitation(
+            args.pack, args.model, args.output, imitation_config, args.asset_root
+        )
+        print(json.dumps({m["kind"]: m["evaluation"] for m in imitation["models"]}, indent=2))
+    elif args.command == "rl" and args.rl_command == "manipulation":
+        from flyarm.config import ManipulationPPOConfig
+        from flyarm.rl.ppo_manipulation import run_manipulation_ppo
+
+        manipulation_config = ManipulationPPOConfig.model_validate_json(args.config.read_text())
+        manipulation_outcome = run_manipulation_ppo(
+            manipulation_config, args.pack, args.model, args.output, args.asset_root
+        )
+        print(json.dumps({k: manipulation_outcome[k] for k in ("base", "best")}, indent=2))
     elif args.command == "rl" and args.rl_command == "watch":
         from flyarm.progress import watch
 
@@ -269,6 +312,7 @@ def main() -> None:
             poll_seconds=args.poll_seconds,
             variant=args.variant,
             once=args.once,
+            asset_root=args.asset_root,
         )
     elif args.command == "rl" and args.rl_command == "record":
         from flyarm.rl.record import record_before_after
