@@ -281,6 +281,25 @@ Adding episodes never changes existing ones.
 - Training curves carry `subgoals_per_episode` (mean over finished episodes) and the batch peak `max_subgoals_in_one_episode`.
 - `flyarm rl watch` re-records one clip of the newest checkpoint (two train-split episodes from seed 60,000, templates by seed) into `progress/latest.mp4`, as for the kitchen.
 
+### Curriculum PPO (flyarm.manipulation.curriculum)
+
+Modelled on what solved the kitchen: resets to demonstration states (E53), the bonus paid in task order (E47), potential shaping (E48) and the DAPG term (E46); still only the two linear maps are trained.
+
+- Subgoal resets: the teacher runs `bank_episodes_per_template` episodes per template of the train split (seeds from 400,000) and the full state at the start of every subgoal is stored (`SubgoalBank`, saved as bank.npz in the run).
+  `reset_to_subgoal` rebuilds the episode from its seed and template (a fingerprint of the episode guards against drift) and restores the physics state, the arm controller's state, the task's counters and baselines, and the derived fields the controller reads after `mj_step`, so the replay is bit for bit (test: a restored state replayed with the recorded actions matches for 60 steps, difference 0.0).
+  The first k subgoals count as done and pay no bonus, the episode succeeds after its budget of subgoals (or the template's end) and is cut at 300 steps per subgoal it has to do; the cue, the ordered bonus, the shaping target and the stray-contact allowances all follow from the preset.
+  Only states are stored, never actions.
+- Curriculum (`curriculum` in `ManipulationPPOConfig`, stages switched by iteration budget through an optional `train_ppo` hook): each training episode is a true start with the stage's share, otherwise a subgoal start with skills equally likely and a budget drawn from the stage's range.
+  configs/ppo-manipulation-curriculum.json: 300 iterations of single subgoals (20% true starts), 300 of two or three (25%), 400 of full templates from true starts only; everything else as configs/ppo-manipulation.json (gamma 0.995, DAPG 1.0, advantage clip 10, critic warm-up 50, the motion-quality terms), base run runs/whole-brain-manipulation-002.
+  One gamma for all stages: a single subgoal takes 100 to 350 steps, which 0.995 covers as well as 0.99.
+- Evaluation: every split from true starts (the headline), validation from true starts (selection), and single-subgoal success per skill from a separate validation bank (seeds from 500,000, `skill_eval_episodes` per skill), reported as `skill:<name>`.
+  Training curves carry the stage, the counts of subgoal and true starts, and subgoals per episode counting only those the episode earned.
+
+Run (after the imitation run): `FLYARM_SIM_THREADS=4 PYTHONPATH=src .venv/bin/python -m flyarm.cli rl manipulation --config configs/ppo-manipulation-curriculum.json --output runs/ppo-manipulation-curriculum-001`.
+
+Smoke (a tiny imitation base, 128 environments, 6 iterations through both stage switches, bank of 3 episodes per template: 86 subgoal starts over all 7 skills, validation bank 30): 8.4 minutes end to end; rollouts at 530 to 645 steps/s with the full imitation run sharing the GPU, 14.5 s per iteration including the update; the per-skill and per-split evaluations ran and the checkpoint was selected on validation.
+Estimate for the shipped config on the shared GPU: 1,000 iterations x 14.5 s = 4.0 hours, 11 evaluations x 4 to 6 minutes = 45 to 65 minutes, the banks (168 teacher episodes) and the DAPG replay about 8 minutes: about 5 hours, less with the GPU to itself.
+
 ### Imitation failure analysis
 
 The first full imitation runs (runs/whole-brain-manipulation-001 and -diagnostic-001 in the main checkout) completed no episode on any split with any controller: subgoal fraction 0.01 to 0.03 for the connectome and the GRU and 0.000 for the MLP, although the MLP fit best (L1 0.078) and the teacher solves 91 to 98% of the same episodes.
