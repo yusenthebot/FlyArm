@@ -189,3 +189,41 @@ def test_mlp_control_reads_the_normalized_observation_and_checkpoints(tmp_path) 
     with pytest.raises(ValueError, match="mlp"):
         PPOConfig(controller="mlp", from_scratch=True, encoder_lr=1e-4)
     assert PPOConfig(controller="mlp", from_scratch=True).controller == "mlp"
+
+
+def test_encoder_pass_trains_a_nonlinear_encoder_too() -> None:
+    import mlx.optimizers as optim
+    from mlx.utils import tree_flatten
+
+    from flyarm.rl.ppo import OBS_DIM, MotorHead, encoder_pass
+    from flyarm.whole_brain.backend_mlx import RateDynamics
+    from flyarm.whole_brain.policy import BrainPolicy
+
+    steps, envs = 4, 3
+    generator = np.random.default_rng(1)
+    pack = ConnectomePack.from_graph(random_graph(n=48, edges=400))
+    policy = BrainPolicy(
+        "connectome",
+        RateDynamics(pack, interface_for(pack)),
+        obs_dim=OBS_DIM,
+        action_dim=4,
+        seed=0,
+        encoder="mlp",
+        encoder_hidden=(16, 16),
+    )
+    head, optimizer = MotorHead(policy.decoder, -1.0), optim.Adam(learning_rate=1e-2)
+    before = {k: np.asarray(v).copy() for k, v in tree_flatten(policy.encoder.parameters())}
+    loss = encoder_pass(
+        policy,
+        head,
+        optimizer,
+        generator.standard_normal((steps, envs, OBS_DIM)).astype(np.float32),
+        generator.uniform(-1, 1, (steps, envs, 4)).astype(np.float32),
+        generator.standard_normal((steps, envs)).astype(np.float32),
+        np.zeros((steps, envs), np.float32),
+        policy.initial_state(envs),
+        0.5,
+    )
+    after = dict(tree_flatten(policy.encoder.parameters()))
+    assert np.isfinite(loss)
+    assert all(not np.allclose(np.asarray(after[k]), v) for k, v in before.items())

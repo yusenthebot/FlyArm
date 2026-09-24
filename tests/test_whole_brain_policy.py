@@ -262,3 +262,71 @@ def test_unit_norm_readout_has_unit_expected_squared_norm(pack) -> None:
     features = np.concatenate(features)
     assert np.allclose(features.mean(0), 0.0, atol=1e-3)
     assert np.isclose((features**2).sum(1).mean(), 1.0, rtol=1e-2)
+
+
+def test_the_linear_encoder_is_unchanged_and_the_mlp_encoder_trains(pack, tmp_path) -> None:
+    """encoder "linear" is the earlier policy bit for bit; "mlp" is a nonlinear periphery that
+    scales to the linear encoder's currents, trains through the frozen graph and round-trips."""
+    import mlx.nn as nn
+
+    from flyarm.whole_brain.policy import ENCODER_CURRENT_RMS, SensoryEncoder
+
+    dynamics = RateDynamics(pack, interface_for(pack))
+    default = BrainPolicy("connectome", dynamics, obs_dim=4, action_dim=2, seed=3)
+    explicit = BrainPolicy(
+        "connectome", dynamics, obs_dim=4, action_dim=2, seed=3, encoder="linear"
+    )
+    mx.random.seed(3)
+    reference = nn.Linear(4, dynamics.input_count)
+    assert isinstance(default.encoder, nn.Linear)
+    np.testing.assert_array_equal(np.asarray(default.encoder.weight), np.asarray(reference.weight))
+    names = [name for name, _ in tree_flatten(default.parameters())]
+    assert names == [name for name, _ in tree_flatten(explicit.parameters())]
+
+    policy = BrainPolicy(
+        "connectome",
+        dynamics,
+        obs_dim=4,
+        action_dim=2,
+        seed=3,
+        encoder="mlp",
+        encoder_hidden=(8, 8),
+        encoder_activation="gelu",
+    )
+    assert isinstance(policy.encoder, SensoryEncoder)
+    generator = np.random.default_rng(0)
+    obs = generator.standard_normal((50, 4)).astype(np.float32)
+    policy.scale_encoder(obs)
+    current = policy.encode(policy.normalize(mx.array(obs)))
+    assert float(mx.sqrt(mx.mean(current**2))) == pytest.approx(ENCODER_CURRENT_RMS, rel=1e-4)
+    before = np.asarray(policy.encoder.hidden[0].weight).copy()
+    data = {
+        "obs": generator.standard_normal((4, 12, 4)).astype(np.float32),
+        "actions": np.tanh(generator.standard_normal((4, 12, 2))).astype(np.float32),
+        "mask": np.ones((4, 12), np.float32),
+    }
+    budget = Budget(2, 0, 2, 4, 1e-2, float("inf"), input_learning_rate=1e-3, window_batch=4)
+    train_sequence_policy(policy, data, data["mask"], data, data["mask"], budget, 0)
+    assert not np.allclose(np.asarray(policy.encoder.hidden[0].weight), before)
+    clone = policy.with_dynamics("ablated", dynamics)
+    assert isinstance(clone.encoder, SensoryEncoder) and clone.encoder.activation == "gelu"
+    path = tmp_path / "policy.safetensors"
+    policy.save(path)
+    loaded = BrainPolicy(
+        "connectome",
+        dynamics,
+        obs_dim=4,
+        action_dim=2,
+        seed=9,
+        encoder="mlp",
+        encoder_hidden=(8, 8),
+        encoder_activation="gelu",
+    )
+    loaded.load(path)
+    x = mx.array(obs[:3])
+    np.testing.assert_array_equal(
+        np.asarray(loaded.step(x, loaded.initial_state(3))[0]),
+        np.asarray(policy.step(x, policy.initial_state(3))[0]),
+    )
+    with pytest.raises(ValueError, match="channels"):
+        BrainPolicy("c", dynamics, obs_dim=4, action_dim=2, encoder="mlp", channels=[(0, 4, 6)])

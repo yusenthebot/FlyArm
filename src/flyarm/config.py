@@ -570,12 +570,22 @@ class ManipulationImitationConfig(BaseModel):
     batch_size: int = Field(default=16, ge=1, le=128)
     bptt_steps: int = Field(default=16, ge=1, le=100)
     learning_rate: float = Field(default=0.001, gt=0, le=0.05)
-    # The encoder's learning rate over learning_rate. At 1 the 217 inputs drive the ascending
-    # neurons into tanh saturation within one epoch (input current RMS 0.48 to 2.2); 0.1 keeps
-    # it near 0.5 and fits better (docs/MANIPULATION_ENV.md, "Training").
+    # The encoder's learning rate over learning_rate. For the linear encoder, 1 drives the
+    # ascending neurons into tanh saturation within one epoch (input current RMS 0.48 to 2.2)
+    # and 0.1 keeps it near 0.5 and fits better; the MLP encoder fits best at 1 and uses that
+    # saturation (docs/MANIPULATION_ENV.md, "Training" and "Sensory encoder").
     encoder_learning_rate_scale: float = Field(default=0.1, gt=0, le=1)
     loss: Literal["mse", "l1"] = "l1"
     neural_steps: int = Field(default=3, ge=1, le=8)
+    # The sensory periphery in front of the frozen connectome: "linear" (every earlier run) or
+    # "mlp", hidden layers then a linear map to the 1,846 ascending currents, scaled at the start
+    # so the currents begin at the linear encoder's RMS. The readout stays linear either way.
+    encoder: Literal["linear", "mlp"] = "linear"
+    encoder_hidden: list[int] = Field(default_factory=lambda: [256, 256], min_length=1)
+    encoder_activation: Literal["tanh", "gelu"] = "tanh"
+    # The "mlp" control: the D4RL BC architecture (two 256-unit layers), or two layers sized to
+    # the connectome policy's trainable parameters ("matched").
+    mlp_control: Literal["d4rl", "matched"] = "d4rl"
     # Frozen readout normalization. At 2,022 outputs anything but "unit_norm" saturates the
     # decoder on its first Adam updates (research log E26), so the other values are refused.
     readout_calibration: Literal["scale", "standardize", "unit_norm"] = "unit_norm"

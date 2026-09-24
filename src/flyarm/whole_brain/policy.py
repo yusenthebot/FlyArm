@@ -87,6 +87,35 @@ class _Normalized(nn.Module):
 
 Channel = tuple[int, int, int]  # (first observation index, stop index, input neurons)
 
+ENCODERS = ("linear", "mlp")
+ACTIVATIONS = {"tanh": nn.tanh, "gelu": nn.gelu}
+# Current RMS into the ascending neurons that a nonlinear encoder is scaled to at the start: the
+# value measured for the linear encoder on the manipulation demonstrations (0.48).
+ENCODER_CURRENT_RMS = 0.5
+
+
+class SensoryEncoder(nn.Module):
+    """A trainable nonlinear sensory periphery: observation -> hidden layers -> linear map to
+    the ascending neurons' input currents. Only the periphery is nonlinear and trained; the
+    connectome it drives stays frozen."""
+
+    def __init__(self, obs_dim: int, outputs: int, hidden: Sequence[int], activation: str) -> None:
+        super().__init__()
+        if not hidden or any(size < 1 for size in hidden):
+            raise ValueError("a nonlinear encoder needs at least one hidden layer")
+        if activation not in ACTIVATIONS:
+            raise ValueError(f"activation must be one of {sorted(ACTIVATIONS)}")
+        self.activation = activation
+        widths = [obs_dim, *hidden]
+        self.hidden = [nn.Linear(a, b) for a, b in zip(widths[:-1], widths[1:], strict=True)]
+        self.output = nn.Linear(widths[-1], outputs)
+
+    def __call__(self, x: mx.array) -> mx.array:
+        act = ACTIVATIONS[self.activation]
+        for layer in self.hidden:
+            x = act(layer(x))
+        return self.output(x)
+
 
 class BrainPolicy(_Normalized):
     """obs -> linear encoder(s) -> frozen connectome -> readout scale -> linear decoder -> action.
@@ -113,17 +142,31 @@ class BrainPolicy(_Normalized):
         seed: int = 0,
         channels: Sequence[Channel] | None = None,
         chunk: int = 1,
+        encoder: str = "linear",
+        encoder_hidden: Sequence[int] = (256, 256),
+        encoder_activation: str = "tanh",
     ) -> None:
         super().__init__(obs_dim, action_dim, chunk)
         if neural_steps < 1:
             raise ValueError("neural_steps must be positive")
+        if encoder not in ENCODERS:
+            raise ValueError(f"encoder must be one of {ENCODERS}")
+        if encoder != "linear" and channels is not None:
+            raise ValueError("a nonlinear encoder drives all input neurons; no channels")
+        self.encoder_kind = encoder
+        self.encoder_hidden = tuple(int(size) for size in encoder_hidden)
+        self.encoder_activation = encoder_activation
         self.kind = kind
         self.seed = seed
         self.neural_steps = neural_steps
         self.dynamics = dynamics
         self.channels = tuple(channels) if channels is not None else None
         mx.random.seed(seed)
-        if self.channels is None:
+        if encoder == "mlp":
+            self.encoder = SensoryEncoder(
+                obs_dim, dynamics.input_count, self.encoder_hidden, encoder_activation
+            )
+        elif self.channels is None:
             self.encoder = nn.Linear(obs_dim, dynamics.input_count)
         else:
             if sum(size for _, _, size in self.channels) != dynamics.input_count:
@@ -189,6 +232,20 @@ class BrainPolicy(_Normalized):
             "floored_outputs": int(np.sum(spread < floor)),
         }
 
+    def scale_encoder(self, obs: np.ndarray, target: float = ENCODER_CURRENT_RMS) -> float:
+        """Scale a nonlinear encoder's output layer so the ascending currents start at RMS
+        ``target`` on ``obs`` (raw observations), the range the linear encoder starts in.
+        Returns the factor applied; the linear encoder is left as it is (factor 1)."""
+        if self.encoder_kind == "linear":
+            return 1.0
+        current = self.encode(self.normalize(mx.array(np.asarray(obs, dtype=np.float32))))
+        rms = float(mx.sqrt(mx.mean(current**2)))
+        factor = target / max(rms, 1e-12)
+        output = self.encoder.output
+        output.weight = output.weight * factor
+        output.bias = output.bias * factor
+        return factor
+
     def readout(self, pooled: mx.array) -> mx.array:
         """The decoder's input: output activity after the frozen normalization."""
         return (pooled - self.readout_offset) * self.readout_scale
@@ -236,6 +293,9 @@ class BrainPolicy(_Normalized):
             seed=self.seed,
             channels=self.channels,
             chunk=self.chunk,
+            encoder=self.encoder_kind,
+            encoder_hidden=self.encoder_hidden,
+            encoder_activation=self.encoder_activation,
         )
         clone.update(self.parameters())
         clone._freeze_buffers()
@@ -250,6 +310,15 @@ class BrainPolicy(_Normalized):
         encoder.weight = mx.zeros_like(encoder.weight)
         encoder.bias = mx.zeros_like(encoder.bias)
         return clone
+
+
+def mlp_hidden_for_budget(obs_dim: int, output_dim: int, budget: int) -> int:
+    """Hidden width whose two-layer MLPPolicy is closest to ``budget`` parameters."""
+
+    def count(hidden: int) -> int:
+        return (obs_dim + 1) * hidden + (hidden + 1) * hidden + (hidden + 1) * output_dim
+
+    return min(range(1, 4096), key=lambda hidden: abs(count(hidden) - budget))
 
 
 def gru_hidden_for_budget(obs_dim: int, output_dim: int, budget: int) -> int:
