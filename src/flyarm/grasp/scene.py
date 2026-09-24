@@ -77,14 +77,14 @@ def build_grasp_spec(
     spec = mujoco.MjSpec.from_file(str(model_path))
     add_flyarm_gripper(spec)
     for index, item in enumerate(objects):
-        _add_object(spec, item, index, asset_root)
+        add_object(spec, item, index, asset_root)
     spec.worldbody.add_camera(
         name=CAMERA, pos=CAMERA_POS.tolist(), xyaxes=look_at(CAMERA_POS, CAMERA_TARGET), fovy=45
     )
     return spec
 
 
-def _add_object(spec: mujoco.MjSpec, item: GraspObject, index: int, asset_root: Path) -> None:
+def add_object(spec: mujoco.MjSpec, item: GraspObject, index: int, asset_root: Path) -> None:
     mesh_path, texture_path = item.mesh_path(asset_root), item.texture_path(asset_root)
     for path in (mesh_path, texture_path):
         if not path.is_file():
