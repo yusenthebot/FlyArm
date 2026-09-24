@@ -26,6 +26,7 @@ import mlx.core as mx
 import numpy as np
 
 from flyarm.config import ManipulationImitationConfig, ManipulationPPOConfig
+from flyarm.manipulation import curriculum as cu
 from flyarm.manipulation import rollout
 from flyarm.manipulation.env import DEFAULT_ASSET_ROOT, BatchedManipulation
 from flyarm.manipulation.imitation import Workbench, load_data, load_manipulation_policy
@@ -85,23 +86,66 @@ class ManipulationTask:
         *,
         cue: bool = True,
         velocities: bool = True,
+        bank: cu.SubgoalBank | None = None,
+        validation_bank: cu.SubgoalBank | None = None,
     ) -> None:
         self.settings = settings
         self.model_path, self.asset_root, self.cue = Path(model_path), Path(asset_root), cue
         self.velocities = velocities
         self.bench = Workbench(model_path, asset_root, cue, velocities)
+        if settings.curriculum and bank is None:
+            raise ValueError("a curriculum needs a subgoal bank")
+        self.bank, self.validation_bank = bank, validation_bank
+        self.stages = [
+            cu.Stage(
+                stage.name,
+                stage.iterations,
+                stage.min_subgoals,
+                stage.max_subgoals,
+                stage.true_start_share,
+            )
+            for stage in settings.curriculum
+        ]
+        self.env: BatchedManipulation | None = None
 
     def make_env(self, num_envs: int, first_seed: int) -> BatchedManipulation:
-        return BatchedManipulation(
-            self.model_path,
-            num_envs,
-            split="train",
-            asset_root=self.asset_root,
-            first_seed=first_seed,
-            reward=reward_config(self.settings),
-            cue=self.cue,
-            velocities=self.velocities,
-        )
+        options: dict[str, Any] = {
+            "split": "train",
+            "asset_root": self.asset_root,
+            "first_seed": first_seed,
+            "reward": reward_config(self.settings),
+            "cue": self.cue,
+            "velocities": self.velocities,
+        }
+        if self.stages:
+            assert self.bank is not None
+            self.env = cu.CurriculumManipulation(
+                self.model_path,
+                num_envs,
+                bank=self.bank,
+                stages=self.stages,
+                curriculum_seed=self.settings.seed,
+                **options,
+            )
+        else:
+            self.env = BatchedManipulation(self.model_path, num_envs, **options)
+        return self.env
+
+    def begin_iteration(self, iteration: int) -> dict[str, Any]:
+        """Switch the curriculum stage by iteration budget; the stage joins the curve row."""
+        if not self.stages or not isinstance(self.env, cu.CurriculumManipulation):
+            return {}
+        bounds = np.cumsum([stage.iterations for stage in self.stages])
+        index = int(np.searchsorted(bounds, iteration, side="right"))
+        index = min(index, len(self.stages) - 1)
+        if index != self.env.stage_index:
+            self.env.set_stage(index)
+            print(f"curriculum stage {self.stages[index].name} from iteration {iteration + 1}")
+        return {
+            "stage": self.stages[index].name,
+            "subgoal_starts": self.env.subgoal_starts,
+            "true_starts": self.env.true_starts,
+        }
 
     def plans(self, per_template: int) -> list[rollout.EpisodePlan]:
         tests = [
@@ -111,16 +155,23 @@ class ManipulationTask:
         validation = rollout.plan(
             "train", self.settings.val_episodes_per_template, rollout.VALIDATION_OFFSET
         )
-        return [*tests, validation]
+        skills = (
+            cu.skill_plans(self.validation_bank, self.settings.skill_eval_episodes)
+            if self.validation_bank is not None
+            else []
+        )
+        return [*tests, validation, *skills]
 
     def score(
         self, policy: BrainPolicy, head: MotorHead, seeds: list[int]
     ) -> dict[str, dict[str, Any]]:
+        """Per split from true starts (the headline), validation, and per skill from resets."""
         logs = self.bench.run(self.plans(len(seeds)), lambda n: HeadActor(policy, head, n))
-        return {
-            (VALIDATION if log.plan.split == "train" else log.plan.split): rollout.summarize(log)
-            for log in logs
-        }
+        scored = {}
+        for log in logs:
+            name = log.plan.label or (VALIDATION if log.plan.split == "train" else log.plan.split)
+            scored[name] = rollout.summarize(log)
+        return scored
 
     def extra(self, result: Any, done: np.ndarray) -> int:
         return int(result.high_water[done].sum())
@@ -190,6 +241,42 @@ def demonstration_features(
     return mx.array(np.concatenate(features)), mx.array(np.concatenate(actions))
 
 
+def record_banks(
+    config: ManipulationPPOConfig,
+    model_path: Path,
+    asset_root: Path,
+    imitation: ManipulationImitationConfig,
+    output: Path,
+) -> tuple[cu.SubgoalBank, cu.SubgoalBank]:
+    """Teacher subgoal-start states for training and for the per-skill evaluation.
+
+    Recorded on the train split in two disjoint seed blocks, with the imitation run's
+    observation settings, and saved in the run directory.
+    """
+    banks = []
+    for name, per_template, offset in (
+        ("bank", config.bank_episodes_per_template, cu.BANK_OFFSET),
+        (
+            "validation-bank",
+            config.validation_bank_episodes_per_template,
+            cu.VALIDATION_BANK_OFFSET,
+        ),
+    ):
+        episodes = cu.bank_plan(per_template, offset)
+        env = rollout.make_env(
+            model_path,
+            episodes,
+            asset_root=asset_root,
+            cue=imitation.cue,
+            velocities=imitation.velocities,
+        )
+        bank = cu.record_bank(env, episodes)
+        bank.save(output / f"{name}.npz")
+        print(f"{name}: {len(bank)} subgoal starts {bank.skill_counts()}", flush=True)
+        banks.append(bank)
+    return banks[0], banks[1]
+
+
 def run_manipulation_ppo(
     config: ManipulationPPOConfig,
     pack_root: Path,
@@ -216,8 +303,17 @@ def run_manipulation_ppo(
             raise FileNotFoundError(f"init_checkpoint not found: {checkpoint}")
         policy.load(checkpoint)
         print(f"continuing from {checkpoint}", flush=True)
+    bank = validation_bank = None
+    if config.curriculum:
+        bank, validation_bank = record_banks(config, model_path, asset_root, imitation, output)
     task = ManipulationTask(
-        config, model_path, asset_root, cue=imitation.cue, velocities=imitation.velocities
+        config,
+        model_path,
+        asset_root,
+        cue=imitation.cue,
+        velocities=imitation.velocities,
+        bank=bank,
+        validation_bank=validation_bank,
     )
     head = MotorHead(policy.decoder, config.log_std, ACTION_DIM)
     eval_seeds = list(range(config.eval_episodes_per_template))
@@ -240,6 +336,11 @@ def run_manipulation_ppo(
         "init_checkpoint": config.init_checkpoint,
         "reward": reward_config(config).__dict__,
         "selection": "validation episodes of the train split, success then subgoal fraction",
+        "curriculum": [stage.model_dump() for stage in config.curriculum],
+        "banks": {
+            "train": None if bank is None else bank.skill_counts(),
+            "validation": None if validation_bank is None else validation_bank.skill_counts(),
+        },
     }
     save_json(output / "results.json", results)
     demonstrations = None
@@ -276,6 +377,7 @@ __all__ = [
     "ManipulationTask",
     "base_config",
     "demonstration_features",
+    "record_banks",
     "reward_config",
     "run_manipulation_ppo",
 ]

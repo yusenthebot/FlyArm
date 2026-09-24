@@ -419,7 +419,10 @@ def train_ppo(
     started = time.monotonic()
     env_steps = 0
     best: dict[str, Any] = {"success_rate": -1.0}
+    begin_iteration = getattr(task, "begin_iteration", None)
     for iteration in range(settings.iterations):
+        # Optional adapter hook (a curriculum stage switch); its fields join the curve row.
+        stage_fields = begin_iteration(iteration) if begin_iteration is not None else {}
         feats_buf = np.zeros((horizon, n, brain.feature_dim), np.float32)
         obs_buf = np.zeros((horizon, n, task.obs_dim), np.float32)
         rollout_state = brain.state
@@ -558,6 +561,7 @@ def train_ppo(
         }
         if getattr(task, "batch_peak_key", None):
             curve[str(task.batch_peak_key)] = peak
+        curve.update(stage_fields or {})
         curves.append(curve)
         print(
             f"it {iteration + 1:4d} steps {env_steps:9d} reward {curve['mean_reward']:.3f} "
