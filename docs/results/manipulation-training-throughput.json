@@ -1,0 +1,40 @@
+{
+  "machine": "macOS-26.3.2-arm64-arm-64bit",
+  "device": "Device(gpu, 0)",
+  "threads": 4,
+  "teacher_collection": {
+    "episodes": 21,
+    "steps": 21899,
+    "seconds": 40.9
+  },
+  "rollouts": [
+    {
+      "num_envs": 32,
+      "steps": 150,
+      "environment_random_actions_steps_per_second": 1652.8,
+      "connectome_closed_loop_steps_per_second": 1141.1,
+      "connectome_ms_per_control_step": 9.29
+    },
+    {
+      "num_envs": 128,
+      "steps": 150,
+      "environment_random_actions_steps_per_second": 1590.9,
+      "connectome_closed_loop_steps_per_second": 1313.5,
+      "connectome_ms_per_control_step": 22.41
+    }
+  ],
+  "imitation_epoch": {
+    "episodes": 21,
+    "demonstration_steps": 21899,
+    "batch_size": 16,
+    "bptt_steps": 16,
+    "seconds_including_validation_loss": 66.4,
+    "ms_per_demonstration_step": 3.032
+  },
+  "evaluation_one_per_template": {
+    "episodes": 25,
+    "longest_episode_steps": 2600,
+    "seconds": 365.4,
+    "ms_per_lockstep_step": 140.52
+  }
+}
