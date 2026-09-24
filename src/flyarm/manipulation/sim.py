@@ -213,6 +213,9 @@ class StepResult:
     high_water: np.ndarray  # [N] most subgoals ever done in order this episode
     stray_contact: np.ndarray
     current_skill: np.ndarray
+    # [N] subgoals this episode started with already done (subgoal resets; 0 otherwise), so
+    # high_water - preset is what the episode earned; before any automatic reset.
+    preset: np.ndarray
 
 
 def _yaw_matrices(yaw: np.ndarray) -> np.ndarray:
@@ -1253,6 +1256,7 @@ class ManipulationSim(ArmSim):
             high_water=self.high_water.copy(),
             stray_contact=stray,
             current_skill=self.sub_kind[self.rows, index].copy(),
+            preset=self.preset.copy(),
         )
         finished = success | truncated
         if auto_reset and finished.any():

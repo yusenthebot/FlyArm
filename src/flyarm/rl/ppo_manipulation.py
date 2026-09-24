@@ -174,11 +174,13 @@ class ManipulationTask:
         return scored
 
     def extra(self, result: Any, done: np.ndarray) -> int:
-        return int(result.high_water[done].sum())
+        """Subgoals the finished episodes completed themselves (preset ones excluded)."""
+        return int((result.high_water - result.preset)[done].sum())
 
     def batch_peak(self, result: Any, done: np.ndarray) -> float:
-        """Most subgoals any single finished episode completed in order."""
-        return float(result.high_water[done].max()) if done.any() else 0.0
+        """Most subgoals any single finished episode completed in order itself."""
+        earned = result.high_water - result.preset
+        return float(earned[done].max()) if done.any() else 0.0
 
     def describe(self, name: str, scored: dict[str, Any], episodes: int) -> str:
         return (

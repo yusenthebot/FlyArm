@@ -269,8 +269,8 @@ def test_the_ppo_adapter_scores_splits_and_validation_and_reads_episode_horizons
     assert env.reward_config.smoothness == 0.5 and env.reward_config.gamma == 0.995
     assert env.observation(privileged=True).shape == (2, task.privileged_dim)
     np.testing.assert_array_equal(_horizons(env, config), env.horizons)
-    result = SimpleNamespace(high_water=np.array([2, 5]))
-    assert task.extra(result, np.array([True, True])) == 7
+    result = SimpleNamespace(high_water=np.array([2, 5]), preset=np.array([0, 3]))
+    assert task.extra(result, np.array([True, True])) == 4  # 2 + (5 - 3): presets excluded
     assert task.batch_peak(result, np.array([True, False])) == 2.0
     assert task.batch_peak(result, np.array([False, False])) == 0.0
 

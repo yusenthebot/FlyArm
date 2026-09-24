@@ -134,7 +134,11 @@ def test_the_bank_and_the_curriculum_environment() -> None:
     weights = cu.skill_weights(bank)
     per_skill = {k: weights[bank.skill == k].sum() for k in np.unique(bank.skill)}
     assert np.allclose(list(per_skill.values()), 1 / len(per_skill))
-    stages = [cu.Stage("single", 1, 1, 1, 0.25), cu.Stage("full", 1, 8, 8, 1.0)]
+    stages = [
+        cu.Stage("single", 1, 1, 1, 0.25),
+        cu.Stage("full", 1, 8, 8, 1.0),
+        cu.Stage("two_or_three", 1, 2, 3, 0.1),
+    ]
     training = cu.CurriculumManipulation(
         Path(MODEL), 16, asset_root=OBJECTS, bank=bank, stages=stages
     )
@@ -146,6 +150,16 @@ def test_the_bank_and_the_curriculum_environment() -> None:
     training.set_stage(1)
     training.reset()
     assert np.all(training.preset == 0) and np.all(training.goal_count == training.sub_count)
+    training.set_stage(2)
+    training.reset()
+    reset_rows = training.horizons < training.sub_count * tk.HORIZON_PER_SUBGOAL
+    budget = training.goal_count - training.preset
+    remaining = training.sub_count - training.preset
+    assert reset_rows.any()
+    assert np.all(
+        (budget[reset_rows] >= np.minimum(2, remaining[reset_rows])) & (budget[reset_rows] <= 3)
+    )
+    assert np.all(training.horizons[reset_rows] == tk.HORIZON_PER_SUBGOAL * budget[reset_rows])
     plans = cu.skill_plans(bank, 2)
     assert {p.label for p in plans} == {f"skill:{name}" for name in tk.SKILLS[1:]}
     logs = rollout.run_episodes(
