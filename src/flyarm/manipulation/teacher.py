@@ -81,6 +81,8 @@ LID_STEP_BACK = 0.1  # m toward the robot after letting go of an opened lid
 LID_SLIDE = 0.08  # m along the lid bar to slide the fingers off it
 LID_BAR_GRIP = -0.3  # grip command that opens the pads about 1.4 cm each side of the bar
 FINISHED_PATIENCE = 30  # steps a finished motion waits for the scene to count its subgoal
+ARRIVING = 0.15  # m from the place target inside which the hand turns before moving on
+TURN_BEFORE_ARRIVING = 0.3  # rad of heading error that still counts as turning
 PHASE_PATIENCE = 250  # steps any phase may last before the subgoal starts over
 
 
@@ -557,6 +559,11 @@ class ManipulationTeacher:
             return self._command(row, ee, desired, -1.0, None)
         if phase == CARRY:
             offset = target[:2] - centre[:2]
+            # Near the target, finish turning before closing in: a hand still turning sweeps
+            # its 20 cm width through whatever stands beside the target (an opened lid).
+            turning = self._yaw_error(row, place_yaw) > TURN_BEFORE_ARRIVING
+            if turning and np.linalg.norm(offset) < ARRIVING:
+                offset = np.zeros(2)
             desired = np.array([ee[0] + offset[0], ee[1] + offset[1], carry_z])
             if np.linalg.norm(offset) < 0.008 and self._yaw_error(row, place_yaw) < 0.05:
                 self.phase[row] = LOWER

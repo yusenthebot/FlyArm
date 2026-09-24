@@ -54,6 +54,7 @@ MAX_OBJECTS = 4
 MIN_OBJECTS = 2  # a scene always has a second object, a distractor if the task needs one
 MAX_SUBGOALS = 8
 STACKABLE_FAMILIES = ("box", "can", "bowl")
+STACK_ASPECT = 1.5  # a stacked object's height over its narrow width, at most
 
 # Success thresholds (see the module docstring).
 DRAWER_OPEN_FRACTION = 0.75
@@ -315,14 +316,17 @@ def _footprint(item: GraspObject) -> float:
 
 
 def stable_on(top: GraspObject, base: GraspObject) -> bool:
-    """A stack the scripted teacher can build: the top no bigger, longer or heavier than allows.
+    """A stack the scripted teacher can build: the top no bigger, longer or heavier than allows,
+    and not tall for its width.
 
-    Measured: a 101 g, 7.9 cm box set on two 30 g bowls toppled the tower.
+    Measured: a 101 g, 7.9 cm box set on two 30 g bowls toppled the tower, and a 57 g box 7.9 cm
+    tall on a 4.3 cm side tipped off a 3 cm bowl as the fingers let go.
     """
     return (
         _footprint(top) <= 1.2 * _footprint(base)
         and top.size[0] <= base.size[0] + 0.015
         and top.mass <= 1.5 * base.mass + 0.02
+        and top.size[2] <= STACK_ASPECT * top.size[1]
     )
 
 
@@ -390,6 +394,10 @@ def _circle_clear(
 TABLE_RADIUS = (0.36, 0.60)  # nearer than 0.36 m the folded arm cannot turn the hand
 TABLE_AZIMUTH = math.radians(48.0)
 OBJECT_MARGIN = 0.035
+# The open hand reaches about 10 cm either side of the jaws' centre: an object nearer than that
+# to a cabinet, the bin or the region (where towers stand) can be ungraspable at the heading its
+# shape needs, or the hand knocks what stands there on the way down.
+HAND_CLEARANCE = 0.1
 
 
 def _table_poses(
@@ -406,7 +414,8 @@ def _table_poses(
             distance = generator.uniform(*TABLE_RADIUS)
             azimuth = generator.uniform(-TABLE_AZIMUTH, TABLE_AZIMUTH)
             point = distance * np.array([math.cos(azimuth), math.sin(azimuth)])
-            if not all(_circle_clear(point, radius + OBJECT_MARGIN, box) for box in obstacles):
+            clearance = max(radius + OBJECT_MARGIN, HAND_CLEARANCE)
+            if not all(_circle_clear(point, clearance, box) for box in obstacles):
                 continue
             if any(
                 np.linalg.norm(point - other) < radius + r + OBJECT_MARGIN for other, r in placed
