@@ -42,8 +42,13 @@ class Budget:
     input_learning_rate: float | None = None
 
 
-def _optimizer(policy: SequencePolicy, budget: Budget) -> optim.Optimizer:
-    if budget.input_learning_rate is None:
+def _optimizer(policy: SequencePolicy, budget: Budget, warmup: bool = False) -> optim.Optimizer:
+    """Adam, with the input modules at their own rate when the budget sets one.
+
+    During the decoder-only warmup the input modules are frozen and have no gradients, so one
+    Adam serves (a MultiOptimizer cannot initialize a group whose gradient tree is empty).
+    """
+    if budget.input_learning_rate is None or warmup:
         return optim.Adam(learning_rate=budget.learning_rate)
     inputs = [id(module) for module in policy.input_modules()]
     prefixes = tuple(
@@ -202,7 +207,7 @@ def train_sequence_policy(
         _set_input_frozen(policy, warmup)
         if optimizer is None or epoch == budget.decoder_warmup_epochs:
             # MLX optimizers cannot absorb parameters unfrozen after initialization.
-            optimizer = _optimizer(policy, budget)
+            optimizer = _optimizer(policy, budget, warmup)
         losses: list[float] = []
         order = generator.permutation(episodes)
         for rows in _batches(order, lengths, budget.batch_size, generator, length_buckets):
