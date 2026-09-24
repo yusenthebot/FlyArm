@@ -51,6 +51,7 @@ RECEPTACLES = ("drawer_0", "drawer_1", "shelf", "bin", "region")
 DRAWER_0, DRAWER_1, SHELF, BIN, REGION = range(len(RECEPTACLES))
 NO_RECEPTACLE = -1
 MAX_OBJECTS = 4
+MIN_OBJECTS = 2  # a scene always has a second object, a distractor if the task needs one
 MAX_SUBGOALS = 8
 STACKABLE_FAMILIES = ("box", "can", "bowl")
 
@@ -481,7 +482,7 @@ def bind(
                 f"{objects[chosen[top]].name} would not stand on {objects[chosen[base]].name}"
             )
     extra = int(generator.integers(template.distractors[0], template.distractors[1] + 1))
-    extra = min(extra, MAX_OBJECTS - len(roles))
+    extra = min(max(extra, MIN_OBJECTS - len(roles)), MAX_OBJECTS - len(roles))
     for _ in range(extra):
         free = [i for i in order if i not in chosen.values()]
         chosen[f"x{_}"] = int(free[0])

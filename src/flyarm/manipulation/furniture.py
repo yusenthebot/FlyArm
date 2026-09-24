@@ -17,7 +17,7 @@ episode through per-simulation model fields (``geom_size``, ``geom_pos``, ``body
 ``geom_rgba``). MuJoCo's bounding volumes are compile-time, so the model is compiled at the
 largest configuration of every range and mid-phase collision is disabled: the compile-time
 body bounds then contain every smaller configuration and the broad phase stays exact.
-``tests/test_manipulation_scene.py`` checks that containment over random configurations.
+``tests/test_manipulation_env.py`` checks that containment over random configurations.
 """
 
 from __future__ import annotations
@@ -58,7 +58,7 @@ BAR_RADIUS = 0.008
 BAR_LENGTH = 0.04  # between the posts
 LID_BAR_LENGTH = 0.07
 STEM_RADIUS = 0.006
-KNOB_RADIUS = 0.015
+KNOB_RADIUS = 0.019  # large enough that the gripper, whose force grows with its opening, holds it
 DRAWER_MASS = 0.25
 LID_MASS = 0.12
 HANDLE_TYPES = ("bar", "knob")
@@ -575,6 +575,9 @@ class FurnitureRanges:
     bin_size: Range
 
 
+# Held-out ranges sit beside the training ones, on whichever side keeps the task reachable: an
+# opened lid's grip rises to about shelf + interior + depth + 6 cm, and the arm cannot hold a
+# vertical hand much above 0.47 m at 0.6 m out, so held-out cabinets are shallower and nearer.
 TRAIN_RANGES = FurnitureRanges(
     drawer_width=Range(0.13, 0.16),
     drawer_depth=Range(0.18, 0.22),
@@ -582,9 +585,9 @@ TRAIN_RANGES = FurnitureRanges(
     drawer_handles=(0, 1),
     drawer_handle_height=Range(0.35, 0.6),
     cabinet_width=Range(0.26, 0.30),
-    cabinet_depth=Range(0.18, 0.21),
-    shelf_height=Range(0.03, 0.06),
-    interior_height=Range(0.11, 0.13),
+    cabinet_depth=Range(0.17, 0.20),
+    shelf_height=Range(0.025, 0.045),
+    interior_height=Range(0.105, 0.12),
     lid_handles=(0,),
     side_azimuth=Range(50.0, 62.0),
     drawer_front_radius=Range(0.55, 0.60),
@@ -599,13 +602,13 @@ HELD_OUT_RANGES = FurnitureRanges(
     drawer_handles=(0, 1),
     drawer_handle_height=Range(0.6, 0.7),
     cabinet_width=Range(0.30, 0.32),
-    cabinet_depth=Range(0.21, 0.23),
-    shelf_height=Range(0.06, 0.08),
-    interior_height=Range(0.13, 0.14),
+    cabinet_depth=Range(0.16, 0.17),
+    shelf_height=Range(0.015, 0.025),
+    interior_height=Range(0.12, 0.13),
     lid_handles=(1,),
     side_azimuth=Range(62.0, 68.0),
     drawer_front_radius=Range(0.60, 0.63),
-    cabinet_front_radius=Range(0.44, 0.46),
+    cabinet_front_radius=Range(0.37, 0.40),
     facing_jitter=Range(10.0, 16.0),
     bin_size=Range(0.20, 0.22),
 )
