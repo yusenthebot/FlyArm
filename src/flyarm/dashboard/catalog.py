@@ -18,6 +18,8 @@ RUN_MARKERS = ("results.json", "config.json", "curves.json")
 MEDIA_SUFFIXES = {".mp4", ".png", ".jpg", ".gif"}
 STALLED_AFTER_SECONDS = 45 * 60
 MAX_LOG_LINES = 80
+PPO_METRICS = ("mean_reward", "success_rate", "lift_rate", "tasks_per_episode")
+EVAL_METRICS = ("successes", "lifts", "success_rate", "mean_tasks", "strict_score")
 
 
 @dataclass(frozen=True)
@@ -250,21 +252,25 @@ def curves(run: Path) -> list[dict[str, Any]]:
                     "y": scores,
                 }
             )
+    # Tasks log different metrics (pick-place has lifts, kitchen and manipulation count tasks), so
+    # each curve is drawn only when the run logged it.
     ppo = _load(run / "curves.json")
     if isinstance(ppo, list) and ppo:
         x = [p["env_steps"] for p in ppo]
-        for metric in ("mean_reward", "success_rate", "lift_rate"):
-            series.append(
-                {"group": "ppo rollouts", "metric": metric, "x": x, "y": [p[metric] for p in ppo]}
-            )
+        for metric in PPO_METRICS:
+            values = [p.get(metric) for p in ppo]
+            if any(v is not None for v in values):
+                series.append({"group": "ppo rollouts", "metric": metric, "x": x, "y": values})
     evaluations = _load(run / "evaluations.json")
     if isinstance(evaluations, list) and evaluations:
         x = [e["env_steps"] for e in evaluations]
         variants = evaluations[0].get("variants", {"nominal": evaluations[0]})
         for name in variants:
-            for metric in ("successes", "lifts"):
-                values = [e.get("variants", {"nominal": e})[name].get(metric) for e in evaluations]
-                series.append({"group": f"eval {name}", "metric": metric, "x": x, "y": values})
+            cells = [e.get("variants", {"nominal": e}).get(name, {}) for e in evaluations]
+            for metric in EVAL_METRICS:
+                values = [cell.get(metric) for cell in cells]
+                if any(v is not None for v in values):
+                    series.append({"group": f"eval {name}", "metric": metric, "x": x, "y": values})
     return series
 
 

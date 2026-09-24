@@ -93,6 +93,31 @@ def test_api_serves_list_detail_and_media(runs: Root, monkeypatch: pytest.Monkey
     assert "FlyArm runs" in client.get("/").text
 
 
+def test_detail_plots_only_the_metrics_a_ppo_run_logged(tmp_path: Path) -> None:
+    """Kitchen and manipulation PPO log no lift rate; their detail page returned 500 (KeyError)."""
+    from flyarm.dashboard.catalog import detail
+
+    root = tmp_path / "runs"
+    run = root / "ppo-kitchen"
+    _write(run / "config.json", {"task": "kitchen"})
+    _write(
+        run / "curves.json",
+        [
+            {"env_steps": 8192, "mean_reward": -3.9, "success_rate": 0.0, "tasks_per_episode": 0.0},
+            {"env_steps": 16384, "mean_reward": 1.2, "success_rate": 0.5, "tasks_per_episode": 2.5},
+        ],
+    )
+    _write(
+        run / "evaluations.json",
+        [{"env_steps": 16384, "variants": {"nominal": {"success_rate": 0.4, "mean_tasks": 3.1}}}],
+    )
+    series = detail(Root("main", root.resolve()), run)["curves"]
+    metrics = {(s["group"], s["metric"]) for s in series}
+    assert ("ppo rollouts", "tasks_per_episode") in metrics
+    assert ("eval nominal", "mean_tasks") in metrics
+    assert not {m for _, m in metrics} & {"lift_rate", "lifts", "successes"}
+
+
 def test_gallery_skips_archives_hides_smoke_and_titles_files(tmp_path: Path) -> None:
     from flyarm.dashboard.catalog import gallery, readable
 
