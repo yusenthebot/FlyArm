@@ -22,7 +22,7 @@ import mlx.nn as nn
 import mlx.optimizers as optim
 import numpy as np
 
-from flyarm.whole_brain.policy import ACTPolicy, SequencePolicy
+from flyarm.whole_brain.policy import ACTPolicy, BrainPolicy, SequencePolicy
 
 
 @dataclass(frozen=True)
@@ -40,6 +40,14 @@ class Budget:
     # current into the ascending neurons grew from RMS 0.48 to 2.2 (tanh saturation) in one
     # epoch at 1e-3; a tenth of it kept 0.5 and fit better (docs/MANIPULATION_ENV.md).
     input_learning_rate: float | None = None
+    # Window sampling: each update fits ``window_batch`` windows of ``bptt_steps`` steps drawn
+    # uniformly from all demonstrated steps of all episodes, each entered after ``burn_in``
+    # steps of the episode run without gradient from the zero state (from the episode's start
+    # when it has fewer). None keeps the episode sweep of every run before the manipulation
+    # benchmark: batches of whole episodes walked window by window, whose consecutive updates
+    # are strongly correlated (docs/MANIPULATION_ENV.md, "Imitation failure analysis").
+    window_batch: int | None = None
+    burn_in: int = 0
 
 
 def _optimizer(policy: SequencePolicy, budget: Budget, warmup: bool = False) -> optim.Optimizer:
@@ -156,6 +164,63 @@ def _batches(
     return [batches[index] for index in generator.permutation(len(batches))]
 
 
+def _keep_state(policy: SequencePolicy, state: mx.array, started: np.ndarray) -> mx.array:
+    """Zero the state of windows whose episode has not started yet (left padding)."""
+    keep = mx.array(started.astype(np.float32))
+    if isinstance(policy, BrainPolicy):
+        return state * keep[None, :]  # [neurons, batch]
+    return state * keep[:, None]
+
+
+def _window_epoch(
+    policy: SequencePolicy,
+    observations: np.ndarray,
+    targets: np.ndarray,
+    weights: np.ndarray,
+    budget: Budget,
+    generator: np.random.Generator,
+    gradient_fn: Callable[..., Any],
+    optimizer: optim.Optimizer,
+) -> list[float]:
+    """One epoch of window sampling: as many updates as cover every demonstrated step once."""
+    assert budget.window_batch is not None
+    starts = np.argwhere(weights.reshape(weights.shape[0], weights.shape[1], -1).sum(-1) > 0)
+    horizon = observations.shape[1]
+    width, burn = budget.bptt_steps, budget.burn_in
+    updates = max(1, int(np.ceil(len(starts) / (budget.window_batch * width))))
+    offsets = np.arange(-burn, width)
+    losses: list[float] = []
+    for _ in range(updates):
+        picked = starts[generator.integers(0, len(starts), budget.window_batch)]
+        episode, start = picked[:, 0], picked[:, 1]
+        steps = start[:, None] + offsets[None, :]  # [W, burn + width]
+        inside = (steps >= 0) & (steps < horizon)
+        clipped = np.clip(steps, 0, horizon - 1)
+        obs = observations[episode[:, None], clipped] * inside[..., None]
+        state = policy.initial_state(len(picked))
+        for t in range(burn):
+            _, state = policy.step(mx.array(obs[:, t]), state)
+            state = _keep_state(policy, state, steps[:, t] >= 0)
+        state = mx.stop_gradient(state)
+        mx.eval(state)
+        window = slice(burn, burn + width)
+        window_weights = weights[episode[:, None], clipped[:, window]] * inside[:, window, None]
+        if float(window_weights.sum()) == 0.0:
+            continue
+        (loss, _), gradients = gradient_fn(
+            policy,
+            mx.array(obs[:, window]),
+            mx.array(targets[episode[:, None], clipped[:, window]]),
+            mx.array(window_weights),
+            state,
+        )
+        gradients, _ = optim.clip_grad_norm(gradients, 1.0)
+        optimizer.update(policy, gradients)
+        mx.eval(policy.parameters(), optimizer.state, loss)
+        losses.append(float(loss))
+    return losses
+
+
 def train_sequence_policy(
     policy: SequencePolicy,
     train_data: dict[str, np.ndarray],
@@ -208,31 +273,36 @@ def train_sequence_policy(
         if optimizer is None or epoch == budget.decoder_warmup_epochs:
             # MLX optimizers cannot absorb parameters unfrozen after initialization.
             optimizer = _optimizer(policy, budget, warmup)
-        losses: list[float] = []
-        order = generator.permutation(episodes)
-        for rows in _batches(order, lengths, budget.batch_size, generator, length_buckets):
-            horizon = int(lengths[rows].max())
-            batch_obs = mx.array(observations[rows, :horizon])
-            batch_targets = mx.array(targets[rows, :horizon])
-            batch_weights = mx.array(weights[rows, :horizon])
-            state = policy.initial_state(len(rows))
-            for time_start in range(0, horizon, budget.bptt_steps):
-                time_stop = min(time_start + budget.bptt_steps, horizon)
-                chunk_weights = batch_weights[:, time_start:time_stop]
-                if float(chunk_weights.sum()) == 0.0:
-                    break
-                (loss, state), gradients = gradient_fn(
-                    policy,
-                    batch_obs[:, time_start:time_stop],
-                    batch_targets[:, time_start:time_stop],
-                    chunk_weights,
-                    state,
-                )
-                gradients, _ = optim.clip_grad_norm(gradients, 1.0)
-                optimizer.update(policy, gradients)
-                state = mx.stop_gradient(state)
-                mx.eval(policy.parameters(), optimizer.state, state, loss)
-                losses.append(float(loss))
+        if budget.window_batch is not None:
+            losses = _window_epoch(
+                policy, observations, targets, weights, budget, generator, gradient_fn, optimizer
+            )
+        else:
+            losses = []
+            order = generator.permutation(episodes)
+            for rows in _batches(order, lengths, budget.batch_size, generator, length_buckets):
+                horizon = int(lengths[rows].max())
+                batch_obs = mx.array(observations[rows, :horizon])
+                batch_targets = mx.array(targets[rows, :horizon])
+                batch_weights = mx.array(weights[rows, :horizon])
+                state = policy.initial_state(len(rows))
+                for time_start in range(0, horizon, budget.bptt_steps):
+                    time_stop = min(time_start + budget.bptt_steps, horizon)
+                    chunk_weights = batch_weights[:, time_start:time_stop]
+                    if float(chunk_weights.sum()) == 0.0:
+                        break
+                    (loss, state), gradients = gradient_fn(
+                        policy,
+                        batch_obs[:, time_start:time_stop],
+                        batch_targets[:, time_start:time_stop],
+                        chunk_weights,
+                        state,
+                    )
+                    gradients, _ = optim.clip_grad_norm(gradients, 1.0)
+                    optimizer.update(policy, gradients)
+                    state = mx.stop_gradient(state)
+                    mx.eval(policy.parameters(), optimizer.state, state, loss)
+                    losses.append(float(loss))
         validation_loss = sequence_loss(
             policy, validation_data, validation_weights, loss=budget.loss
         )

@@ -47,6 +47,7 @@ class BatchedManipulation(ManipulationSim):
         num_threads: int = 0,
         reward: RewardConfig | None = None,
         cue: bool = True,
+        velocities: bool = True,
         templates: tuple[str, ...] | None = None,
     ) -> None:
         if num_envs < 1:
@@ -64,6 +65,7 @@ class BatchedManipulation(ManipulationSim):
             first_seed=chosen.seed_start if first_seed is None else first_seed,
             reward=reward,
             cue=cue,
+            velocities=velocities,
         )
 
 
@@ -84,6 +86,7 @@ class PandaManipulationEnv(gym.Env[np.ndarray, np.ndarray]):
         asset_root: Path = DEFAULT_ASSET_ROOT,
         reward: RewardConfig | None = None,
         cue: bool = True,
+        velocities: bool = True,
         render_size: tuple[int, int] = (480, 640),
         templates: tuple[str, ...] | None = None,
     ) -> None:
@@ -101,6 +104,7 @@ class PandaManipulationEnv(gym.Env[np.ndarray, np.ndarray]):
             ranges=chosen.ranges,
             reward=reward,
             cue=cue,
+            velocities=velocities,
         )
         self.render_size = render_size
         self.action_space = gym.spaces.Box(-1.0, 1.0, (ACTION_DIM,), np.float32)

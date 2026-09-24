@@ -62,7 +62,11 @@ LOST_STEPS = 4
 SAFE_MARGIN = 0.05  # carried objects clear every furniture top and object by this much
 DESCENT = 0.6
 DRAWER_STEP = 0.02  # m of drawer travel commanded ahead of the handle per step
-LID_STEP = 0.08  # rad
+# rad of lid angle commanded ahead of the handle per step. Opening lifts the lid's weight, which
+# a stiff position servo only pushes through with a lead of about 0.16 rad (the teacher's removed
+# integral used to add the rest); closing past vertical with that lead pulls the pinch off the bar.
+LID_OPEN_STEP = 0.16
+LID_CLOSE_STEP = 0.08
 # Aim past the joint's stop, so the servos' steady-state lag does not leave the drawer or the
 # lid a few millimetres short; the stop itself ends the motion.
 OVERSHOOT = 0.015  # m
@@ -75,7 +79,6 @@ LID_DONE_CLOSED = 0.008
 SLIP = 0.035
 PARTIAL_OPEN = 0.7
 TRANSIT_CLEARANCE = 0.09  # EE site above the tallest furniture top when travelling empty
-INTEGRAL_GAIN = 0.4
 CENTRING_STEP = 0.002
 LID_STEP_BACK = 0.1  # m toward the robot after letting go of an opened lid
 LID_SLIDE = 0.08  # m along the lid bar to slide the fingers off it
@@ -83,8 +86,7 @@ LID_BAR_GRIP = -0.3  # grip command that opens the pads about 1.4 cm each side o
 FINISHED_PATIENCE = 30  # steps a finished motion waits for the scene to count its subgoal
 ARRIVING = 0.15  # m from the place target inside which the hand turns before moving on
 TURN_BEFORE_ARRIVING = 0.3  # rad of heading error that still counts as turning
-ROUND_RATIO = 1.15  # long over narrow side under which an object grasps alike from any heading
-DRAWER_JAW_SLACK = 0.5  # rad
+TRAVEL_SINK = 0.002  # m per control step
 PHASE_PATIENCE = 250  # steps any phase may last before the subgoal starts over
 
 
@@ -106,7 +108,6 @@ class ManipulationTeacher:
         self.anchor = np.zeros((n, 2))
         self.previous_z = np.zeros(n)
         self.grip_offset = np.zeros((n, 3))
-        self.integral = np.zeros((n, 2))
         self.centring = np.zeros((n, 2))
         self.seen = np.zeros((n, 2), dtype=bool)
         self.phase_steps = np.zeros(n, dtype=np.int64)
@@ -141,6 +142,9 @@ class ManipulationTeacher:
             "handles": sim.handle_sites(),
             "grasp_points": sim.grasp_points(),
             "object_yaw": np.arctan2(rotation[..., 1, 1], rotation[..., 0, 1]),
+            "pick_headings": (pick := sim.pick_headings(state)),
+            "place_headings": sim.place_headings(pick),
+            "articulation_headings": sim.articulation_headings(),
             "object_pos": sim.object_pos(),
             "targets": sim.place_targets(),
             "receptacle_rot": sim.receptacle_frames()[1],
@@ -253,21 +257,14 @@ class ManipulationTeacher:
         yaw: float | None,
         descent: float = 1.0,
         speed: float = 1.0,
-        precise: bool = False,
     ) -> np.ndarray:
-        """P control toward ``desired``; ``precise`` adds an integral term on the xy error.
+        """P control toward ``desired``, a function of the scene only.
 
-        The position servos leave a few millimetres of steady-state error under small commands,
-        and the two coupled fingers stall on a handle the jaws are not centred on (one pad
-        touches, the other cannot close), so fine alignment integrates the residual.
+        An integral term on the xy error used to make up for the hand sagging under its own
+        weight between steps; with the arm gravity-compensated it is not needed, and it was
+        hidden state that no policy imitating the teacher could see (docs/MANIPULATION_ENV.md,
+        "Imitation failure analysis").
         """
-        if precise:
-            error = desired[:2] - ee[:2]
-            self.integral[row] = np.clip(self.integral[row] + INTEGRAL_GAIN * error, -0.012, 0.012)
-            desired = desired.copy()
-            desired[:2] += self.integral[row]
-        else:
-            self.integral[row] = 0.0
         xyz = np.clip((desired - ee) / arm_task.STEP_METERS, -speed, speed)
         xyz[2] = max(xyz[2], -descent)
         turn = 0.0 if yaw is None else self._turn(row, yaw)
@@ -345,8 +342,11 @@ class ManipulationTeacher:
             transit = max(hover[2], self._transit_z(row, scene))
             if ee[2] < transit - 0.02:
                 return self._command(row, ee, np.array([ee[0], ee[1], transit]), grip, yaw), False
-            # Never descend while still travelling: an opened lid stands up to 0.45 m high.
-            height = max(transit, ee[2])
+            # Sink only slowly while still travelling (an opened lid stands up to 0.45 m high):
+            # TRAVEL_SINK per step toward the transit height, the rate at which the hand used to
+            # sag under its own weight before the arm was gravity-compensated, so the episodes
+            # keep the time budget they were measured with.
+            height = max(transit, ee[2] - TRAVEL_SINK)
             return self._command(row, ee, np.array([hover[0], hover[1], height]), grip, yaw), False
         opened = (grip + 1.0) / 2.0  # the opening this grip command settles at
         aligned = (
@@ -355,7 +355,7 @@ class ManipulationTeacher:
             and self._yaw_error(row, yaw) < ALIGN_YAW
             and abs(scene["opening"][row] - opened) < 0.1
         )
-        return self._command(row, ee, hover, grip, yaw, precise=True), aligned
+        return self._command(row, ee, hover, grip, yaw), aligned
 
     def _clear(self, row: int, scene: dict[str, np.ndarray]) -> np.ndarray:
         """Open the hand and rise before starting the next subgoal."""
@@ -400,7 +400,7 @@ class ManipulationTeacher:
         # Jaws close along the drawer's front and along the lid's hinge (a knob turns freely
         # between them there), or front to back across the lid's swivelling bar.
         across = lid and sim.lid_knob[row] < 0.5
-        yaw = _angle(frame[:, 0] if across else frame[:, 1])
+        yaw = float(scene["articulation_headings"][row, articulation])
         joint = float(scene["joints"][row, articulation])
         phase = int(self.phase[row])
         xy_error = float(np.linalg.norm(ee[:2] - site[:2]))
@@ -419,7 +419,7 @@ class ManipulationTeacher:
             elif abs(ee[2] - site[2]) < AT_HEIGHT and xy_error < 0.002:
                 self.phase[row] = CLOSE
                 self.counter[row] = 0
-            return self._command(row, ee, site, grip, yaw, descent=DESCENT, precise=True)
+            return self._command(row, ee, site, grip, yaw, descent=DESCENT)
         if phase == CLOSE:
             self.counter[row] += 1
             left = bool(scene["handle_fingers"][0][row, articulation])
@@ -438,7 +438,7 @@ class ManipulationTeacher:
                 self.retry[row] = True
             desired = site.copy()
             desired[:2] += self.centring[row]
-            return self._command(row, ee, desired, -1.0, yaw, precise=True)
+            return self._command(row, ee, desired, -1.0, yaw)
         if phase == MOVE:
             if np.linalg.norm(ee - site - self.grip_offset[row]) > SLIP:
                 self.phase[row] = RELEASE  # lost the handle: let go and try again
@@ -447,7 +447,7 @@ class ManipulationTeacher:
                 return self._command(row, ee, ee, 1.0, None)
             if lid:
                 goal = LID_OPEN_GOAL if opening else -OVERSHOOT_ANGLE
-                step = LID_STEP
+                step = LID_OPEN_STEP if opening else LID_CLOSE_STEP
                 finished = joint >= LID_DONE_OPEN if opening else joint <= LID_DONE_CLOSED
             else:
                 travel = float(sim.travel[row, articulation])
@@ -464,7 +464,7 @@ class ManipulationTeacher:
             # had from the handle when the pinch closed.
             target = joint + float(np.clip(goal - joint, -step, step))
             desired = self._handle_at(row, articulation, target) + self.grip_offset[row]
-            return self._command(row, ee, desired, -1.0, yaw, precise=True)
+            return self._command(row, ee, desired, -1.0, yaw)
         if phase == RELEASE:
             return self._release(row, ee, scene)
         if phase == RETREAT:
@@ -495,17 +495,7 @@ class ManipulationTeacher:
         open fingers stay parallel to the front panel: skewed, a finger lands on the panel and
         pushes the drawer shut.
         """
-        sim = self.sim
-        object_yaw = float(scene["object_yaw"][row, slot])
-        source = int(sim.source[row, slot])
-        if source < 0 or not scene["inside"][row, slot, source]:
-            return object_yaw
-        width = _angle(sim.dc_rot[row][:, 1])
-        long, narrow = sim.object_size()[row, slot, :2]
-        turned = abs(float(arm_task.half_turn_wrap(np.array(object_yaw - width))))
-        if long < ROUND_RATIO * narrow or turned < DRAWER_JAW_SLACK:
-            return width
-        return object_yaw
+        return float(scene["pick_headings"][row, slot])  # rule: ManipulationSim.pick_headings
 
     def _pick_place(
         self, row: int, index: int, kind: int, scene: dict[str, np.ndarray]
@@ -523,14 +513,7 @@ class ManipulationTeacher:
         xy_error = float(np.linalg.norm(ee[:2] - grasp[:2]))
         safe = self._safe_bottom(row, scene, slot)
         carry_z = ee[2] + (safe - bottom)
-        if kind == tk.STACK:
-            base = int(sim.sub_target[row, index])
-            place_yaw = float(scene["object_yaw"][row, base])
-        elif kind == tk.PLACE:
-            receptacle = int(sim.sub_target[row, index])
-            place_yaw = _angle(scene["receptacle_rot"][row, receptacle][:, 1])
-        else:
-            place_yaw = object_yaw
+        place_yaw = float(scene["place_headings"][row, index])
         target = scene["targets"][row, index]
         if phase == APPROACH:
             hover = np.array([grasp[0], grasp[1], max(grasp[2] + 0.06, top + 0.075)])
@@ -548,7 +531,7 @@ class ManipulationTeacher:
                 self.counter[row] = 0
                 self.close_steps[row] = 0
                 self.anchor[row] = grasp[:2]
-            return self._command(row, ee, grasp, 1.0, object_yaw, descent=DESCENT, precise=True)
+            return self._command(row, ee, grasp, 1.0, object_yaw, descent=DESCENT)
         if phase == CLOSE:
             self.close_steps[row] += 1
             self.counter[row] = self.counter[row] + 1 if grasped else 0
@@ -566,7 +549,7 @@ class ManipulationTeacher:
             )
             desired = np.array([self.anchor[row, 0], self.anchor[row, 1], grasp[2]])
             desired[:2] += self.centring[row]
-            return self._command(row, ee, desired, -1.0, None, precise=True)
+            return self._command(row, ee, desired, -1.0, None)
         if phase in (LIFT, CARRY, LOWER) and not grasped:
             self.counter[row] += 1
             if self.counter[row] >= LOST_STEPS:

@@ -9,7 +9,7 @@ E53). What is specific here:
   order, potential-based shaping toward the current subgoal, and the motion-quality penalties;
 - episodes have their own horizons (200 + 300 per subgoal), and the critic's time feature is
   the step over that episode's horizon;
-- the critic reads the 230-feature privileged observation;
+- the critic reads the 233-feature privileged observation;
 - evaluation runs every split of ``eval_splits`` on test episodes and the train split's
   validation episodes, all in lockstep; the checkpoint is selected on validation only, by
   success rate with the mean fraction of subgoals done breaking ties;
@@ -84,10 +84,12 @@ class ManipulationTask:
         asset_root: Path = DEFAULT_ASSET_ROOT,
         *,
         cue: bool = True,
+        velocities: bool = True,
     ) -> None:
         self.settings = settings
         self.model_path, self.asset_root, self.cue = Path(model_path), Path(asset_root), cue
-        self.bench = Workbench(model_path, asset_root, cue)
+        self.velocities = velocities
+        self.bench = Workbench(model_path, asset_root, cue, velocities)
 
     def make_env(self, num_envs: int, first_seed: int) -> BatchedManipulation:
         return BatchedManipulation(
@@ -98,6 +100,7 @@ class ManipulationTask:
             first_seed=first_seed,
             reward=reward_config(self.settings),
             cue=self.cue,
+            velocities=self.velocities,
         )
 
     def plans(self, per_template: int) -> list[rollout.EpisodePlan]:
@@ -213,7 +216,9 @@ def run_manipulation_ppo(
             raise FileNotFoundError(f"init_checkpoint not found: {checkpoint}")
         policy.load(checkpoint)
         print(f"continuing from {checkpoint}", flush=True)
-    task = ManipulationTask(config, model_path, asset_root, cue=imitation.cue)
+    task = ManipulationTask(
+        config, model_path, asset_root, cue=imitation.cue, velocities=imitation.velocities
+    )
     head = MotorHead(policy.decoder, config.log_std, ACTION_DIM)
     eval_seeds = list(range(config.eval_episodes_per_template))
     before = task.score(policy, head, eval_seeds)

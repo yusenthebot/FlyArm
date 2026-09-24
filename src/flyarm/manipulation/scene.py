@@ -39,6 +39,20 @@ _REDUCE_MAXFORCE, _ONE = 2, 1
 # them at touching. Excluding them cut a 128-environment step of an undertrained policy from
 # 264 to 176 ms (docs/MANIPULATION_ENV.md, "Excluded contact pairs").
 EXCLUDED_PAIRS = (("cabinet", "lid"), ("left_finger", "right_finger"))
+# The arm is gravity-compensated, as a real Panda is. Actions are Cartesian steps from the
+# measured joint positions, and without compensation every position servo holds its target short
+# by its gravity load, so a zero action walked the hand down about 1.8 mm per control step (88 mm
+# in 50 steps): the teacher had to fight it with an integral term, hidden state no policy can
+# see (docs/MANIPULATION_ENV.md, "Imitation failure analysis"). With it the drift is 0.1 mm per
+# 50 steps at home and 2 mm at a low, far pose.
+GRAVITY_COMPENSATED = ("link", "hand", "left_finger", "right_finger")
+# Reflected rotor inertia of the seven arm joints (Menagerie: 0.1). Near an upright shoulder
+# joints 1 and 3 are coaxial and their counter-rotation mode has almost no inertia; with the
+# stiff position servos and 87 Nm torque limits it locked into a limit cycle, the two actuators
+# swapping between +87 and -87 Nm every 2 ms step with the hand still, under any action. At 0.3
+# the mode is slow enough for the 2 ms step. Gravity compensation exposed it: the arm now
+# reaches those upright poses instead of sagging away from them.
+ARM_ARMATURE = 0.3
 
 
 def robot_sensor_name(target: str) -> str:
@@ -76,6 +90,11 @@ def build_manipulation_spec(
     add_furniture(spec, compile_config())
     for first, second in EXCLUDED_PAIRS:
         spec.add_exclude(bodyname1=first, bodyname2=second)
+    for body in spec.bodies:
+        if body.name.startswith(GRAVITY_COMPENSATED):
+            body.gravcomp = 1.0
+    for index in range(1, 8):
+        spec.joint(f"joint{index}").armature = ARM_ARMATURE
     _robot_contact(spec, robot_sensor_name("any"), None)
     _robot_contact(spec, robot_sensor_name("self"), ROBOT_ROOT, subtree=True)
     for item in objects:

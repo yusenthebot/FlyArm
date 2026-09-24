@@ -119,14 +119,14 @@ def test_skill_weights_give_every_skill_the_same_total_and_average_one() -> None
 def test_concatenate_pads_shorter_sets_with_masked_steps() -> None:
     def part(episodes: int, steps: int) -> dict[str, np.ndarray]:
         return {
-            "obs": np.ones((episodes, steps, 217), np.float32),
+            "obs": np.ones((episodes, steps, 220), np.float32),
             "actions": np.ones((episodes, steps, 5), np.float32),
             "mask": np.ones((episodes, steps), np.float32),
             "skill": np.ones((episodes, steps), np.int64),
         }
 
     joined = rollout.concatenate([part(2, 3), part(1, 5)])
-    assert joined["obs"].shape == (3, 5, 217) and joined["mask"].sum() == 2 * 3 + 5
+    assert joined["obs"].shape == (3, 5, 220) and joined["mask"].sum() == 2 * 3 + 5
     assert np.all(joined["actions"][:2, 3:] == 0)
 
 
@@ -318,3 +318,101 @@ def test_the_redundant_contact_pairs_are_excluded() -> None:
     # the front edge), far inside the closed threshold.
     assert -0.005 < env.sim.joints()[0, 2] <= 1e-3 < tk.LID_CLOSED
     assert env.sim.gripper_opening()[0] == pytest.approx(0.0, abs=1e-3)  # fingers stop at the limit
+
+
+def test_window_sampling_fits_and_covers_the_start_of_episodes() -> None:
+    """Window sampling trains a recurrent policy; burn-in before an episode's start is padding."""
+    from flyarm.whole_brain.policy import GRUPolicy
+
+    generator = np.random.default_rng(4)
+    data = {
+        "obs": generator.normal(size=(6, 40, 5)).astype(np.float32),
+        "mask": np.ones((6, 40), np.float32),
+    }
+    data["actions"] = np.tanh(data["obs"][..., :2]).astype(np.float32)
+    policy = GRUPolicy(obs_dim=5, action_dim=2, hidden=16, seed=0)
+    budget = Budget(8, 0, 2, 8, 1e-2, float("inf"), window_batch=16, burn_in=8)
+    curves, _ = train_sequence_policy(policy, data, data["mask"], data, data["mask"], budget, 0)
+    assert curves[-1]["train_loss"] < 0.5 * curves[0]["train_loss"]
+    # A window that starts at step 0 has 8 burn-in steps of padding: the state stays zero.
+    from flyarm.whole_brain.training import _keep_state
+
+    state = mx.ones((3, 16))
+    kept = np.array(_keep_state(policy, state, np.array([True, False, True])))
+    assert kept[1].sum() == 0 and kept[0].sum() == 16
+
+
+def test_episode_sweep_is_unchanged_by_the_window_option() -> None:
+    generator = np.random.default_rng(5)
+    data = {
+        "obs": generator.normal(size=(4, 12, 6)).astype(np.float32),
+        "actions": np.tanh(generator.normal(size=(4, 12, 2))).astype(np.float32),
+        "mask": np.ones((4, 12), np.float32),
+    }
+    results = []
+    for budget in (
+        Budget(2, 0, 2, 4, 1e-2, float("inf")),
+        Budget(2, 0, 2, 4, 1e-2, float("inf"), window_batch=None, burn_in=7),
+    ):
+        policy = MLPPolicy(obs_dim=6, action_dim=2, hidden=8, seed=3)
+        train_sequence_policy(policy, data, data["mask"], data, data["mask"], budget, 0)
+        results.append(np.array(policy.layers[2].weight))
+    np.testing.assert_array_equal(results[0], results[1])
+
+
+@needs_env
+def test_the_arm_holds_still_under_a_zero_action() -> None:
+    """Gravity compensation: a zero action no longer walks the hand down (it sank 1.8 mm a step)."""
+    from flyarm.manipulation.env import PandaManipulationEnv
+
+    env = PandaManipulationEnv(Path(MODEL), asset_root=OBJECTS)
+    env.reset(seed=0, options={"template": "put_away"})
+    hold = np.array([0.0, 0.0, 0.0, 0.0, 1.0])
+    for _ in range(5):
+        env.step(hold)
+    start = env.sim.ee()[0].copy()
+    for _ in range(50):
+        env.step(hold)
+    assert np.linalg.norm(env.sim.ee()[0] - start) < 0.002
+
+
+@needs_env
+def test_the_velocity_switch_blinds_the_policy_but_not_the_critic() -> None:
+    from flyarm.manipulation.env import BatchedManipulation
+    from flyarm.manipulation.sim import ROBOT_DIM, SLOT_DIM
+
+    env = BatchedManipulation(Path(MODEL), 1, asset_root=OBJECTS, velocities=False)
+    env.reset(seeds=np.array([2]), templates=["put_away"])
+    for _ in range(10):
+        result = env.step(np.array([[1.0, 0.5, 0.0, 0.5, 1.0]]))
+    joint_velocity = slice(7, 14)
+    assert not result.obs[0, joint_velocity].any()
+    assert not result.obs[0, ROBOT_DIM + 18 : ROBOT_DIM + 21].any()  # slot 0 velocity
+    assert np.abs(env.observation(privileged=True)[0, joint_velocity]).max() > 0.01
+    assert SLOT_DIM == 22
+
+
+@needs_env
+def test_the_cue_names_the_turn_the_teacher_makes() -> None:
+    """The teacher's yaw command is the cue's heading error over the per-step yaw limit."""
+    from flyarm.grasp import task as arm_task
+    from flyarm.manipulation.env import BatchedManipulation
+    from flyarm.manipulation.sim import cue_slices
+    from flyarm.manipulation.teacher import ManipulationTeacher
+
+    episodes = rollout.plan("train", 1, rollout.VALIDATION_OFFSET)
+    env = BatchedManipulation(Path(MODEL), len(episodes), asset_root=OBJECTS)
+    obs = env.reset(seeds=np.array(episodes.seeds), templates=list(episodes.templates))
+    teacher = ManipulationTeacher(env)
+    teacher.reset()
+    cue = cue_slices()
+    checked = 0
+    for _ in range(60):
+        action = teacher.act()
+        turning = np.abs(action[:, 3]) > 0.05
+        grasp = obs[:, cue["grasp_heading_error"].start]
+        expected = np.clip(grasp / arm_task.YAW_STEP, -1, 1)
+        np.testing.assert_allclose(action[turning, 3], expected[turning], atol=1e-4)
+        checked += int(turning.sum())
+        obs = env.step(action.astype(np.float64)).obs
+    assert checked > 50

@@ -32,6 +32,7 @@ from flyarm.config import ManipulationImitationConfig
 from flyarm.manipulation import rollout
 from flyarm.manipulation.env import DEFAULT_ASSET_ROOT, BatchedManipulation
 from flyarm.manipulation.imitation import PolicyActor, Workbench, evaluation_plans
+from flyarm.manipulation.sim import OBS_DIM
 from flyarm.whole_brain.backend_mlx import RateDynamics
 from flyarm.whole_brain.compiler import ConnectomePack
 from flyarm.whole_brain.interface import annotation_interface
@@ -95,7 +96,7 @@ def main() -> None:
     policy = BrainPolicy(
         "connectome",
         RateDynamics(pack, annotation_interface(pack)),
-        obs_dim=217,
+        obs_dim=OBS_DIM,
         action_dim=5,
         neural_steps=config.neural_steps,
     )

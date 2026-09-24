@@ -116,7 +116,12 @@ def _manipulation_frames(
         Path(config.base_run), config.base_kind, config.base_seed, pack_root, checkpoint
     )
     env = PandaManipulationEnv(
-        model_path, split="train", asset_root=asset_root, cue=base.cue, render_size=(304, 400)
+        model_path,
+        split="train",
+        asset_root=asset_root,
+        cue=base.cue,
+        velocities=base.velocities,
+        render_size=(304, 400),
     )
     clips, outcomes = [], []
     try:
