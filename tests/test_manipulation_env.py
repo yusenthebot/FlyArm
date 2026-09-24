@@ -255,3 +255,16 @@ def test_teacher_completes_drawer_tasks() -> None:
         if not active.any():
             break
     assert success.sum() >= 5, success
+
+
+def test_containment_uses_the_hull_not_the_bounding_box_corners(env) -> None:
+    """A round object's box corners overshoot its hull; the hull points span the box faces."""
+    sim = env.sim
+    for index, item in enumerate(sim.objects):
+        points = sim.hull_points_all[index]
+        half = np.array(item.size) / 2
+        assert np.all(np.abs(points.max(0) - half) < 0.002), item.name
+        assert np.all(np.abs(points.min(0) + half) < 0.002), item.name
+    radius = [np.linalg.norm(points[:, :2], axis=1).max() for points in sim.hull_points_all]
+    corners = [np.linalg.norm(item.size[:2]) / 2 for item in sim.objects]
+    assert min(r / c for r, c in zip(radius, corners, strict=True)) < 0.8  # round objects exist

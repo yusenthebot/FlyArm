@@ -21,7 +21,7 @@ import numpy as np
 from flyarm.grasp import task as arm_task
 from flyarm.grasp.arm import ArmSim, Physics
 from flyarm.grasp.objects import GraspObject
-from flyarm.grasp.scene import body_name, contact_sensor_name
+from flyarm.grasp.scene import body_name, contact_sensor_name, geom_name
 from flyarm.manipulation import furniture as fu
 from flyarm.manipulation import tasks as tk
 from flyarm.manipulation.scene import ARTICULATED, finger_sensor_name, robot_sensor_name
@@ -31,6 +31,38 @@ DROP_GAP = 0.001
 OPEN_TOP_HEIGHT = 0.3  # the bin and the region count everything above them up to this
 ARTICULATIONS = ("drawer_0", "drawer_1", "lid")
 _SIGNS = np.array([[sx, sy, sz] for sx in (-1, 1) for sy in (-1, 1) for sz in (-1, 1)], float)
+HULL_DIRECTIONS = 128  # support points per object for the containment test
+
+
+def _sphere_directions(count: int) -> np.ndarray:
+    """``count`` near-uniform unit vectors (a Fibonacci sphere)."""
+    k = np.arange(count) + 0.5
+    z = 1.0 - 2.0 * k / count
+    azimuth = np.pi * (1.0 + 5.0**0.5) * k
+    ring = np.sqrt(1.0 - z**2)
+    return np.stack((ring * np.cos(azimuth), ring * np.sin(azimuth), z), axis=1)
+
+
+def hull_support_points(model: mujoco.MjModel, item: GraspObject) -> np.ndarray:
+    """[HULL_DIRECTIONS, 3] extreme points of the object's collision hull, in its body frame.
+
+    The extreme hull vertex along each of a fixed set of directions. Containment in a box of
+    any orientation needs only the hull's support along the box axes; these points give it to
+    within about 1% of the object's radius (under a millimetre), where the eight corners of
+    the bounding box overshoot a round object's hull by up to 40% of its radius.
+    """
+    geom = model.geom(geom_name(item))
+    mesh = int(geom.dataid[0])
+    graph = int(model.mesh_graphadr[mesh])
+    count = int(model.mesh_graph[graph])
+    hull = model.mesh_graph[graph + 2 + count : graph + 2 + 2 * count]
+    vertices = model.mesh_vert[int(model.mesh_vertadr[mesh]) + hull]
+    rotation = np.empty(9)
+    mujoco.mju_quat2Mat(rotation, geom.quat)
+    points = geom.pos + vertices @ rotation.reshape(3, 3).T
+    extreme = np.argmax(points @ _sphere_directions(HULL_DIRECTIONS).T, axis=0)
+    return points[extreme]
+
 
 # Observation layout ----------------------------------------------------------------------------
 ROBOT_FIELDS = (
@@ -255,6 +287,7 @@ class ManipulationSim(ArmSim):
         self.descriptors_all = np.array([item.descriptor for item in self.objects])
         self.sizes_all = np.array([item.size for item in self.objects])
         self.masses_all = np.array([item.mass for item in self.objects])
+        self.hull_points_all = np.array([hull_support_points(model, item) for item in self.objects])
         self._allocate()
 
     # ------------------------------------------------------------------------------ state
@@ -331,6 +364,13 @@ class ManipulationSim(ArmSim):
         half = self.object_size()[:, :, None, :] / 2 * _SIGNS
         return self.object_pos()[:, :, None, :] + np.einsum(
             "nsij,nskj->nski", self.object_rotation(), half
+        )
+
+    def object_points(self) -> np.ndarray:
+        """[N, S, HULL_DIRECTIONS, 3] world support points of every object's hull."""
+        local = self.hull_points_all[self._slot_index()]
+        return self.object_pos()[:, :, None, :] + np.einsum(
+            "nsij,nskj->nski", self.object_rotation(), local
         )
 
     def finger_contacts(self) -> tuple[np.ndarray, np.ndarray]:
@@ -429,10 +469,10 @@ class ManipulationSim(ArmSim):
         return handles + np.array([0.0, 0.0, arm_task.PAD_BELOW_SITE])
 
     # ------------------------------------------------------------------------------ predicates
-    def inside(self, corners: np.ndarray) -> np.ndarray:
-        """[N, S, R] every corner of the object inside the receptacle's volume."""
+    def inside(self, points: np.ndarray) -> np.ndarray:
+        """[N, S, R] every hull support point of the object inside the receptacle's volume."""
         origins, rotations = self.receptacle_frames()
-        offset = corners[:, :, None] - origins[:, None, :, None, :]
+        offset = points[:, :, None] - origins[:, None, :, None, :]
         local = np.einsum("nrji,nsrkj->nsrki", rotations, offset)
         low = self.box_centre - self.box_half - tk.INSIDE_TOLERANCE
         high = self.box_centre + self.box_half + tk.INSIDE_TOLERANCE
@@ -442,7 +482,7 @@ class ManipulationSim(ArmSim):
     def scene_state(self) -> dict[str, np.ndarray]:
         """Every quantity the predicates, reward and observation share, for this step."""
         corners = self.object_corners()
-        inside = self.inside(corners) & self.present[..., None]
+        inside = self.inside(self.object_points()) & self.present[..., None]
         # At rest: over the last control step the object moved under REST_MOVE relative to the
         # receptacle and turned under REST_TURN. Displacements, not instantaneous velocities: a
         # light object on a drawer floor chatters at a few rad/s with sub-degree amplitude.
@@ -879,9 +919,11 @@ class ManipulationSim(ArmSim):
         tray = config.tray_depth
         floor = fu.TRAY_FLOOR
         top = config.drawer_height - 2 * fu.GAP  # the carcass top, in the drawer's frame
+        # From the tray's back wall to the front panel (the panel is the tray's front wall).
+        depth = tray - fu.TRAY_WALL
         drawer_box = (
-            np.array([-fu.PANEL - tray / 2, 0.0, (floor + top) / 2]),
-            np.array([tray / 2 - fu.TRAY_WALL / 2, inner, (top - floor) / 2]),
+            np.array([-fu.PANEL - depth / 2, 0.0, (floor + top) / 2]),
+            np.array([depth / 2, inner, (top - floor) / 2]),
         )
         cab_half = np.array(
             [config.cabinet_depth / 2 - fu.WALL, config.cabinet_width / 2 - fu.WALL]
