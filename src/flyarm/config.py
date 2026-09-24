@@ -547,7 +547,7 @@ def default_manipulation_eval_splits() -> list[ManipulationSplitName]:
 class ManipulationImitationConfig(BaseModel):
     """Imitation (behavior cloning then DAgger) on the articulated manipulation benchmark.
 
-    The controller is the B1a whole-body interface: the 217-feature observation into the 1,846
+    The controller is the B1a whole-body interface: the 220-feature observation into the 1,846
     ascending neurons, the 1,314 descending and 708 VNC motor neurons read out through a frozen
     unit-norm calibration, 5 actions out, one action per step. Demonstrations, DAgger labels,
     phase selection and evaluation all run in the batched environment
@@ -585,8 +585,17 @@ class ManipulationImitationConfig(BaseModel):
     # total weight (clipped at max_skill_weight times the mean), "uniform" weights every step 1.
     sample_weights: Literal["skill_balanced", "uniform"] = "skill_balanced"
     max_skill_weight: float = Field(default=5.0, ge=1.0, le=100.0)
-    # Batches of similar-length episodes, so a batch does not run far past most of its episodes.
+    # Batches of similar-length episodes, so a batch does not run far past most of its episodes
+    # (episode sweep only).
     length_buckets: bool = True
+    # "windows": every update fits window_batch windows of bptt_steps drawn uniformly from all
+    # demonstrated steps, each entered after burn_in steps run without gradient from the zero
+    # state; "episodes": the sweep of every earlier run, batches of batch_size whole episodes
+    # walked window by window, whose correlated consecutive updates left every controller
+    # underfit here (docs/MANIPULATION_ENV.md, "Imitation failure analysis").
+    sampling: Literal["windows", "episodes"] = "windows"
+    window_batch: int = Field(default=32, ge=1, le=1024)
+    burn_in: int = Field(default=16, ge=0, le=200)
     # Closed-loop scoring on the train split's validation seeds: "closed_loop" also scores every
     # select_every behavior-cloning epochs and keeps the best epoch; phase_selection keeps the
     # best of behavior cloning and each DAgger round (research log E33).
@@ -602,6 +611,11 @@ class ManipulationImitationConfig(BaseModel):
     dagger_beta_decay: float = Field(default=0.5, ge=0, le=1)
     # The memoryless sub-task cue in the observation; False is the no-cue control.
     cue: bool = True
+    # Joint and object velocities in the policy's observation. Off by default: a controller
+    # cloned from states with velocities learns to keep doing what they say, and a well-fit MLP
+    # never left the start pose (the copycat problem, docs/MANIPULATION_ENV.md, "Imitation
+    # failure analysis"); the kitchen protocol excludes them for the same reason.
+    velocities: bool = False
     seeds: list[int] = Field(default_factory=lambda: [0], min_length=1, max_length=10)
     policies: list[ManipulationPolicyKind] = Field(
         default_factory=lambda: ["connectome"], min_length=1

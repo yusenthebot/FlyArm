@@ -84,6 +84,7 @@ def make_env(
     asset_root: Path = DEFAULT_ASSET_ROOT,
     reward: RewardConfig | None = None,
     cue: bool = True,
+    velocities: bool = True,
 ) -> BatchedManipulation:
     return BatchedManipulation(
         model_path,
@@ -92,11 +93,12 @@ def make_env(
         asset_root=asset_root,
         reward=reward,
         cue=cue,
+        velocities=velocities,
     )
 
 
 class Actor(Protocol):
-    """A batched deterministic controller: observations [N, 217] to actions [N, 5]."""
+    """A batched deterministic controller: observations [N, OBS_DIM] to actions [N, 5]."""
 
     def act(self, obs: np.ndarray) -> np.ndarray: ...
 
@@ -116,7 +118,7 @@ class EpisodeLog:
     abs_change: np.ndarray
     disturbance: np.ndarray  # [N] final displacement of what the task does not involve
     teacher_steps: np.ndarray  # [N] steps on which the teacher's action was executed
-    obs: np.ndarray | None = None  # [N, T, 217]
+    obs: np.ndarray | None = None  # [N, T, OBS_DIM]
     labels: np.ndarray | None = None  # [N, T, 5] teacher actions
     mask: np.ndarray | None = None  # [N, T]
     skill: np.ndarray | None = None  # [N, T] skill of the current subgoal

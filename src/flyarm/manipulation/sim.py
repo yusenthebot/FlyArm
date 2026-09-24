@@ -30,6 +30,10 @@ S, R, M = tk.MAX_OBJECTS, len(tk.RECEPTACLES), tk.MAX_SUBGOALS
 DROP_GAP = 0.001
 OPEN_TOP_HEIGHT = 0.3  # the bin and the region count everything above them up to this
 ARTICULATIONS = ("drawer_0", "drawer_1", "lid")
+# Jaw headings (shared with the teacher, which turns by them): a drawer object is picked with the
+# jaws along the drawer's width when that is still across it, so no finger lands on the panel.
+ROUND_RATIO = 1.15  # long over narrow side under which an object grasps alike from any heading
+DRAWER_JAW_SLACK = 0.5  # rad
 _SIGNS = np.array([[sx, sy, sz] for sx in (-1, 1) for sy in (-1, 1) for sz in (-1, 1)], float)
 HULL_DIRECTIONS = 128  # support points per object for the containment test
 
@@ -71,6 +75,9 @@ ROBOT_FIELDS = (
     ("ee_pos", 3),
     ("gripper_yaw", 2),
     ("gripper_opening", 1),
+    # The commanded yaw, relative to the reset heading: dyaw integrates into it and the jaws
+    # follow it with a lag, so without it the policy cannot tell how far it has turned.
+    ("yaw_command", 1),
 )
 SLOT_FIELDS = (
     ("present", 1),
@@ -121,6 +128,11 @@ CUE_FIELDS = (
     ("handle_minus_ee", 3),
     ("joint_fraction", 1),
     ("pull_direction", 3),  # unit direction the handle must move
+    # Turn (rad) from the commanded jaw heading to the heading the subgoal needs, the short way
+    # modulo a half turn unless that would cross the yaw limit: to grasp (the handle or the
+    # object) and to place (the receptacle's axis, or the base object's for a stack).
+    ("grasp_heading_error", 1),
+    ("place_heading_error", 1),
     ("progress", 2),  # subgoals done / total, subgoals left / MAX_SUBGOALS
 )
 PRIVILEGED_FIELDS = (("object_mass", S), ("subgoal_done", M), ("yaw_command", 1))
@@ -207,6 +219,10 @@ def _yaw_matrices(yaw: np.ndarray) -> np.ndarray:
     return arm_task.yaw_matrix(np.asarray(yaw, dtype=np.float64))
 
 
+def _heading(x: np.ndarray, y: np.ndarray) -> np.ndarray:
+    return np.arctan2(y, x)
+
+
 def _lid_rotation(angle: np.ndarray) -> np.ndarray:
     """Rotation of the lid about the cabinet's -y axis by ``angle``, [N, 3, 3]."""
     c, s = np.cos(angle), np.sin(angle)
@@ -232,6 +248,7 @@ class ManipulationSim(ArmSim):
         reward: RewardConfig | None = None,
         cue: bool = True,
         horizon: int | None = None,
+        velocities: bool = True,
     ) -> None:
         longest = max(len(tk.TEMPLATES[name].steps) for name in templates)
         super().__init__(
@@ -246,6 +263,11 @@ class ManipulationSim(ArmSim):
         self.ranges = ranges
         self.reward_config = reward or RewardConfig()
         self.cue_input = cue
+        # False zeroes the joint and object velocities in the policy observation (the critic's
+        # privileged observation keeps them): imitation from states with velocities learns to
+        # keep doing what the velocities say and never leaves a state of rest (the copycat
+        # problem; docs/MANIPULATION_ENV.md, "Imitation failure analysis").
+        self.velocity_input = velocities
         self.furniture_fields = fu.FurnitureFields(model)
         self.model_fields = {name: physics.model_field(name) for name in fu.MODEL_FIELDS}
         bodies = [model.body(body_name(item)) for item in self.objects]
@@ -469,6 +491,61 @@ class ManipulationSim(ArmSim):
         """[N, 3, 3] where the EE site goes to grasp each articulation's handle."""
         handles = np.concatenate((self.drawer_handles(), self.lid_handle()[:, None]), 1)
         return handles + np.array([0.0, 0.0, arm_task.PAD_BELOW_SITE])
+
+    # ------------------------------------------------------------------------------ headings
+    def pick_headings(self, state: dict[str, np.ndarray]) -> np.ndarray:
+        """[N, S] jaw heading to pick each object: across its narrow side (its y axis), or
+        along the drawer's width in a drawer when that is still across it."""
+        rotation = self.object_rotation()
+        object_yaw = _heading(rotation[..., 0, 1], rotation[..., 1, 1])
+        source = np.maximum(self.source, 0)
+        in_source = (self.source >= 0) & state["inside"][
+            self.rows[:, None], np.arange(S)[None, :], source
+        ]
+        width = _heading(self.dc_rot[:, 0, 1], self.dc_rot[:, 1, 1])[:, None]
+        size = self.object_size()
+        turned = np.abs(arm_task.half_turn_wrap(object_yaw - width))
+        use_width = in_source & (
+            (size[..., 0] < ROUND_RATIO * size[..., 1]) | (turned < DRAWER_JAW_SLACK)
+        )
+        return np.where(use_width, width, object_yaw)
+
+    def articulation_headings(self) -> np.ndarray:
+        """[N, 3] jaw heading to grasp each handle: along the drawer front, along the lid's hinge
+        for a knob (it turns freely between the jaws), across the lid's swivelling bar."""
+        drawer = _heading(self.dc_rot[:, 0, 1], self.dc_rot[:, 1, 1])
+        across = self.lid_knob < 0.5
+        lid = np.where(
+            across,
+            _heading(self.cab_rot[:, 0, 0], self.cab_rot[:, 1, 0]),
+            _heading(self.cab_rot[:, 0, 1], self.cab_rot[:, 1, 1]),
+        )
+        return np.stack((drawer, drawer, lid), axis=1)
+
+    def place_headings(self, pick: np.ndarray) -> np.ndarray:
+        """[N, M] jaw heading to put each subgoal's object down: the receptacle's y axis for a
+        placement, the base object's y axis for a stack, the pick heading for a pick."""
+        rows = self.rows[:, None]
+        _, rotations = self.receptacle_frames()
+        receptacle = rotations[rows, np.clip(self.sub_target, 0, R - 1)]
+        place = _heading(receptacle[..., 0, 1], receptacle[..., 1, 1])
+        rotation = self.object_rotation()
+        object_yaw = _heading(rotation[..., 0, 1], rotation[..., 1, 1])
+        stack = object_yaw[rows, np.clip(self.sub_target, 0, S - 1)]
+        headings = np.full(self.sub_kind.shape, np.nan)
+        headings = np.where(self.sub_kind == tk.PLACE, place, headings)
+        headings = np.where(self.sub_kind == tk.STACK, stack, headings)
+        return np.where(self.sub_kind == tk.PICK, pick[rows, self.sub_obj], headings)
+
+    def turn_to(self, heading: np.ndarray) -> np.ndarray:
+        """[N] turn (rad) of the commanded jaw heading onto ``heading``, modulo a half turn,
+        the other way round when the short way would pass the yaw limit (0 where NaN)."""
+        commanded = self.commanded_closing_yaw()
+        delta = arm_task.half_turn_wrap(np.nan_to_num(heading) - commanded)
+        goal = self.yaw_command + delta
+        delta = np.where(goal > arm_task.YAW_LIMIT, delta - np.pi, delta)
+        delta = np.where(goal < -arm_task.YAW_LIMIT, delta + np.pi, delta)
+        return np.where(np.isnan(heading), 0.0, delta)
 
     # ------------------------------------------------------------------------------ predicates
     def inside(self, points: np.ndarray) -> np.ndarray:
@@ -712,6 +789,9 @@ class ManipulationSim(ArmSim):
         rotation = self.object_rotation()
         rot6d = rotation[..., :2].transpose(0, 1, 3, 2).reshape(n, S, 6) * present
         linear, _ = self.object_velocity()
+        blind = not (self.velocity_input or privileged)
+        if blind:
+            linear = np.zeros_like(linear)
         slots = np.concatenate(
             (
                 present,
@@ -757,7 +837,16 @@ class ManipulationSim(ArmSim):
             ),
             axis=1,
         )
-        parts = [*self.arm_state(), slots, furniture, self._cue(state, done, leading)]
+        robot = self.arm_state()
+        if blind:
+            robot[1] = np.zeros_like(robot[1])  # joint velocities
+        parts = [
+            *robot,
+            self.yaw_command[:, None],
+            slots,
+            furniture,
+            self._cue(state, done, leading),
+        ]
         if privileged:
             parts += [
                 self.masses_all[self._slot_index()] * self.present,
@@ -835,6 +924,15 @@ class ManipulationSim(ArmSim):
         )
         direction = direction * np.where(opening, 1.0, -1.0)[:, None]
         fields["pull_direction"] = direction * amask
+        pick = self.pick_headings(state)
+        grasp = np.where(
+            articulation_skill,
+            self.articulation_headings()[rows, articulation],
+            np.where(object_skill, pick[rows, obj], np.nan),
+        )
+        place = np.where(object_skill, self.place_headings(pick)[rows, index], np.nan)
+        fields["grasp_heading_error"] = self.turn_to(grasp)[:, None]
+        fields["place_heading_error"] = self.turn_to(place)[:, None]
         total = np.maximum(self.sub_count, 1)
         fields["progress"] = np.stack(
             (np.minimum(leading, total) / total, (self.sub_count - np.minimum(leading, total)) / M),

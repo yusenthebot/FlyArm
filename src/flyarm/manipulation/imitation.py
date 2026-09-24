@@ -1,6 +1,6 @@
 """Imitation of the scripted teacher on the manipulation benchmark, on the frozen connectome.
 
-The controller is the B1a whole-body interface of flyarm.whole_brain: the 217-feature
+The controller is the B1a whole-body interface of flyarm.whole_brain: the 220-feature
 observation is written through a trainable linear encoder into the 1,846 ascending neurons of
 the frozen MaleCNS, the 1,314 descending and 708 VNC motor neurons are read out through a
 frozen unit-norm calibration (research log E26) and a trainable linear decoder gives the 5
@@ -134,15 +134,22 @@ def brain_budget(pack: ConnectomePack, interface: NeuralInterface, neural_steps:
 class Workbench:
     """The batched environments of one run, built once and reused (a compile takes seconds)."""
 
-    def __init__(self, model_path: Path, asset_root: Path, cue: bool) -> None:
+    def __init__(
+        self, model_path: Path, asset_root: Path, cue: bool, velocities: bool = True
+    ) -> None:
         self.model_path, self.asset_root, self.cue = Path(model_path), Path(asset_root), cue
+        self.velocities = velocities
         self._envs: dict[tuple[str, int], BatchedManipulation] = {}
 
     def env(self, episodes: rollout.EpisodePlan) -> BatchedManipulation:
         key = (episodes.split, len(episodes))
         if key not in self._envs:
             self._envs[key] = rollout.make_env(
-                self.model_path, episodes, asset_root=self.asset_root, cue=self.cue
+                self.model_path,
+                episodes,
+                asset_root=self.asset_root,
+                cue=self.cue,
+                velocities=self.velocities,
             )
         return self._envs[key]
 
@@ -243,6 +250,8 @@ def _train(
                 loss=config.loss,
                 # The scale is about the connectome's ascending neurons; the controls' input
                 # modules (a GRU cell, an MLP's first layer) train at the full rate.
+                window_batch=config.window_batch if config.sampling == "windows" else None,
+                burn_in=config.burn_in,
                 input_learning_rate=(
                     config.learning_rate * config.encoder_learning_rate_scale if brain else None
                 ),
@@ -401,7 +410,7 @@ def _run(
     save_json(output / "interface_report.json", interface_report(pack, interface))
     save_json(output / "config.json", config.model_dump())
     save_json(output / "provenance.json", _provenance(pack, interface, config))
-    bench = Workbench(model_path, asset_root, config.cue)
+    bench = Workbench(model_path, asset_root, config.cue, config.velocities)
     demonstrations = rollout.plan(
         "train", config.train_episodes_per_template, rollout.DEMONSTRATION_OFFSET
     )
