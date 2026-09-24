@@ -25,12 +25,12 @@ import mlx.optimizers as optim
 import numpy as np
 from mlx.utils import tree_flatten
 
-from flyarm.config import KitchenPPOConfig, PPOConfig, TaskVariantConfig
+from flyarm.config import KitchenPPOConfig, ManipulationPPOConfig, PPOConfig, TaskVariantConfig
 from flyarm.rl.batched_pick_place import ACTION_DIM, OBS_DIM, BatchedPickPlace, TaskVariant
 from flyarm.whole_brain.policy import BrainPolicy, DirectPolicy
 
 TRAIN_SEED = 1_000_000  # environment seeds for PPO rollouts, disjoint from every B1a split
-PPOSettings = PPOConfig | KitchenPPOConfig
+PPOSettings = PPOConfig | KitchenPPOConfig | ManipulationPPOConfig
 
 
 class MotorHead(nn.Module):
@@ -170,8 +170,15 @@ class RunningNorm:
         return mx.array((states - self.mean) / self.scale)
 
 
-def _critic_input(obs: np.ndarray, steps: np.ndarray, horizon: int) -> np.ndarray:
+def _critic_input(obs: np.ndarray, steps: np.ndarray, horizon: int | np.ndarray) -> np.ndarray:
     return np.concatenate((obs, (steps / horizon)[:, None]), axis=1).astype(np.float32)
+
+
+def _horizons(env: Any, settings: PPOSettings) -> int | np.ndarray:
+    """Each episode's horizon: the environment's own per-episode array when it has one
+    (manipulation episodes last 200 + 300 steps per subgoal), else the config's."""
+    horizons = getattr(env, "horizons", None)
+    return horizons if horizons is not None else settings.horizon  # type: ignore[union-attr]
 
 
 def task_variant(config: TaskVariantConfig) -> TaskVariant:
@@ -182,7 +189,9 @@ class TaskAdapter(Protocol):
     """What PPO needs to know about one batched benchmark.
 
     ``score`` returns one entry per evaluation variant; every entry carries "success_rate",
-    which is what the checkpoint selection in train_ppo compares.
+    which is what the checkpoint selection in train_ppo compares unless the adapter names
+    another key in an optional ``selection_key``. An adapter whose scores include a validation
+    entry names it in an optional ``validation_variant``.
     """
 
     obs_dim: int
@@ -431,7 +440,7 @@ def train_ppo(
             mx.eval(actions, log_prob)
             feats_buf[t] = np.asarray(feats)
             obs_buf[t] = obs
-            critic_buf[t] = _critic_input(privileged, env.steps, settings.horizon)
+            critic_buf[t] = _critic_input(privileged, env.steps, _horizons(env, settings))
             action_buf[t] = np.asarray(actions)
             logp_buf[t] = np.asarray(log_prob)
             result = env.step(action_buf[t].astype(np.float64))
@@ -454,7 +463,7 @@ def train_ppo(
 
         values = np.asarray(critic(normalized(flat_states))).reshape(horizon, n)
         last_value = np.asarray(
-            critic(normalized(_critic_input(privileged, env.steps, settings.horizon)))
+            critic(normalized(_critic_input(privileged, env.steps, _horizons(env, settings))))
         )
         advantages, returns = gae(
             reward_buf, values, done_buf, last_value, settings.gamma, settings.lam
@@ -574,13 +583,15 @@ def train_ppo(
                 flush=True,
             )
             policy.save(output / f"policy-{iteration + 1:04d}.safetensors")
-            criterion = (chosen or scored)[settings.best_on]["success_rate"]
+            key = getattr(task, "selection_key", "success_rate")
+            criterion = (chosen or scored)[settings.best_on][key]
+            validation = chosen or settings.best_on == getattr(task, "validation_variant", None)
             if criterion > best.get("criterion", -1.0):
                 best = {
                     **scored[settings.best_on],
                     "iteration": iteration + 1,
                     "criterion": criterion,
-                    "selected_on": "validation seeds" if chosen else "test seeds (biased)",
+                    "selected_on": "validation seeds" if validation else "test seeds (biased)",
                 }
         (output / "curves.json").write_text(json.dumps(curves, indent=1))
         (output / "evaluations.json").write_text(json.dumps(evaluations, indent=1))

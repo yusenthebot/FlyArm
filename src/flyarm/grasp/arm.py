@@ -219,7 +219,8 @@ class ArmSim:
             raise ValueError(f"actions must be finite with shape ({self.num_envs}, 5)")
         if np.any(np.abs(action) > 1.0):
             raise ValueError("action components must be in [-1, 1]")
-        self.last_action = action
+        # A copy: the caller's array must not change when a reset later clears this row.
+        self.last_action = action.copy()
         self.yaw_command = np.clip(
             self.yaw_command + action[:, 3] * task.YAW_STEP, -task.YAW_LIMIT, task.YAW_LIMIT
         )

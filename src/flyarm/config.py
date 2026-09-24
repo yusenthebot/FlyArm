@@ -532,3 +532,199 @@ class KitchenPPOConfig(BaseModel):
                 f"{max_step_reward / (1 - self.gamma):.1f} at gamma {self.gamma} (log E34)"
             )
         return self
+
+
+ManipulationPolicyKind = Literal["connectome", "shuffled", "gru", "mlp"]
+ManipulationSplitName = Literal[
+    "iid_test", "unseen_objects", "unseen_furniture", "unseen_composition"
+]
+
+
+def default_manipulation_eval_splits() -> list[ManipulationSplitName]:
+    return ["iid_test", "unseen_objects", "unseen_furniture", "unseen_composition"]
+
+
+class ManipulationImitationConfig(BaseModel):
+    """Imitation (behavior cloning then DAgger) on the articulated manipulation benchmark.
+
+    The controller is the B1a whole-body interface: the 217-feature observation into the 1,846
+    ascending neurons, the 1,314 descending and 708 VNC motor neurons read out through a frozen
+    unit-norm calibration, 5 actions out, one action per step. Demonstrations, DAgger labels,
+    phase selection and evaluation all run in the batched environment
+    (flyarm.manipulation.env.BatchedManipulation) with the scripted ManipulationTeacher.
+    Counts are per task template, so every template is equally represented.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+    train_episodes_per_template: int = Field(default=24, ge=1, le=999)
+    val_episodes_per_template: int = Field(default=2, ge=1, le=999)
+    eval_episodes_per_template: int = Field(default=8, ge=1, le=999)
+    eval_splits: list[ManipulationSplitName] = Field(
+        default_factory=default_manipulation_eval_splits, min_length=1
+    )
+    # Teacher baseline on the same evaluation episodes (the reference every number is read
+    # against); it costs about as much as one controller evaluation.
+    evaluate_teacher: bool = True
+    epochs: int = Field(default=20, ge=1, le=300)
+    decoder_warmup_epochs: int = Field(default=2, ge=0, le=50)
+    batch_size: int = Field(default=16, ge=1, le=128)
+    bptt_steps: int = Field(default=16, ge=1, le=100)
+    learning_rate: float = Field(default=0.001, gt=0, le=0.05)
+    # The encoder's learning rate over learning_rate. At 1 the 217 inputs drive the ascending
+    # neurons into tanh saturation within one epoch (input current RMS 0.48 to 2.2); 0.1 keeps
+    # it near 0.5 and fits better (docs/MANIPULATION_ENV.md, "Training").
+    encoder_learning_rate_scale: float = Field(default=0.1, gt=0, le=1)
+    loss: Literal["mse", "l1"] = "l1"
+    neural_steps: int = Field(default=3, ge=1, le=8)
+    # Frozen readout normalization. At 2,022 outputs anything but "unit_norm" saturates the
+    # decoder on its first Adam updates (research log E26), so the other values are refused.
+    readout_calibration: Literal["scale", "standardize", "unit_norm"] = "unit_norm"
+    # PPO drives one action per step, so the imitation checkpoint it warm-starts from must too.
+    action_chunk: int = Field(default=1, ge=1, le=1)
+    # Per-step loss weights: "skill_balanced" gives every skill of the current subgoal the same
+    # total weight (clipped at max_skill_weight times the mean), "uniform" weights every step 1.
+    sample_weights: Literal["skill_balanced", "uniform"] = "skill_balanced"
+    max_skill_weight: float = Field(default=5.0, ge=1.0, le=100.0)
+    # Batches of similar-length episodes, so a batch does not run far past most of its episodes.
+    length_buckets: bool = True
+    # Closed-loop scoring on the train split's validation seeds: "closed_loop" also scores every
+    # select_every behavior-cloning epochs and keeps the best epoch; phase_selection keeps the
+    # best of behavior cloning and each DAgger round (research log E33).
+    selection: Literal["validation_loss", "closed_loop"] = "closed_loop"
+    select_every: int = Field(default=5, ge=1, le=100)
+    phase_selection: Literal["last", "validation_success"] = "validation_success"
+    dagger_iterations: int = Field(default=2, ge=0, le=10)
+    dagger_episodes_per_template: int = Field(default=8, ge=1, le=999)
+    dagger_epochs: int = Field(default=6, ge=1, le=100)
+    # In round i the teacher's action is executed with probability beta * decay**i per step;
+    # every visited state is labelled by the teacher either way.
+    dagger_beta: float = Field(default=0.5, ge=0, le=1)
+    dagger_beta_decay: float = Field(default=0.5, ge=0, le=1)
+    # The memoryless sub-task cue in the observation; False is the no-cue control.
+    cue: bool = True
+    seeds: list[int] = Field(default_factory=lambda: [0], min_length=1, max_length=10)
+    policies: list[ManipulationPolicyKind] = Field(
+        default_factory=lambda: ["connectome"], min_length=1
+    )
+    max_seconds: int = Field(default=43200, ge=60, le=259200)
+
+    @field_validator("seeds", "policies", "eval_splits")
+    @classmethod
+    def unique_entries(cls, values: list) -> list:
+        if len(set(values)) != len(values):
+            raise ValueError("entries must be unique")
+        if any(isinstance(value, int) and not 0 <= value < 1000 for value in values):
+            raise ValueError("seeds must be in [0, 1000)")
+        return values
+
+    @model_validator(mode="after")
+    def consistent_budget(self) -> ManipulationImitationConfig:
+        if self.decoder_warmup_epochs >= self.epochs:
+            raise ValueError("decoder_warmup_epochs must leave at least one joint epoch")
+        if self.readout_calibration != "unit_norm":
+            raise ValueError(
+                "the whole-body readout has 2,022 outputs; only 'unit_norm' keeps the decoder "
+                "out of tanh saturation under Adam (research log E26)"
+            )
+        return self
+
+
+# flyarm.manipulation.sim.MAX_LEVEL_REWARD, kept as a literal so that validating a config never
+# imports MuJoCo; tests/test_manipulation_training.py checks that the two agree.
+MANIPULATION_MAX_LEVEL_REWARD = 0.0
+
+
+class ManipulationPPOConfig(BaseModel):
+    """PPO on the batched manipulation benchmark from an imitation checkpoint.
+
+    The trainer is flyarm.rl.ppo.train_ppo with flyarm.rl.ppo_manipulation.ManipulationTask.
+    The reward is the environment's own (flyarm.manipulation.sim.RewardConfig): a bonus per
+    subgoal paid once and in task order, potential-based shaping toward the current subgoal,
+    and the motion-quality penalties (stray contact, disturbance, action, smoothness).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+    base_run: str = "runs/whole-brain-manipulation-001"
+    base_kind: Literal["connectome", "shuffled"] = "connectome"
+    base_seed: int = Field(default=0, ge=0, le=999)
+    num_envs: int = Field(default=128, ge=1, le=4096)
+    rollout_steps: int = Field(default=64, ge=8, le=1024)
+    iterations: int = Field(default=1000, ge=1, le=100_000)
+    epochs: int = Field(default=4, ge=1, le=50)
+    minibatch: int = Field(default=2048, ge=32, le=1_000_000)
+    # Episodes last 1,100 to 2,600 steps and subgoals are about 300 steps apart; at 0.99 the
+    # next subgoal's bonus is discounted to 0.05, at 0.995 to 0.22.
+    gamma: float = Field(default=0.995, gt=0, lt=1)
+    lam: float = Field(default=0.95, ge=0, le=1)
+    clip: float = Field(default=0.2, gt=0, le=1)
+    decoder_lr: float = Field(default=3e-4, gt=0, le=0.1)
+    # 0 keeps the encoder frozen, which the DAPG term needs (its features are computed once).
+    encoder_lr: float = Field(default=0.0, ge=0, le=0.1)
+    critic_lr: float = Field(default=1e-3, gt=0, le=0.1)
+    value_coef: float = Field(default=0.5, ge=0)
+    entropy_coef: float = Field(default=0.0, ge=0)
+    max_grad_norm: float = Field(default=0.5, gt=0)
+    # Research log E39: a rare large bonus leaves a few advantages tens of sigma out.
+    advantage_clip: float = Field(default=10.0, ge=0, le=100)
+    log_std: float = Field(default=-1.2, ge=-5, le=1)
+    # Fresh critic on a warm-started actor: fit it before the policy moves (E39, E46).
+    critic_warmup: int = Field(default=50, ge=0)
+    # Reward (RewardConfig): subgoal_bonus per subgoal in task order, shaping on the potential,
+    # and the motion-quality penalties.
+    subgoal_bonus: float = Field(default=50.0, gt=0, le=100_000)
+    shaping: float = Field(default=10.0, ge=0, le=1000)
+    stray_contact_weight: float = Field(default=0.05, ge=0, le=100)
+    disturbance_weight: float = Field(default=5.0, ge=0, le=1000)
+    action_weight: float = Field(default=0.01, ge=0, le=100)
+    smoothness_weight: float = Field(default=0.0, ge=0, le=100)
+    # DAPG (Rajeswaran et al. 2018, research log E46): bc_weight * bc_decay^k times the squared
+    # error to the imitation run's own teacher demonstrations, replayed once through the frozen
+    # encoder and connectome. bc_max_steps caps how many demonstration steps are kept (drawn
+    # with the skill-balanced weights, so every skill stays represented).
+    bc_weight: float = Field(default=1.0, ge=0, le=1000)
+    bc_decay: float = Field(default=1.0, gt=0, le=1)
+    bc_minibatch: int = Field(default=1024, ge=32, le=100_000)
+    bc_max_steps: int = Field(default=60_000, ge=1000, le=2_000_000)
+    # Continue from a PPO checkpoint instead of the imitation checkpoint; base_run still supplies
+    # the interface and the demonstrations.
+    init_checkpoint: str | None = None
+    # Evaluation: every eval_every iterations, eval_episodes_per_template test episodes of every
+    # split in eval_splits (reported) and val_episodes_per_template episodes of the train split's
+    # validation seeds (the checkpoint is selected on these only).
+    eval_every: int = Field(default=50, ge=1)
+    eval_episodes_per_template: int = Field(default=4, ge=1, le=999)
+    val_episodes_per_template: int = Field(default=2, ge=1, le=999)
+    eval_splits: list[ManipulationSplitName] = Field(
+        default_factory=default_manipulation_eval_splits, min_length=1
+    )
+    # PPO environment seeds are 1,000,000 + 100,000 seed onward; seeds below 10 keep them under
+    # the first held-out block (iid_test starts at 3,000,000).
+    seed: int = Field(default=0, ge=0, le=9)
+
+    @property
+    def best_on(self) -> str:
+        """The score entry train_ppo selects checkpoints on: validation, never a test split."""
+        return "validation"
+
+    @field_validator("eval_splits")
+    @classmethod
+    def unique_splits(cls, values: list) -> list:
+        if len(set(values)) != len(values):
+            raise ValueError("entries must be unique")
+        return values
+
+    @model_validator(mode="after")
+    def bonus_outweighs_stalling(self) -> ManipulationPPOConfig:
+        if self.bc_weight > 0 and self.encoder_lr > 0:
+            raise ValueError("bc_weight needs a frozen encoder (encoder_lr 0)")
+        # flyarm.manipulation.sim.MAX_LEVEL_REWARD: every level term is a penalty, so stalling
+        # is worth at most 0 / (1 - gamma) = 0 at any gamma. Recomputed here so that validating a
+        # config never imports MuJoCo; tests check the literal against the environment's.
+        floor = MANIPULATION_MAX_LEVEL_REWARD / (1.0 - self.gamma)
+        if self.subgoal_bonus <= floor:
+            raise ValueError(
+                f"subgoal_bonus must exceed the stalling floor {floor:.1f} at gamma {self.gamma}"
+            )
+        if self.subgoal_bonus <= self.shaping:
+            raise ValueError("subgoal_bonus must exceed shaping, the most shaping pays a subgoal")
+        return self

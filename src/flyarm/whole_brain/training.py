@@ -34,6 +34,33 @@ class Budget:
     learning_rate: float
     deadline: float
     loss: Literal["mse", "l1"] = "mse"
+    # Learning rate of the input modules (the encoder into the ascending neurons); None trains
+    # them at ``learning_rate``, as every run before the manipulation benchmark did. Adam moves
+    # each weight by about the learning rate per early step, so with 217 correlated inputs the
+    # current into the ascending neurons grew from RMS 0.48 to 2.2 (tanh saturation) in one
+    # epoch at 1e-3; a tenth of it kept 0.5 and fit better (docs/MANIPULATION_ENV.md).
+    input_learning_rate: float | None = None
+
+
+def _optimizer(policy: SequencePolicy, budget: Budget, warmup: bool = False) -> optim.Optimizer:
+    """Adam, with the input modules at their own rate when the budget sets one.
+
+    During the decoder-only warmup the input modules are frozen and have no gradients, so one
+    Adam serves (a MultiOptimizer cannot initialize a group whose gradient tree is empty).
+    """
+    if budget.input_learning_rate is None or warmup:
+        return optim.Adam(learning_rate=budget.learning_rate)
+    inputs = [id(module) for module in policy.input_modules()]
+    prefixes = tuple(
+        f"{name}." for name, module in policy.named_modules() if id(module) in inputs and name
+    )
+    return optim.MultiOptimizer(
+        [
+            optim.Adam(learning_rate=budget.input_learning_rate),
+            optim.Adam(learning_rate=budget.learning_rate),
+        ],
+        [lambda path, _: path.startswith(prefixes)],
+    )
 
 
 def _set_input_frozen(policy: SequencePolicy, frozen: bool) -> None:
@@ -88,17 +115,45 @@ def sequence_loss(
 ) -> float:
     """Weighted per-step chunk error over complete episodes, no gradient."""
     targets_np, weights_np = chunk_targets(data["actions"], data["mask"], weights, policy.chunk)
-    obs = mx.array(data["obs"])
-    targets = mx.array(targets_np)
-    step_weights = mx.array(weights_np)
+    # Steps after every episode has ended carry no weight; they are not run.
+    steps = _episode_lengths(data["mask"]).max(initial=0)
+    obs = mx.array(data["obs"][:, :steps])
+    targets = mx.array(targets_np[:, :steps])
+    step_weights = mx.array(weights_np[:, :steps])
     state = policy.initial_state(obs.shape[0])
     total = mx.array(0.0)
-    for step in range(obs.shape[1]):
+    for step in range(steps):
         output, state = policy.step(obs[:, step], state)
         error = _step_error(policy, output, targets[:, step], loss)
         total = total + (error * step_weights[:, step]).sum()
         mx.eval(total, state)
     return float(total) / float(weights_np.sum())
+
+
+def _episode_lengths(mask: np.ndarray) -> np.ndarray:
+    """[E] index after each episode's last valid step (0 for an empty episode)."""
+    valid = np.asarray(mask) > 0
+    return np.where(valid.any(1), valid.shape[1] - np.argmax(valid[:, ::-1], axis=1), 0)
+
+
+def _batches(
+    order: np.ndarray,
+    lengths: np.ndarray,
+    batch_size: int,
+    generator: np.random.Generator,
+    length_buckets: bool,
+) -> list[np.ndarray]:
+    """Episode batches of one epoch; with ``length_buckets`` similar lengths share a batch.
+
+    A batch runs until its longest episode ends, so mixing a 600-step and a 2,500-step
+    episode computes 1,900 masked steps for nothing. Bucketing sorts the shuffled episodes by
+    length, cuts consecutive batches and shuffles the batch order.
+    """
+    if not length_buckets:
+        return [order[start : start + batch_size] for start in range(0, len(order), batch_size)]
+    ranked = order[np.argsort(lengths[order], kind="stable")]
+    batches = [ranked[start : start + batch_size] for start in range(0, len(ranked), batch_size)]
+    return [batches[index] for index in generator.permutation(len(batches))]
 
 
 def train_sequence_policy(
@@ -114,6 +169,7 @@ def train_sequence_policy(
     set_normalization: bool = True,
     selector: Callable[[SequencePolicy], float] | None = None,
     select_every: int = 1,
+    length_buckets: bool = False,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Returns learning curves and the selected checkpoint's summary.
 
@@ -121,18 +177,21 @@ def train_sequence_policy(
     every ``select_every`` epochs (and at the last epoch) ``selector(policy)`` scores the
     current weights, for example by closed-loop success on held-out validation episodes;
     the highest score wins and validation loss breaks ties.
+
+    The episodes stay in host memory and each batch is copied to the device when it is used,
+    cut at its longest episode, so long-horizon data sets never sit on the GPU whole.
     """
     if select_every < 1:
         raise ValueError("select_every must be positive")
     if set_normalization:
         samples = train_data["obs"][train_data["mask"].astype(bool)]
         policy.set_normalization(samples.mean(0), np.maximum(samples.std(0), 0.05))
-    observations = mx.array(train_data["obs"])
-    targets_np, weights_np = chunk_targets(
+    observations = train_data["obs"]
+    targets, weights = chunk_targets(
         train_data["actions"], train_data["mask"], train_weights, policy.chunk
     )
-    targets, weights = mx.array(targets_np), mx.array(weights_np)
-    episodes, horizon = train_data["obs"].shape[:2]
+    lengths = _episode_lengths(train_data["mask"])
+    episodes = train_data["obs"].shape[0]
     generator = np.random.default_rng(seed)
     gradient_fn = nn.value_and_grad(policy, partial(_chunk_loss, loss=budget.loss))
     best_key: tuple[float, float] = (float("inf"), float("inf"))
@@ -140,7 +199,7 @@ def train_sequence_policy(
     best_parameters = policy.parameters()
     curves: list[dict[str, Any]] = []
     started = time.monotonic()
-    optimizer: optim.Adam | None = None
+    optimizer: optim.Optimizer | None = None
     for epoch in range(budget.epochs):
         if time.monotonic() >= budget.deadline:
             raise TimeoutError("Whole-brain budget exhausted; partial artifacts retained")
@@ -148,14 +207,15 @@ def train_sequence_policy(
         _set_input_frozen(policy, warmup)
         if optimizer is None or epoch == budget.decoder_warmup_epochs:
             # MLX optimizers cannot absorb parameters unfrozen after initialization.
-            optimizer = optim.Adam(learning_rate=budget.learning_rate)
+            optimizer = _optimizer(policy, budget, warmup)
         losses: list[float] = []
         order = generator.permutation(episodes)
-        for start in range(0, episodes, budget.batch_size):
-            batch = mx.array(order[start : start + budget.batch_size])
-            batch_obs, batch_targets = observations[batch], targets[batch]
-            batch_weights = weights[batch]
-            state = policy.initial_state(batch.size)
+        for rows in _batches(order, lengths, budget.batch_size, generator, length_buckets):
+            horizon = int(lengths[rows].max())
+            batch_obs = mx.array(observations[rows, :horizon])
+            batch_targets = mx.array(targets[rows, :horizon])
+            batch_weights = mx.array(weights[rows, :horizon])
+            state = policy.initial_state(len(rows))
             for time_start in range(0, horizon, budget.bptt_steps):
                 time_stop = min(time_start + budget.bptt_steps, horizon)
                 chunk_weights = batch_weights[:, time_start:time_stop]

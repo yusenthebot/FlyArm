@@ -1,0 +1,276 @@
+"""PPO against the batched manipulation benchmark, reusing the task-agnostic trainer.
+
+ManipulationTask is the TaskAdapter of flyarm.rl.ppo.train_ppo for
+flyarm.manipulation.env.BatchedManipulation, so the loop, the critic, the clipped updates, the
+DAPG term and the checkpointing are exactly those that solved the kitchen (research log E46 to
+E53). What is specific here:
+
+- the reward is the environment's own RewardConfig: the subgoal bonus paid once and in task
+  order, potential-based shaping toward the current subgoal, and the motion-quality penalties;
+- episodes have their own horizons (200 + 300 per subgoal), and the critic's time feature is
+  the step over that episode's horizon;
+- the critic reads the 230-feature privileged observation;
+- evaluation runs every split of ``eval_splits`` on test episodes and the train split's
+  validation episodes, all in lockstep; the checkpoint is selected on validation only, by
+  success rate with the mean fraction of subgoals done breaking ties;
+- the DAPG demonstrations are the imitation run's own teacher demonstrations (train.npz),
+  replayed once through the frozen encoder and connectome from a zero state, as in imitation.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any
+
+import mlx.core as mx
+import numpy as np
+
+from flyarm.config import ManipulationImitationConfig, ManipulationPPOConfig
+from flyarm.manipulation import rollout
+from flyarm.manipulation.env import DEFAULT_ASSET_ROOT, BatchedManipulation
+from flyarm.manipulation.imitation import Workbench, load_data, load_manipulation_policy
+from flyarm.manipulation.sim import OBS_DIM, PRIVILEGED_DIM, RewardConfig
+from flyarm.rl.ppo import MotorHead, rollout_for, train_ppo, trainable_count
+from flyarm.whole_brain.policy import BrainPolicy
+
+ACTION_DIM = rollout.ACTION_DIM
+VALIDATION = "validation"  # the score entry the checkpoint is selected on
+
+
+def reward_config(settings: ManipulationPPOConfig) -> RewardConfig:
+    return RewardConfig(
+        subgoal_bonus=settings.subgoal_bonus,
+        shaping=settings.shaping,
+        stray_contact=settings.stray_contact_weight,
+        disturbance=settings.disturbance_weight,
+        action_cost=settings.action_weight,
+        smoothness=settings.smoothness_weight,
+        gamma=settings.gamma,
+    )
+
+
+class HeadActor:
+    """Deterministic mean actions of the PPO head over the frozen encoder and connectome."""
+
+    def __init__(self, policy: BrainPolicy, head: MotorHead, num_envs: int) -> None:
+        self.brain = rollout_for(policy, num_envs)
+        self.head = head
+
+    def act(self, obs: np.ndarray) -> np.ndarray:
+        return np.asarray(self.head.mean(self.brain.features(obs)), dtype=np.float64)
+
+
+class ManipulationTask:
+    """The manipulation adapter for flyarm.rl.ppo.train_ppo.
+
+    ``score(policy, head, seeds)`` reads ``len(seeds)`` as the number of test episodes per
+    template of every evaluated split (seed layout in flyarm.manipulation.rollout); the
+    validation entry always has ``val_episodes_per_template`` per template.
+    """
+
+    obs_dim = OBS_DIM
+    privileged_dim = PRIVILEGED_DIM
+    action_dim = ACTION_DIM
+    extra_key = "subgoals_per_episode"
+    extra_label = "subgoals"
+    batch_peak_key: str | None = "max_subgoals_in_one_episode"
+    selection_key = "selection_score"
+    validation_variant = VALIDATION
+
+    def __init__(
+        self,
+        settings: ManipulationPPOConfig,
+        model_path: Path,
+        asset_root: Path = DEFAULT_ASSET_ROOT,
+        *,
+        cue: bool = True,
+    ) -> None:
+        self.settings = settings
+        self.model_path, self.asset_root, self.cue = Path(model_path), Path(asset_root), cue
+        self.bench = Workbench(model_path, asset_root, cue)
+
+    def make_env(self, num_envs: int, first_seed: int) -> BatchedManipulation:
+        return BatchedManipulation(
+            self.model_path,
+            num_envs,
+            split="train",
+            asset_root=self.asset_root,
+            first_seed=first_seed,
+            reward=reward_config(self.settings),
+            cue=self.cue,
+        )
+
+    def plans(self, per_template: int) -> list[rollout.EpisodePlan]:
+        tests = [
+            rollout.plan(split, per_template, rollout.TEST_OFFSET)
+            for split in self.settings.eval_splits
+        ]
+        validation = rollout.plan(
+            "train", self.settings.val_episodes_per_template, rollout.VALIDATION_OFFSET
+        )
+        return [*tests, validation]
+
+    def score(
+        self, policy: BrainPolicy, head: MotorHead, seeds: list[int]
+    ) -> dict[str, dict[str, Any]]:
+        logs = self.bench.run(self.plans(len(seeds)), lambda n: HeadActor(policy, head, n))
+        return {
+            (VALIDATION if log.plan.split == "train" else log.plan.split): rollout.summarize(log)
+            for log in logs
+        }
+
+    def extra(self, result: Any, done: np.ndarray) -> int:
+        return int(result.high_water[done].sum())
+
+    def batch_peak(self, result: Any, done: np.ndarray) -> float:
+        """Most subgoals any single finished episode completed in order."""
+        return float(result.high_water[done].max()) if done.any() else 0.0
+
+    def describe(self, name: str, scored: dict[str, Any], episodes: int) -> str:
+        return (
+            f"{name} success {scored['successes']}/{scored['episodes']} "
+            f"subgoals {scored['subgoal_fraction']:.2f} "
+            f"stray {scored['stray_contact_fraction']:.2f} "
+            f"|a| {scored['mean_abs_action']:.2f} sat {scored['saturated_fraction']:.2f}"
+        )
+
+
+def base_config(run_root: Path) -> ManipulationImitationConfig:
+    """The imitation run's config, checked for what a PPO warm start depends on."""
+    path = run_root / "config.json"
+    if not path.is_file():
+        raise FileNotFoundError(f"{run_root} is not a manipulation imitation run: no config.json")
+    config = ManipulationImitationConfig.model_validate_json(path.read_text())
+    if config.action_chunk != 1:
+        raise ValueError(f"{run_root} emits action chunks; the PPO head drives one action a step")
+    return config
+
+
+def demonstration_features(
+    policy: BrainPolicy,
+    base_run: Path,
+    max_steps: int,
+    seed: int,
+    batch: int = 32,
+) -> tuple[mx.array, mx.array]:
+    """Connectome features and teacher actions of the imitation run's demonstrations.
+
+    At most ``max_steps`` valid steps are kept, drawn without replacement with the run's
+    skill-balanced weights so every skill stays represented; each episode is replayed through
+    the frozen encoder and connectome from a zero state, as in imitation, and only the drawn
+    steps' features are kept. The encoder must stay frozen during PPO for them to stay exact.
+    """
+    config = base_config(base_run)
+    data = load_data(base_run / "train.npz")
+    weights = rollout.skill_weights(data, config.max_skill_weight)
+    valid = np.argwhere(data["mask"] > 0)
+    count = min(max_steps, len(valid))
+    probabilities = weights[valid[:, 0], valid[:, 1]].astype(np.float64)
+    generator = np.random.default_rng([seed, 31])
+    picked = generator.choice(
+        len(valid), size=count, replace=False, p=probabilities / probabilities.sum()
+    )
+    keep = np.zeros(data["mask"].shape, dtype=bool)
+    keep[valid[picked, 0], valid[picked, 1]] = True
+    lengths = (data["mask"] > 0).sum(1)
+    features, actions = [], []
+    for start in range(0, len(data["obs"]), batch):
+        rows = slice(start, start + batch)
+        horizon = int(lengths[rows].max())
+        brain = rollout_for(policy, len(data["obs"][rows]))
+        for t in range(horizon):
+            chosen = keep[rows, t]
+            step = np.asarray(brain.features(data["obs"][rows, t]))
+            if chosen.any():
+                features.append(step[chosen])
+                actions.append(data["actions"][rows, t][chosen])
+    return mx.array(np.concatenate(features)), mx.array(np.concatenate(actions))
+
+
+def run_manipulation_ppo(
+    config: ManipulationPPOConfig,
+    pack_root: Path,
+    model_path: Path,
+    output: Path,
+    asset_root: Path = DEFAULT_ASSET_ROOT,
+) -> dict[str, Any]:
+    """Load the imitation checkpoint, score it, train it with PPO and save everything."""
+    from flyarm.experiment import save_json
+
+    if output.exists():
+        raise FileExistsError(f"Run directory already exists; choose a new output: {output}")
+    base_run = Path(config.base_run)
+    imitation = base_config(base_run)
+    _, loaded = load_manipulation_policy(base_run, config.base_kind, config.base_seed, pack_root)
+    if not isinstance(loaded, BrainPolicy):
+        raise ValueError("PPO fine-tuning is defined for brain policies (connectome, shuffled)")
+    policy = loaded
+    output.mkdir(parents=True)
+    save_json(output / "config.json", config.model_dump())
+    if config.init_checkpoint is not None:
+        checkpoint = Path(config.init_checkpoint)
+        if not checkpoint.is_file():
+            raise FileNotFoundError(f"init_checkpoint not found: {checkpoint}")
+        policy.load(checkpoint)
+        print(f"continuing from {checkpoint}", flush=True)
+    task = ManipulationTask(config, model_path, asset_root, cue=imitation.cue)
+    head = MotorHead(policy.decoder, config.log_std, ACTION_DIM)
+    eval_seeds = list(range(config.eval_episodes_per_template))
+    before = task.score(policy, head, eval_seeds)
+    print(
+        "base checkpoint: "
+        + "; ".join(task.describe(name, r, r["episodes"]) for name, r in before.items()),
+        flush=True,
+    )
+    results: dict[str, Any] = {
+        "status": "running",
+        "benchmark": "articulated multi-step manipulation (flyarm.manipulation)",
+        "base": before,
+        "trainable_parameters": trainable_count(head),
+        "claim": "PPO tunes the imitation checkpoint's motor decoder; encoder and connectome frozen"
+        if config.encoder_lr == 0
+        else "PPO tunes the imitation checkpoint's decoder and encoder; connectome frozen",
+        "base_run": config.base_run,
+        "base_kind": config.base_kind,
+        "init_checkpoint": config.init_checkpoint,
+        "reward": reward_config(config).__dict__,
+        "selection": "validation episodes of the train split, success then subgoal fraction",
+    }
+    save_json(output / "results.json", results)
+    demonstrations = None
+    if config.bc_weight > 0:
+        demonstrations = demonstration_features(policy, base_run, config.bc_max_steps, config.seed)
+        results["demonstration_steps"] = int(demonstrations[0].shape[0])
+        print(f"DAPG term on {demonstrations[0].shape[0]} demonstration steps", flush=True)
+    try:
+        run = train_ppo(policy, task, output, config, eval_seeds, None, demonstrations)
+    except (Exception, KeyboardInterrupt) as error:
+        results.update(status="failed", error=f"{type(error).__name__}: {error}")
+        save_json(output / "results.json", results)
+        raise
+    best = run["best"]
+    chosen = next(
+        (entry for entry in run["evaluations"] if entry["iteration"] == best.get("iteration")),
+        None,
+    )
+    results.update(
+        status="complete",
+        best={
+            "iteration": best.get("iteration"),
+            "validation": best,
+            "test": None if chosen is None else chosen["variants"],
+        },
+        final=run["evaluations"][-1],
+    )
+    save_json(output / "results.json", results)
+    return results
+
+
+__all__ = [
+    "HeadActor",
+    "ManipulationTask",
+    "base_config",
+    "demonstration_features",
+    "reward_config",
+    "run_manipulation_ppo",
+]

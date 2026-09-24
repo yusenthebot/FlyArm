@@ -155,7 +155,8 @@ class RewardConfig:
     pays nothing. ``shaping`` weighs the potential ``Phi = leading + phi``, where ``phi`` in
     [0, 1) is the current subgoal's approach and progress; it telescopes over the episode. The
     other terms are penalties: stray robot contacts, displacement of objects and articulations
-    the task does not involve (as a potential), and the action magnitude.
+    the task does not involve (as a potential), the action magnitude and, with ``smoothness``
+    above 0, the change of action between steps (the kitchen's motion-quality terms).
     """
 
     subgoal_bonus: float = 50.0
@@ -163,10 +164,11 @@ class RewardConfig:
     stray_contact: float = 0.05
     disturbance: float = 5.0
     action_cost: float = 0.01
+    smoothness: float = 0.0
     gamma: float = 0.99
 
     def __post_init__(self) -> None:
-        for name in ("shaping", "stray_contact", "disturbance", "action_cost"):
+        for name in ("shaping", "stray_contact", "disturbance", "action_cost", "smoothness"):
             if getattr(self, name) < 0:
                 raise ValueError(f"{name} must be non-negative")
         if not 0.0 < self.gamma < 1.0:
@@ -1031,7 +1033,14 @@ class ManipulationSim(ArmSim):
         self.qpos[row, self._swivel_qadr] = 0.0
 
     # ------------------------------------------------------------------------------ step
+    def current_skill(self) -> np.ndarray:
+        """[N] skill of the current subgoal (the one the cue names), read from the scene."""
+        state = self.scene_state()
+        leading = self.leading(self.subgoal_done(self.effects(state)))
+        return self.sub_kind[self.rows, self.current(leading)].copy()
+
     def step(self, action: np.ndarray, *, auto_reset: bool = True) -> StepResult:
+        previous_action = self.last_action.copy()
         self.apply_action(action)
         self.physics.step(arm_task.SUBSTEPS)
         self.steps += 1
@@ -1053,6 +1062,7 @@ class ManipulationSim(ArmSim):
             + config.disturbance * (disturbance - self.previous_disturbance)
             - config.stray_contact * stray
             - config.action_cost * np.mean(self.last_action**2, axis=1)
+            - config.smoothness * np.mean((self.last_action - previous_action) ** 2, axis=1)
         ).astype(np.float32)
         self.previous_potential = potential
         self.previous_disturbance = disturbance
