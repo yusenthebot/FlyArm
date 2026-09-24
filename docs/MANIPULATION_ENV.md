@@ -155,35 +155,48 @@ It re-derives its phase from the scene whenever the current subgoal changes, so 
 
 Successes over 20 episodes per cell, all cells of a split run in one batched environment on that split's own seed block (`docs/results/manipulation-teacher.json`, with mean steps to success and the subgoal each failure was stuck at).
 
+With the redundant contact pairs excluded (see Excluded contact pairs); the value before the exclusion, on the same seeds, is in brackets where it differs.
+
 | Task | train | iid test | unseen objects | unseen furniture | unseen composition |
 | --- | --- | --- | --- | --- | --- |
 | `put_away` | 20/20 | 20/20 | 20/20 | 20/20 |  |
 | `retrieve` | 20/20 | 20/20 | 19/20 | 20/20 |  |
-| `shelve` | 18/20 | 19/20 | 18/20 | 15/20 |  |
+| `shelve` | 19/20 (18) | 20/20 (19) | 18/20 | 16/20 (15) |  |
 | `tower` | 20/20 | 20/20 | 20/20 | 20/20 |  |
 | `sort` | 20/20 | 20/20 | 14/20 | 19/20 |  |
-| `tidy` | 20/20 | 18/20 | 19/20 | 18/20 |  |
-| `unpack` | 20/20 | 18/20 | 18/20 | 18/20 |  |
-| `shelve_then_put_away` |  |  |  |  | 17/20 |
+| `tidy` | 20/20 | 18/20 | 19/20 | 17/20 (18) |  |
+| `unpack` | 20/20 | 19/20 (18) | 17/20 (18) | 18/20 |  |
+| `shelve_then_put_away` |  |  |  |  | 18/20 (17) |
 | `retrieve_to_shelf` |  |  |  |  | 15/20 |
 | `tower_then_put_away` |  |  |  |  | 20/20 |
 | `full_cleanup` |  |  |  |  | 17/20 |
 
-Every train cell is at 90% or above (138/140 overall); every iid cell too.
+Every train cell is at 90% or above (139/140 overall, 138 before the exclusion); every iid cell too.
+No cell moved by more than one success: five gained one, two lost one (`unpack` on unseen objects, `tidy` on unseen furniture), which is within the seed-to-seed spread of a 20-episode cell; the step counts to success are unchanged to within 2%.
 Cells under 90%, all on held-out splits:
 
 - `sort` on unseen objects (14/20): all six fail at the stack. `stable_on` is a rule on bounding boxes and masses tuned on training objects; on training objects the stack failures it removed were tops tipping off their base on release, and these six were not diagnosed further.
-- `shelve` on unseen furniture (15/20): the held-out cabinet (knob on the lid, turned further from the robot, lower shelf) makes every subgoal slower, and in four of the five failures both objects are on the shelf and the horizon ends while the teacher is still closing the lid.
+- `shelve` on unseen furniture (16/20): the held-out cabinet (knob on the lid, turned further from the robot, lower shelf) makes every subgoal slower, and in the failures (four of five before the exclusion) both objects are on the shelf and the horizon ends while the teacher is still closing the lid.
 - `retrieve_to_shelf` (15/20): the only template that works a drawer while the lid stands open; failures are picks from the drawer (a finger on the front panel pushing the drawer back under its threshold, reduced but not removed by picking with the jaws along the drawer's width) and the hand knocking the open lid while stepping back from it.
-- `shelve_then_put_away` and `full_cleanup` (17/20 each): each failure is stuck at a placement; not diagnosed further.
+- `shelve_then_put_away` (18/20) and `full_cleanup` (17/20): each failure is stuck at a placement; not diagnosed further.
 
 The teacher's episodes are what imitation would learn from, so a teacher failure is also a state the learner will not see solved; DAgger labels still come from the same controllers.
 
 ## Throughput
 
-128 batched environments on the train split, 4 simulation threads (`FLYARM_SIM_THREADS=4`), Apple M5 Max: 1,350 environment steps per second with random actions and 1,130 with the teacher in the loop in the recorded run (`docs/results/manipulation-teacher.json`, `throughput`); an otherwise identical run with less load on the machine gave 1,870 and 1,390.
+128 batched environments on the train split, 4 simulation threads (`FLYARM_SIM_THREADS=4`), Apple M5 Max: 2,330 environment steps per second with random actions and 1,820 with the teacher in the loop (`docs/results/manipulation-teacher.json`, `throughput`), against 1,350 and 1,130 before the contact exclusion.
 Physics is 75 to 85% of a step (25 MuJoCo steps over 43 furniture geoms, the no-slip solver and up to four object meshes); the task rules, observation and reward cost 10 to 16 ms per step for all 128 environments, 5 ms of it the hull containment test.
 That is five times slower than the grasp task per environment step, and the horizons are 5 to 13 times longer.
+
+## Excluded contact pairs
+
+Two body pairs never collide (`EXCLUDED_PAIRS` in `scene.py`, MjSpec contact exclusions): the lid and the cabinet, and the left and the right finger.
+Both are already enforced by joint limits: the hinge's lower limit holds a closed lid at 0 on the cabinet walls, and the finger joints' lower limit stops closing fingers at touching.
+Before the exclusion they were most of the scene's contacts: a closed lid made 20 contacts in every episode (the cabinet is welded to the world, so MuJoCo's parent-child filter does not apply), and fingers closed on nothing made up to 44.
+Measured effect at 128 environments: the environment alone went from 1,350 to 2,330 steps/s with random actions; profiled over steps 300 to 400 of an undertrained connectome policy, a step's physics went from 264 to 176 ms; PPO rollouts went from 555 to 820 steps/s in the first iteration and from 410 to 450 to 550 to 580 afterwards.
+Without the walls a closed lid rests on its hinge limit alone, whose soft constraint lets it sit 1.5 mrad past 0 (0.3 mm at its front edge), far inside the 0.02 rad closed threshold.
+The teacher table barely moved (above), and the single-versus-batched equivalence test still holds under 1e-6.
+What remains in a contact-heavy step is real contact (fingers pressed into the table or a lid, objects on the floor, 5 to 43 contacts per environment) and the no-slip solver that scales with it.
 
 ## Reproduce
 
@@ -272,33 +285,31 @@ Measured with `scripts/manipulation_training_throughput.py` (docs/results/manipu
 
 | What | Measured |
 | --- | --- |
-| Environment alone, random actions, 128 environments | 1,590 steps/s |
-| Connectome closed loop (encoder, MaleCNS, decoder), 128 environments | 1,310 steps/s (22 ms of each control step is the connectome) |
-| Connectome closed loop, 32 environments | 1,140 steps/s |
-| Behavior cloning with the encoder training, batch 16, BPTT 16 | 3.0 ms per demonstration step (21 episodes; 2 to 3 ms expected on the full set, whose batches are full) |
-| Teacher demonstrations, one environment | 21 episodes (21,900 steps) in 41 s |
-| Evaluation of a failing policy, one episode per template of all four held-out splits (25 episodes) | 140 ms per lockstep step, 6 minutes |
+| Environment alone, random actions, 128 environments | 2,310 steps/s (1,590 before the contact exclusion) |
+| Connectome closed loop (encoder, MaleCNS, decoder), 128 environments, fresh episodes | 1,260 steps/s (1,310 before; 22 to 26 ms of each control step is the connectome, and GPU sharing moves this row by about 5%) |
+| Connectome closed loop, 32 environments | 1,200 steps/s (1,140 before) |
+| Behavior cloning with the encoder training, batch 16, BPTT 16 | 3.0 to 3.7 ms per demonstration step (two measurements, 21 episodes; no physics involved) |
+| Teacher demonstrations, one environment | 21 episodes (21,900 steps) in 37 s (41 before) |
+| Evaluation of a failing policy, one episode per template of all four held-out splits (25 episodes) | 64 ms per lockstep step, 2.8 minutes (140 ms and 6 minutes before) |
 
-PPO at 128 environments and 64-step rollouts (the smoke run below): 555 steps/s in the first iteration and 410 to 450 afterwards, about 19 s per iteration including the update.
-The environment, not the connectome, sets the pace once a policy drives into contact: profiled over steps 300 to 400 of an undertrained policy, one step of 128 environments took 264 ms of physics, 20 ms of privileged observation and 22 ms of connectome (73, 10 and 23 ms right after reset).
-Two contact sources dominate (single-environment trace): a closed lid resting on the cabinet walls always makes 20 contacts, because the cabinet is welded to the world and MuJoCo's parent-child filter does not apply, although the hinge's joint limit already holds the lid at 0; and a policy that closes the hand on nothing makes up to 44 finger-to-finger contacts and presses the fingers into the table.
-Excluding the lid-to-cabinet and finger-to-finger pairs would remove most of them, but it changes the benchmark's physics after its teacher table was published, so it is left as a decision.
+PPO at 128 environments and 64-step rollouts (the smoke run below, after the contact exclusion): 820 steps/s in the first iteration and 550 to 580 in the next five, about 14.5 s per iteration including the update (555, then 410 to 450, and 19 s before the exclusion).
+The environment still sets the pace once a policy drives into contact: over steps 300 to 400 of an undertrained policy, one step of 128 environments took 176 ms of physics and task rules, 24 ms of privileged observation and 22 ms of connectome (264, 20 and 22 ms before the exclusion).
 
-Estimates for the shipped configs (a policy that fails runs every evaluation episode to its horizon, so evaluations are upper bounds):
+Estimates for the shipped configs, after the contact exclusion (a policy that fails runs every evaluation episode to its horizon, so evaluations are upper bounds; a DAgger round's failing rollouts also run to their horizons, which is what makes the aggregate grow):
 
 | Stage | configs/whole-brain-manipulation.json | configs/ppo-manipulation.json |
 | --- | --- | --- |
-| Data | demonstrations and validation episodes 5 to 10 min, teacher evaluation 5 to 8 min | DAPG replay about 2 min |
-| Training | behavior cloning 12 epochs x 6 to 9 min; DAgger 2 rounds x (2 min of rollouts + 4 epochs x 9 to 18 min) | 1,000 iterations x 8 to 19 s (8.2 M steps at 1,200 to 430 steps/s) |
-| Selection and evaluation | about 6 closed-loop validations x 1.5 min, final evaluation 8 min | 11 evaluations x 5 to 8 min |
-| Total | about 3 to 5 hours | about 3.5 to 7 hours |
+| Data | demonstrations and validation episodes 3 to 6 min, teacher evaluation 3 to 5 min | DAPG replay about 2 min |
+| Training | behavior cloning 12 epochs x 9 to 11 min (175,000 steps at 3.0 to 3.7 ms); DAgger round 1: 3 min of rollouts + 4 epochs x 15 to 19 min (about 300,000 steps), round 2: 3 min + 4 epochs x 21 to 27 min (about 430,000 steps) | 1,000 iterations x 10 to 15 s (8.2 M steps at 820 to 550 steps/s) |
+| Selection and evaluation | about 6 closed-loop validations x 1 to 1.5 min, final evaluation 7 to 11 min | 11 evaluations x 3 to 6 min |
+| Total | about 4.5 to 6 hours (the DAgger aggregate dominates; imitation does no physics in training, so the exclusion saves only its rollouts and evaluations) | about 3.5 to 5 hours |
 
 ### Smoke runs
 
 Tiny imitation (one demonstration, validation and test episode per template, 2 behavior-cloning epochs, one DAgger round of one episode per template), `flyarm manipulation imitate`, 19 minutes end to end: the teacher succeeded in 7 of 7 demonstrations (7,154 steps); the training L1 went 0.43 (decoder only) to 0.36 when the encoder joined (validation 0.49 to 0.38); the DAgger rollout (beta 0.5) completed 1 of 7 episodes and 27% of subgoals; validation success was 0 of 7 for both phases, so behavior cloning was kept; the teacher solved 24 of 25 test episodes and the controller none, as expected at this size.
 Before the encoder's learning rate was separated, the same smoke's L1 rose from 0.43 to 0.64 at that point.
 
-PPO from that checkpoint, 128 environments, 6 iterations, critic warm-up 2, DAPG on 5,000 demonstration steps, `flyarm rl manipulation`, 12 minutes: the demonstration loss fell from 1.24 to 0.78, the critic's loss from 0.14 to 0.07, and the base and final evaluations (one test episode per template of all four held-out splits plus one validation episode per template, all in lockstep) ran and selected on validation.
+PPO from that checkpoint, 128 environments, 6 iterations, critic warm-up 2, DAPG on 5,000 demonstration steps, `flyarm rl manipulation`, 12 minutes (repeated after the contact exclusion for the rates above): the demonstration loss fell from 1.24 to 0.78, the critic's loss from 0.14 to 0.07, and the base and final evaluations (one test episode per template of all four held-out splits plus one validation episode per template, all in lockstep) ran and selected on validation.
 `flyarm rl watch --run runs/smoke-manip-ppo --once` rendered its two-episode progress clip in 45 s.
 
 ### Open items
