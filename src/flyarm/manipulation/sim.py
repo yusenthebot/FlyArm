@@ -473,7 +473,7 @@ class ManipulationSim(ArmSim):
         """[N, S, R] every hull support point of the object inside the receptacle's volume."""
         origins, rotations = self.receptacle_frames()
         offset = points[:, :, None] - origins[:, None, :, None, :]
-        local = np.einsum("nrji,nsrkj->nsrki", rotations, offset)
+        local = offset @ rotations[:, None]  # row vectors: (R^T x)^T = x^T R
         low = self.box_centre - self.box_half - tk.INSIDE_TOLERANCE
         high = self.box_centre + self.box_half + tk.INSIDE_TOLERANCE
         ok = (local >= low[:, None, :, None, :]) & (local <= high[:, None, :, None, :])

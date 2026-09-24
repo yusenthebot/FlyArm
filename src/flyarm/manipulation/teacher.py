@@ -68,7 +68,7 @@ LID_STEP = 0.08  # rad
 OVERSHOOT = 0.015  # m
 OVERSHOOT_ANGLE = 0.1  # rad
 LID_OPEN_GOAL = fu.LID_OPEN_LIMIT + OVERSHOOT_ANGLE
-DRAWER_DONE_OPEN = 0.9
+DRAWER_DONE_OPEN = 0.97
 LID_DONE_OPEN = 1.645  # push it onto its stop (1.66): gravity barely holds it near vertical
 DRAWER_DONE_CLOSED = 0.0015
 LID_DONE_CLOSED = 0.008
@@ -83,6 +83,8 @@ LID_BAR_GRIP = -0.3  # grip command that opens the pads about 1.4 cm each side o
 FINISHED_PATIENCE = 30  # steps a finished motion waits for the scene to count its subgoal
 ARRIVING = 0.15  # m from the place target inside which the hand turns before moving on
 TURN_BEFORE_ARRIVING = 0.3  # rad of heading error that still counts as turning
+ROUND_RATIO = 1.15  # long over narrow side under which an object grasps alike from any heading
+DRAWER_JAW_SLACK = 0.5  # rad
 PHASE_PATIENCE = 250  # steps any phase may last before the subgoal starts over
 
 
@@ -485,6 +487,26 @@ class ManipulationTeacher:
         return self._command(row, ee, ee, 1.0, None)
 
     # ------------------------------------------------------------------------------ objects
+    def _pick_yaw(self, row: int, slot: int, scene: dict[str, np.ndarray]) -> float:
+        """Jaw heading to pick ``slot``: across its narrow side (the grasp task's rule).
+
+        In a drawer the jaws close along the drawer's width instead whenever that is still
+        across the object (round objects, or ones turned less than DRAWER_JAW_SLACK), so the
+        open fingers stay parallel to the front panel: skewed, a finger lands on the panel and
+        pushes the drawer shut.
+        """
+        sim = self.sim
+        object_yaw = float(scene["object_yaw"][row, slot])
+        source = int(sim.source[row, slot])
+        if source < 0 or not scene["inside"][row, slot, source]:
+            return object_yaw
+        width = _angle(sim.dc_rot[row][:, 1])
+        long, narrow = sim.object_size()[row, slot, :2]
+        turned = abs(float(arm_task.half_turn_wrap(np.array(object_yaw - width))))
+        if long < ROUND_RATIO * narrow or turned < DRAWER_JAW_SLACK:
+            return width
+        return object_yaw
+
     def _pick_place(
         self, row: int, index: int, kind: int, scene: dict[str, np.ndarray]
     ) -> np.ndarray:
@@ -492,7 +514,7 @@ class ManipulationTeacher:
         ee = scene["ee"][row]
         slot = int(sim.sub_obj[row, index])
         grasp = scene["grasp_points"][row, slot]
-        object_yaw = float(scene["object_yaw"][row, slot])
+        object_yaw = self._pick_yaw(row, slot, scene)
         grasped = bool(scene["grasped"][row, slot])
         bottom = float(scene["bottom"][row, slot])
         top = float(scene["top"][row, slot])
