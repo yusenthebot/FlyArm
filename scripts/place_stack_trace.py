@@ -66,6 +66,7 @@ def trace(env: Any, bank: cu.SubgoalBank, picks: np.ndarray, policy: Any) -> dic
     ever_released = np.zeros(n, bool)
     phase_steps: list[Counter] = [Counter() for _ in range(n)]
     last: dict[str, np.ndarray] = {}
+    held_at_start = teacher._scene()["grasped"][rows, obj].copy()
     for _ in range(horizon):
         if not active.any():
             break
@@ -148,6 +149,14 @@ def trace(env: Any, bank: cu.SubgoalBank, picks: np.ndarray, policy: Any) -> dic
             ),
             "ever_over_target_and_turned": round(float(ever_arrived[mask].mean()), 3),
             "ever_released": round(float(ever_released[mask].mean()), 3),
+            # Starts right after a pick hold the object; the others have to pick it first.
+            "held_at_start": {
+                "episodes": int((mask & held_at_start).sum()),
+                "success_rate": round(float(success[mask & held_at_start].mean()), 3)
+                if (mask & held_at_start).any()
+                else None,
+                "reasons": dict(Counter(reason[mask & held_at_start]).most_common()),
+            },
             "teacher_phase_share": {k: round(v / total, 3) for k, v in phases.most_common()},
         }
     return out

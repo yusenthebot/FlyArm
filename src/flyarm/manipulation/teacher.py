@@ -117,6 +117,10 @@ MARGIN = 0.003
 ARTICULATION_CAP = 0.01
 OBJECT_CAP = 0.008
 PAD_DEPTH = 0.02  # m below the grasp point the pads may still close on an object
+# Carry to lower from geometry (_placement_fits), within these caps of the target.
+PLACE_MARGIN = 0.004
+PLACE_CAP = 0.02
+PLACE_TURN_CAP = 0.25
 
 
 def _angle(vector: np.ndarray) -> float:
@@ -471,6 +475,43 @@ class ManipulationTeacher:
         across = fu.LID_BAR_LENGTH / 2 - MARGIN if across_bar else PAD_HALF - MARGIN
         return np.clip(np.array([along, across]), 0.002, ARTICULATION_CAP)
 
+    def _placement_fits(
+        self,
+        row: int,
+        index: int,
+        slot: int,
+        kind: int,
+        scene: dict[str, np.ndarray],
+        offset: np.ndarray,
+        place_yaw: float,
+    ) -> bool:
+        """Lowering straight down from here lands the object where the subgoal counts it.
+
+        A place: every corner of the object, where it hangs now, lies inside the receptacle's
+        interior in xy with PLACE_MARGIN to spare. A stack: the object's centre is over the base
+        object's footprint with PLACE_MARGIN to spare. Either way within PLACE_CAP (xy) and
+        PLACE_TURN_CAP (heading) of the target, since LOWER keeps steering toward it. The old
+        8 mm and 0.05 rad gate stays sufficient; this one lets a learner a few millimetres or
+        a few degrees off lower too (docs/MANIPULATION_ENV.md, "Place and stack").
+        """
+        sim = self.sim
+        if np.linalg.norm(offset) > PLACE_CAP or self._yaw_error(row, place_yaw) > PLACE_TURN_CAP:
+            return False
+        target = int(sim.sub_target[row, index])
+        if kind == tk.STACK:
+            base = int(np.clip(target, 0, tk.MAX_OBJECTS - 1))
+            rotation = scene["rotation"][row, base]
+            local = rotation.T @ (scene["object_pos"][row, slot] - scene["object_pos"][row, base])
+            half = sim.object_size()[row, base, :2] / 2 - PLACE_MARGIN
+            return bool(np.all(np.abs(local[:2]) <= half))
+        receptacle = int(np.clip(target, 0, sim.box_half.shape[1] - 1))
+        origins, rotations = sim.receptacle_frames()
+        corners = scene["corners"][row, slot]  # [8, 3] world
+        local = (corners - origins[row, receptacle]) @ rotations[row, receptacle]
+        centre = sim.box_centre[row, receptacle, :2]
+        half = sim.box_half[row, receptacle, :2] - PLACE_MARGIN
+        return bool(np.all(np.abs(local[:, :2] - centre) <= half))
+
     def _pads_on_object(self, row: int, ee: np.ndarray, grasp: np.ndarray, bottom: float) -> bool:
         """The pads' height closes on the object: at most 8 mm above the grasp point (as before),
         and below it down to where the pads' lower edge would reach the object's bottom (with
@@ -716,7 +757,8 @@ class ManipulationTeacher:
             if turning and np.linalg.norm(offset) < ARRIVING:
                 offset = np.zeros(2)
             desired = np.array([ee[0] + offset[0], ee[1] + offset[1], carry_z])
-            if np.linalg.norm(offset) < 0.008 and self._yaw_error(row, place_yaw) < 0.05:
+            aligned = np.linalg.norm(offset) < 0.008 and self._yaw_error(row, place_yaw) < 0.05
+            if aligned or self._placement_fits(row, index, slot, kind, scene, offset, place_yaw):
                 self.phase[row] = LOWER
                 self.counter[row] = 0
                 self.previous_z[row] = ee[2] + 1.0
