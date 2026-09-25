@@ -1,0 +1,79 @@
+{
+ "steps": 42575,
+ "held_steps": 21570,
+ "global linear": [
+  0.258,
+  0.595
+ ],
+ "linear per skill": [
+  0.214,
+  0.574
+ ],
+ "linear per teacher phase": [
+  0.094,
+  0.316
+ ],
+ "linear per skill x phase": [
+  0.068,
+  0.245
+ ],
+ "phase shares": {
+  "approach": 0.339,
+  "descend": 0.145,
+  "close": 0.027,
+  "move": 0.092,
+  "lift": 0.069,
+  "carry": 0.129,
+  "lower": 0.116,
+  "release": 0.008,
+  "retreat": 0.058,
+  "finished": 0.007,
+  "clear": 0.01
+ },
+ "per phase": {
+  "approach": {
+   "share": 0.339,
+   "saturated": 0.438
+  },
+  "descend": {
+   "share": 0.145,
+   "saturated": 0.158
+  },
+  "close": {
+   "share": 0.027,
+   "saturated": 0.192
+  },
+  "move": {
+   "share": 0.092,
+   "saturated": 0.43
+  },
+  "lift": {
+   "share": 0.069,
+   "saturated": 0.391
+  },
+  "carry": {
+   "share": 0.129,
+   "saturated": 0.508
+  },
+  "lower": {
+   "share": 0.116,
+   "saturated": 0.2
+  },
+  "release": {
+   "share": 0.008,
+   "saturated": 0.2
+  },
+  "retreat": {
+   "share": 0.058,
+   "saturated": 0.41
+  },
+  "finished": {
+   "share": 0.007,
+   "saturated": 0.205
+  },
+  "clear": {
+   "share": 0.01,
+   "saturated": 0.301
+  }
+ }
+}
