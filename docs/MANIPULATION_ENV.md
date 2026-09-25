@@ -458,7 +458,7 @@ Learner-only probe with the teacher's new gates (single subgoals, round 0 the te
 
 The connectome's last round: open_drawer 1.00, close_drawer 1.00, close_door 1.00, open_door 0.50, pick 0.38, place and stack 0; the round is selected on validation and scores 0 of 7 iid episodes from true starts with subgoal fraction 0.18.
 The stalls left are mostly APPROACH (53%) and DESCEND (19%); in DESCEND the xy correction asked for is now 1.6 mm at the median (quartiles 1.1 to 4.5 mm), inside the new gates, so these are no longer gate stalls.
-Place and stack are still 0 for every learner: the next gate to examine is CARRY to LOWER (8 mm and 0.05 rad) and the placement's rest test.
+Place and stack are still 0 for every learner (see Place and stack, below).
 
 Relaunch (the shipped configs carry the fix: `control_features`, 10 epochs a round capped at 3,000 updates for the connectome and the shuffle, 6,000 for the GRU and 20,000 for the MLP, 64 windows an update; the teacher's re-entry, command floors and geometric closing gates are in the code):
 
@@ -469,6 +469,77 @@ FLYARM_SIM_THREADS=4 PYTHONPATH=src .venv/bin/python -m flyarm.cli rl manipulati
 
 The other controllers use configs/skill-dagger-shuffled.json, -mlp.json and -gru.json with their own run directories; a PPO smoke from the fixed connectome run (control features through the frozen encoder, DAPG from its train.npz) completed.
 Estimates on the shared GPU (the aggregate of the first run: 0.07, 0.15, 0.23, 0.33, 0.5, 0.69, 0.87, 1.25, 1.63 and 2.0 M steps): connectome or shuffle about 27,700 updates at about 1 s (0.6 s with the GPU free) plus about 1 hour of rollouts and evaluations, 8.5 to 9 hours (5.5 to 6 free); matched MLP about 77,000 updates at 17 ms plus rollouts, about 1.5 hours; GRU about 45,000 updates at about 0.15 s plus rollouts, about 2.5 hours; the PPO from stage 2 as before, 3 to 4 hours.
+
+### Place and stack (branch fix/place-stack)
+
+Every learner scored 0 on single-subgoal place and stack from resets while the other skills reached 0.5 to 1.0; nearly every template has a place or a stack, so this blocks the full run.
+Tool: `scripts/place_stack_trace.py` (all 44 place and 12 stack starts of the validation bank, the teacher labelling every state; each episode ends in one reason: `carry`, `turn`, `lower` while still holding, `dropped` (let go away from the target), `touching`, `outside`, `unsettled` after release, split by whether the start holds the object).
+One cause at a time, each change re-measured on the full teacher table (acceptance: train cells at 19 or 20 of 20, no cell down by more than 2).
+
+1. Time budget: a single-subgoal reset was cut at 300 steps with no base, where a template gets 200 plus 300 a subgoal.
+   A place from a subgoal start is mostly a whole pick and place (36 of 44 starts do not hold the object: they follow an articulation or another placement) plus the 10-step rest test, and the teacher itself needed a median of 297 steps: it solved 50% of the place starts within 300 (open_door 58%, stack 75%).
+   Fix: resets get `tk.horizon(budget)`, the templates' own budget (500 for one subgoal); the teacher then solves place 93%, stack and every other skill 100%.
+   With it, learners still scored 0: 36 of 44 place episodes of the connectome ended `dropped` (never picked), the teacher in APPROACH 61% of the time.
+2. The same path dependence as at the handles, at objects: the learner stood with the hand open at the grasp point (2 mm in xy, 1 mm in height) while a fresh teacher said "rise to the hover", where the teacher's own path, through the hover's alignment gate, says "descend" or "close" (64% of the connectome's stationary steps).
+   Fix: the object re-entry (`_object_down`): an open hand already below the hover within 12 mm of the grasp point and turned within 0.15 rad descends or closes, also out of CLEAR, except while the object settles where it was placed (a re-entry there picked it up again: `retrieve` and `unpack` fell to 0 when tried without that exclusion).
+3. The pads' height gate: the next stalls were in DESCEND with the hand 8 mm below the grasp point, labelled "rise", a label the teacher's data never has.
+   Fix: the pads close anywhere from 8 mm above the grasp point down to where their lower edge would reach the object's bottom, at most 2 cm below (`_pads_on_object`), and within 8 mm (was 5) along the jaws.
+4. Contradictory turn labels: in the teacher's own data, 64 to 70% of steps holding the object with a placement heading error over 0.1 rad were labelled yaw 0 (LIFT turned nothing) where CARRY, from the same held states, labels a full turn; learners holding the object stopped turning in CARRY.
+   Fix: LIFT turns toward the placement once the object is out of every receptacle.
+5. The carry-to-lower gate (8 mm and 0.05 rad): learners holding the object a few millimetres or degrees off stalled in CARRY or `turn`.
+   Fix: CARRY also lowers when the object fits where it hangs (`_placement_fits`: every corner inside the receptacle's interior with 4 mm to spare; a stack: its centre over the base's footprint), within 2 cm and 0.25 rad of the target, since LOWER keeps steering; lowering commands get the command floor.
+
+Teacher table after all five (docs/results/manipulation-teacher.json): 625 of 640 against 619 before; four cells up (`shelve` iid 19 to 20, `unpack` unseen objects 16 to 18, `shelve` unseen furniture 16 to 18, `full_cleanup` 17 to 19), `shelve_then_put_away` 20 to 19, every train cell unchanged (139 of 140).
+The release, the rest test and containment were not the problem: no learner episode ended `touching` or `outside`, and the teacher's own placements settle.
+
+Learner-only probe (as before: single subgoals, round 0 the teacher, round 1 beta 0.5, then two rounds with the learner alone):
+
+| Run | Place (44 starts) | Stack (12) | Place, starts holding the object (8) | Mean of the seven skills, last two rounds |
+| --- | --- | --- | --- | --- |
+| Matched MLP, before (fixes 1 and 2 only) | 1/44 | 0/12 | 1/8 | 0.32, 0.52 (skill evaluation) |
+| Matched MLP, all five | 10/44 (0.23) | 1/12 | 7/8 | 0.42, 0.55 |
+| Connectome (MLP encoder), all five | 10/44 (0.23) | 5/12 (0.42) | 5/8 | 0.53, 0.73 |
+
+The connectome's last round solves open_drawer, close_drawer, close_door and pick from resets (1.00 each, open_door 0.50), and its selected round completes 3 of 7 iid episodes from true starts with subgoal fraction 0.55 (the first successes from true starts of any learner here); it is stationary 34% of its steps.
+
+Remaining failures of place (both learners): 23 and 25 of 44 `dropped` (the pick part: a place start begins after another subgoal, often with the hand at a handle) and 6 to 10 `carry`; the MLP is stationary 41% of its steps.
+
+### Phase cue (branch feat/phase-cue)
+
+docs/ARCHITECTURE_ANALYSIS.md found that one linear map per teacher phase fits the teacher's commands about three times better than one map overall: most of what a controller has to learn is the switching between motor phases.
+The memoryless cue therefore gains the current motor phase (`motor_phase`, a one-hot over approach, descend, close, move, lift, carry, lower, release, retreat, clear, before the progress field), computed by `flyarm.manipulation.phases` from scene predicates only, with the teacher's own geometry (alignment at the hover, the closing gates, a pad on the handle at its height, a held object that fits over its destination, the previous subgoal's handle not yet at the teacher's stop) and never the teacher's memory.
+`phase_cue: false` (the default) zeroes it, the no-phase-cue control, as `cue: false` zeroes the whole cue.
+The observation grows from 220 to 230 features, so checkpoints of earlier runs no longer load.
+
+Agreement with the teacher on its own episodes (`scripts/phase_cue_agreement.py`, three per train template from true starts, 22,074 steps, docs/results/phase-cue-agreement.json): 95.9% with the phase the teacher decides from the same state, 94.0% with the phase it acts in (which lags by one step at every switch).
+By skill 87% (close_drawer) to 99% (stack).
+Where they differ: the pads already touching a handle while the teacher still counts its 6 settling steps in CLOSE (181 steps, 11% of CLOSE), the teacher's retreat ending on its own counters (reach, not rising) against the observable height (142 and 157 steps between retreat and approach), a pad brushing the handle during the descent (87), an object held but not yet risen (81), and the teacher's retry paths (CLEAR, 58%).
+
+Phase linearity (scripts/manipulation_phase_linearity.py, 42,927 teacher steps, train / held-out episodes, docs/results/manipulation-phase-linearity.json): one linear map 0.246 / 0.581, per skill 0.203 / 0.600, per teacher phase 0.086 / 0.340, per skill and teacher phase 0.063 / 0.274, per observable phase 0.097 / 0.436, per skill and observable phase 0.074 / 0.330.
+The observable phase recovers almost all of the teacher phase's gain on the fitted episodes.
+
+Capacity probe with and without the phase cue (scripts/sensory_encoder_probe.py on 28 new teacher episodes, 4 per train template, 28,307 steps, one in seven held out, 12 epochs, matched budgets; docs/results/phase-cue-capacity.json):
+
+| Variant | Held-out L1 without / with the phase cue | Training L1 without / with |
+| --- | --- | --- |
+| Linear encoder + measured connectome (encoder rate x0.1) | 0.260 / 0.206 | 0.225 / 0.169 |
+| MLP encoder + measured connectome | 0.219 / 0.150 | 0.166 / 0.120 |
+| MLP encoder + degree-preserving shuffle | 0.196 / 0.153 | 0.158 / 0.125 |
+| Matched MLP | 0.165 / 0.107 | 0.110 / 0.078 |
+
+The phase cue lowers every variant's error by 21 to 35%, but the linear-encoder connectome does not reach the MLP: with the cue it fits about as well as the MLP-encoder connectome did without it (0.206 against 0.219), and still twice the MLP's error; the measured wiring and its shuffle remain equal.
+
+Learner-only skill DAgger with the phase cue (as for place and stack: single subgoals, round 0 the teacher, round 1 beta 0.5, then two rounds with the learner alone; against the same runs without the cue):
+
+| Run | Mean skill success, learner-only rounds | Place (44) | Stack (12) | Stationary | True starts, train validation: subgoal fraction (successes of 7) | iid, selected round (7 episodes) |
+| --- | --- | --- | --- | --- | --- | --- |
+| Connectome (MLP encoder), no phase cue | 0.53, 0.73 | 10/44 | 5/12 | 0.34 | 0.13, 0.41 (0, 2) | 3/7, 0.55 |
+| Connectome (MLP encoder), phase cue | 0.76, 0.80 | 20/44 | 12/12 | 0.23 | 0.35, 0.59 (1, 3) | 1/7, 0.35 |
+| Matched MLP, no phase cue | 0.42, 0.55 | 10/44 | 1/12 | 0.41 | 0.21, 0.18 (0, 0) | 0/7, 0.25 |
+| Matched MLP, phase cue | 0.49, 0.68 | 17/44 | 12/12 | 0.29 | 0.20, 0.40 (1, 1) | 2/7, 0.43 |
+
+The phase cue helps both learners on every single-subgoal measure and on the train-split true starts; the seven iid episodes are too few to separate the connectome runs (1 and 3 successes).
+The shipped skill-DAgger configs turn it on; the no-phase-cue control is the same config with `phase_cue: false`.
 
 ### Imitation failure analysis
 

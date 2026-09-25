@@ -133,6 +133,7 @@ CUE_FIELDS = (
     # object) and to place (the receptacle's axis, or the base object's for a stack).
     ("grasp_heading_error", 1),
     ("place_heading_error", 1),
+    ("motor_phase", 10),  # flyarm.manipulation.phases.PHASE_NAMES, one-hot; 0 unless phase_cue
     ("progress", 2),  # subgoals done / total, subgoals left / MAX_SUBGOALS
 )
 PRIVILEGED_FIELDS = (("object_mass", S), ("subgoal_done", M), ("yaw_command", 1))
@@ -252,6 +253,7 @@ class ManipulationSim(ArmSim):
         cue: bool = True,
         horizon: int | None = None,
         velocities: bool = True,
+        phase_cue: bool = False,
     ) -> None:
         longest = max(len(tk.TEMPLATES[name].steps) for name in templates)
         super().__init__(
@@ -266,6 +268,9 @@ class ManipulationSim(ArmSim):
         self.ranges = ranges
         self.reward_config = reward or RewardConfig()
         self.cue_input = cue
+        # The observable motor phase in the cue (flyarm.manipulation.phases); False zeroes it
+        # (the no-phase-cue control), as ``cue`` False zeroes the whole cue.
+        self.phase_cue_input = phase_cue
         # False zeroes the joint and object velocities in the policy observation (the critic's
         # privileged observation keeps them): imitation from states with velocities learns to
         # keep doing what the velocities say and never leaves a state of rest (the copycat
@@ -941,6 +946,14 @@ class ManipulationSim(ArmSim):
         place = np.where(object_skill, self.place_headings(pick)[rows, index], np.nan)
         fields["grasp_heading_error"] = self.turn_to(grasp)[:, None]
         fields["place_heading_error"] = self.turn_to(place)[:, None]
+        fields["motor_phase"] = np.zeros((n, 10))
+        if self.phase_cue_input:
+            from flyarm.manipulation.phases import PHASE_DIM, observable_phases
+
+            phase = observable_phases(self, leading)
+            known = phase >= 0
+            fields["motor_phase"] = np.zeros((n, PHASE_DIM))
+            fields["motor_phase"][known, phase[known]] = 1.0
         total = np.maximum(self.sub_count, 1)
         fields["progress"] = np.stack(
             (np.minimum(leading, total) / total, (self.sub_count - np.minimum(leading, total)) / M),
@@ -1037,7 +1050,7 @@ class ManipulationSim(ArmSim):
         The seed and template rebuild the recorded episode (furniture, objects, poses), then the
         recorded state replaces the physics and task state. Subgoals before ``subgoal`` count as
         done and pay no bonus; the episode succeeds after ``budget`` more subgoals (or the
-        template's end) and is cut after SUBGOAL_HORIZON steps per subgoal it has to do.
+        template's end) and is cut at a template's horizon for the subgoals it has to do.
         """
         ids = np.asarray(ids, dtype=np.int64)
         ManipulationSim.reset(self, ids, np.asarray(seeds), templates)
@@ -1056,7 +1069,10 @@ class ManipulationSim(ArmSim):
         subgoal = np.asarray(subgoal, dtype=np.int64)
         self.preset[ids] = subgoal
         self.goal_count[ids] = np.minimum(self.sub_count[ids], subgoal + np.asarray(budget))
-        self.horizons[ids] = tk.HORIZON_PER_SUBGOAL * (self.goal_count[ids] - subgoal)
+        # The templates' own budget for that many subgoals (HORIZON_BASE included): without the
+        # base a single place, which picks, carries, places and waits for the rest test, left
+        # the teacher itself 50% of its starts (docs/MANIPULATION_ENV.md, place and stack).
+        self.horizons[ids] = tk.horizon(self.goal_count[ids] - subgoal)
         self.steps[ids] = 0
         self.remember_poses(ids)
         state = self.scene_state()

@@ -324,7 +324,12 @@ def main() -> None:
         tuple(str(t) for t in bank.templates[picks]),
     )
     env = rollout.make_env(
-        args.model, plan, asset_root=args.asset_root, cue=config.cue, velocities=config.velocities
+        args.model,
+        plan,
+        asset_root=args.asset_root,
+        cue=config.cue,
+        velocities=config.velocities,
+        phase_cue=config.phase_cue,
     )
     started = time.monotonic()
     row: dict[str, Any] = {

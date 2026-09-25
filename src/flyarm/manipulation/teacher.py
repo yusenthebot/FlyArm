@@ -88,18 +88,17 @@ ARRIVING = 0.15  # m from the place target inside which the hand turns before mo
 TURN_BEFORE_ARRIVING = 0.3  # rad of heading error that still counts as turning
 TRAVEL_SINK = 0.002  # m per control step
 PHASE_PATIENCE = 250  # steps any phase may last before the subgoal starts over
-# Memoryless re-entry into an articulation's descent: a hand already below its hover point,
-# within this of the handle in xy, turned within REENTRY_YAW and open, continues down instead of
+# Memoryless re-entry into the descent: a hand already below its hover point, within this of the
+# handle or grasp point in xy, turned within REENTRY_YAW and open, continues down instead of
 # being sent back up to the hover to pass the strict alignment gate there. The teacher itself
 # always passes that gate on the way, but a learner that descends without the pause otherwise
 # gets "rise" labels at states the teacher's own data labels "descend" or "close", and stalls
-# there (docs/MANIPULATION_ENV.md, "Skill-level DAgger failure analysis"). Not for objects:
-# rising from a just-placed object is how the teacher lets a placement settle (a re-entry
-# there picks it up again).
+# there (docs/MANIPULATION_ENV.md, "Skill-level DAgger failure analysis"). For objects, not
+# while the object settles where it was placed (_object_down).
 REENTRY_XY = 0.012
 REENTRY_YAW = 0.15
-# Proportional commands with a floor while aligning (APPROACH, DESCEND, CARRY): a command whose
-# proportional size is under COMMAND_FLOOR is raised to it, unless the error is already inside
+# Proportional commands with a floor while aligning (APPROACH, DESCEND, CARRY, LOWER): a command
+# whose proportional size is under COMMAND_FLOOR is raised to it, unless the error is already inside
 # half a floor step (so the hand cannot overshoot by more than that). A learner a few millimetres
 # off then gets a label that moves it, never a near-zero hover (a P command at 3 mm is 0.2, and
 # regressions smoothed such labels to zero; docs/MANIPULATION_ENV.md).
@@ -108,14 +107,20 @@ COMMAND_FLOOR = 0.25
 # between the pads with MARGIN to spare along the jaw axis (half the opening the grip command
 # settles at, minus the handle's radius or the object's half width), the pads overlap it across
 # the jaw axis (PAD_HALF, the Panda fingertip pad's half width, for a vertical bar or a knob), and
-# the pad height is within AT_HEIGHT. Capped, so the fingers still meet an object together
-# instead of one pushing it far before the other arrives; the closing hand keeps servoing to the
-# grasp point and centring on the finger contacts, as before.
+# the pad height is within AT_HEIGHT (objects: _pads_on_object). Capped (10 mm for handles, 8 mm
+# for objects), so the fingers still meet an object together instead of one pushing it far
+# before the other arrives; the closing hand keeps servoing to the grasp point and centring on
+# the finger contacts, as before.
 FULL_GAP = 0.08  # m between the pads with the gripper fully open
 PAD_HALF = 0.0085
 MARGIN = 0.003
 ARTICULATION_CAP = 0.01
-OBJECT_CAP = 0.005
+OBJECT_CAP = 0.008
+PAD_DEPTH = 0.02  # m below the grasp point the pads may still close on an object
+# Carry to lower from geometry (_placement_fits), within these caps of the target.
+PLACE_MARGIN = 0.004
+PLACE_CAP = 0.02
+PLACE_TURN_CAP = 0.25
 
 
 def _angle(vector: np.ndarray) -> float:
@@ -269,6 +274,10 @@ class ManipulationTeacher:
         if index < 0 or self.phase[row] == FINISHED:
             return self._command(row, ee, ee, 1.0, None)
         kind = int(sim.sub_kind[row, index])
+        if kind in (tk.PICK, tk.PLACE, tk.STACK) and self.phase[row] in (CLEAR, APPROACH):
+            if self._object_down(row, index, scene):
+                self.phase[row] = DESCEND  # memoryless: see _object_down
+                self.counter[row] = 0
         if self.phase[row] == CLEAR:
             return self._clear(row, scene)
         if kind in (tk.OPEN_DRAWER, tk.CLOSE_DRAWER, tk.OPEN_DOOR, tk.CLOSE_DOOR):
@@ -415,6 +424,33 @@ class ManipulationTeacher:
             and abs(float(scene["opening"][row]) - opened) < 0.15
         )
 
+    def _object_down(self, row: int, index: int, scene: dict[str, np.ndarray]) -> bool:
+        """The open hand is already down at the object it has to pick, turned onto it, and the
+        object is not settling in a receptacle it was placed in or on another object.
+
+        The teacher's own path reaches such a state only through the hover's alignment gate,
+        so from it the teacher's data says "descend" or "close"; a fresh teacher (a learner's
+        state, or its own CLEAR after a subgoal) said "rise to the hover", the same state with
+        opposite labels by path, and learners stalled there with the hand open at the grasp
+        point (docs/MANIPULATION_ENV.md, "Place and stack"). A just-placed object is excluded:
+        rising from it while it settles is how the teacher lets the rest test count, and a pick
+        subgoal can read undone for a moment while it does.
+        """
+        sim = self.sim
+        slot = int(sim.sub_obj[row, index])
+        if bool(scene["grasped"][row, slot]):
+            return False
+        source = int(sim.source[row, slot])
+        inside = scene["inside"][row, slot].copy()
+        if source >= 0:
+            inside[source] = False
+        if inside.any() or bool(scene["stacked_geometry"][row, slot].any()):
+            return False
+        grasp = scene["grasp_points"][row, slot]
+        top = float(scene["top"][row, slot])
+        hover = np.array([grasp[0], grasp[1], max(grasp[2] + 0.06, top + 0.075)])
+        return self._already_down(row, scene, grasp, hover, self._pick_yaw(row, slot, scene))
+
     def _straddles(
         self, row: int, scene: dict[str, np.ndarray], target: np.ndarray, tolerance: np.ndarray
     ) -> bool:
@@ -438,6 +474,53 @@ class ManipulationTeacher:
         across_bar = articulation == 2 and not knob
         across = fu.LID_BAR_LENGTH / 2 - MARGIN if across_bar else PAD_HALF - MARGIN
         return np.clip(np.array([along, across]), 0.002, ARTICULATION_CAP)
+
+    def _placement_fits(
+        self,
+        row: int,
+        index: int,
+        slot: int,
+        kind: int,
+        scene: dict[str, np.ndarray],
+        offset: np.ndarray,
+        place_yaw: float,
+    ) -> bool:
+        """Lowering straight down from here lands the object where the subgoal counts it.
+
+        A place: every corner of the object, where it hangs now, lies inside the receptacle's
+        interior in xy with PLACE_MARGIN to spare. A stack: the object's centre is over the base
+        object's footprint with PLACE_MARGIN to spare. Either way within PLACE_CAP (xy) and
+        PLACE_TURN_CAP (heading) of the target, since LOWER keeps steering toward it. The old
+        8 mm and 0.05 rad gate stays sufficient; this one lets a learner a few millimetres or
+        a few degrees off lower too (docs/MANIPULATION_ENV.md, "Place and stack").
+        """
+        sim = self.sim
+        if np.linalg.norm(offset) > PLACE_CAP or self._yaw_error(row, place_yaw) > PLACE_TURN_CAP:
+            return False
+        target = int(sim.sub_target[row, index])
+        if kind == tk.STACK:
+            base = int(np.clip(target, 0, tk.MAX_OBJECTS - 1))
+            rotation = scene["rotation"][row, base]
+            local = rotation.T @ (scene["object_pos"][row, slot] - scene["object_pos"][row, base])
+            half = sim.object_size()[row, base, :2] / 2 - PLACE_MARGIN
+            return bool(np.all(np.abs(local[:2]) <= half))
+        receptacle = int(np.clip(target, 0, sim.box_half.shape[1] - 1))
+        origins, rotations = sim.receptacle_frames()
+        corners = scene["corners"][row, slot]  # [8, 3] world
+        local = (corners - origins[row, receptacle]) @ rotations[row, receptacle]
+        centre = sim.box_centre[row, receptacle, :2]
+        half = sim.box_half[row, receptacle, :2] - PLACE_MARGIN
+        return bool(np.all(np.abs(local[:, :2] - centre) <= half))
+
+    def _pads_on_object(self, row: int, ee: np.ndarray, grasp: np.ndarray, bottom: float) -> bool:
+        """The pads' height closes on the object: at most 8 mm above the grasp point (as before),
+        and below it down to where the pads' lower edge would reach the object's bottom (with
+        a millimetre to spare), at most PAD_DEPTH below. The teacher's own descent stops within
+        8 mm above; a learner that went a little lower used to be sent back up, labels the
+        teacher's data never has (docs/MANIPULATION_ENV.md, "Place and stack")."""
+        lowest = bottom + arm_task.PAD_BELOW_SITE + PAD_HALF + 0.001
+        low = min(grasp[2] - 0.008, max(grasp[2] - PAD_DEPTH, lowest))
+        return bool(low < float(ee[2]) < grasp[2] + 0.008)
 
     def _object_tolerance(self, row: int, slot: int) -> np.ndarray:
         """Along the jaw axis: half the open gap minus half the object's narrow side and the
@@ -618,7 +701,7 @@ class ManipulationTeacher:
         if phase == DESCEND:
             if xy_error > 0.02 or self._yaw_error(row, object_yaw) > 0.15:
                 self.phase[row] = APPROACH
-            elif abs(ee[2] - grasp[2]) < 0.008 and self._straddles(
+            elif self._pads_on_object(row, ee, grasp, bottom) and self._straddles(
                 row, scene, grasp, self._object_tolerance(row, slot)
             ):
                 # Centred within OBJECT_CAP: the coupled fingers then meet the object together
@@ -659,7 +742,13 @@ class ManipulationTeacher:
             desired = np.array([self.anchor[row, 0], self.anchor[row, 1], carry_z])
             if bottom >= safe - 0.01:
                 self.phase[row] = FINISHED if kind == tk.PICK else CARRY
-            return self._command(row, ee, desired, -1.0, None)
+            # Turn toward the placement as soon as the object is out of every receptacle, as
+            # CARRY does from the same held states: a LIFT that never turned labelled yaw 0
+            # where CARRY labels a full turn, and learners holding the object stopped turning
+            # (docs/MANIPULATION_ENV.md, "Place and stack").
+            free = not bool(scene["inside"][row, slot].any())
+            turn = place_yaw if kind in (tk.PLACE, tk.STACK) and free else None
+            return self._command(row, ee, desired, -1.0, turn)
         if phase == CARRY:
             offset = target[:2] - centre[:2]
             # Near the target, finish turning before closing in: a hand still turning sweeps
@@ -668,7 +757,8 @@ class ManipulationTeacher:
             if turning and np.linalg.norm(offset) < ARRIVING:
                 offset = np.zeros(2)
             desired = np.array([ee[0] + offset[0], ee[1] + offset[1], carry_z])
-            if np.linalg.norm(offset) < 0.008 and self._yaw_error(row, place_yaw) < 0.05:
+            aligned = np.linalg.norm(offset) < 0.008 and self._yaw_error(row, place_yaw) < 0.05
+            if aligned or self._placement_fits(row, index, slot, kind, scene, offset, place_yaw):
                 self.phase[row] = LOWER
                 self.counter[row] = 0
                 self.previous_z[row] = ee[2] + 1.0
@@ -686,7 +776,9 @@ class ManipulationTeacher:
                 self.counter[row] = 0
                 return self._command(row, ee, ee, -1.0, None)
             desired = np.array([ee[0] + offset[0], ee[1] + offset[1], ee[2] + drop])
-            return self._command(row, ee, desired, -1.0, place_yaw, descent=0.5)
+            return self._command(
+                row, ee, desired, -1.0, place_yaw, descent=0.5, floor=COMMAND_FLOOR
+            )
         if phase == RELEASE:
             return self._release(row, ee, scene)
         if phase == RETREAT:

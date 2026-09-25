@@ -1,0 +1,109 @@
+{
+ "split": "train",
+ "episodes": 21,
+ "steps": 22074,
+ "agreement": 0.9588,
+ "agreement_with_acting_phase": 0.9401,
+ "per_teacher_phase": {
+  "approach": {
+   "steps": 7627,
+   "agreement": 0.974,
+   "observed_as": {
+    "approach": 7427,
+    "retreat": 157,
+    "descend": 27,
+    "clear": 13
+   }
+  },
+  "descend": {
+   "steps": 2661,
+   "agreement": 0.966,
+   "observed_as": {
+    "descend": 2570,
+    "move": 87,
+    "approach": 4
+   }
+  },
+  "close": {
+   "steps": 1670,
+   "agreement": 0.892,
+   "observed_as": {
+    "close": 1489,
+    "move": 181
+   }
+  },
+  "move": {
+   "steps": 1961,
+   "agreement": 0.963,
+   "observed_as": {
+    "move": 1888,
+    "close": 48,
+    "clear": 16,
+    "descend": 9
+   }
+  },
+  "lift": {
+   "steps": 1400,
+   "agreement": 0.942,
+   "observed_as": {
+    "lift": 1319,
+    "close": 81
+   }
+  },
+  "carry": {
+   "steps": 2691,
+   "agreement": 0.995,
+   "observed_as": {
+    "carry": 2677,
+    "lift": 14
+   }
+  },
+  "lower": {
+   "steps": 2315,
+   "agreement": 0.994,
+   "observed_as": {
+    "lower": 2301,
+    "close": 14
+   }
+  },
+  "release": {
+   "steps": 193,
+   "agreement": 0.788,
+   "observed_as": {
+    "release": 152,
+    "approach": 15,
+    "close": 10,
+    "clear": 7
+   }
+  },
+  "retreat": {
+   "steps": 1437,
+   "agreement": 0.885,
+   "observed_as": {
+    "retreat": 1272,
+    "approach": 142,
+    "descend": 15,
+    "release": 8
+   }
+  },
+  "clear": {
+   "steps": 119,
+   "agreement": 0.58,
+   "observed_as": {
+    "clear": 69,
+    "close": 34,
+    "approach": 15,
+    "descend": 1
+   }
+  }
+ },
+ "per_skill": {
+  "close_door": 0.965,
+  "close_drawer": 0.869,
+  "open_door": 0.888,
+  "open_drawer": 0.978,
+  "pick": 0.957,
+  "place": 0.98,
+  "stack": 0.99
+ }
+}

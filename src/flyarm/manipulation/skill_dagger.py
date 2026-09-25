@@ -268,7 +268,7 @@ def run_skill_dagger(
         save_json(output / "skill-dagger.json", config.model_dump())
         save_json(output / "config.json", config.model.model_dump())
     model = config.model
-    bench = Workbench(model_path, asset_root, model.cue, model.velocities)
+    bench = Workbench(model_path, asset_root, model.cue, model.velocities, model.phase_cue)
     bank, validation_bank = _banks(config, bench, model_path, asset_root, output)
     budget = brain_budget(pack, interface, model)
     results: dict[str, Any] = {
@@ -332,6 +332,7 @@ def _banks(
             asset_root=asset_root,
             cue=config.model.cue,
             velocities=config.model.velocities,
+            phase_cue=config.model.phase_cue,
         )
         bank = cu.record_bank(env, episodes)
         bank.save(path)

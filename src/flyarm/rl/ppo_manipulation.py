@@ -86,13 +86,15 @@ class ManipulationTask:
         *,
         cue: bool = True,
         velocities: bool = True,
+        phase_cue: bool = False,
         bank: cu.SubgoalBank | None = None,
         validation_bank: cu.SubgoalBank | None = None,
     ) -> None:
         self.settings = settings
         self.model_path, self.asset_root, self.cue = Path(model_path), Path(asset_root), cue
         self.velocities = velocities
-        self.bench = Workbench(model_path, asset_root, cue, velocities)
+        self.phase_cue = phase_cue
+        self.bench = Workbench(model_path, asset_root, cue, velocities, phase_cue)
         if settings.curriculum and bank is None:
             raise ValueError("a curriculum needs a subgoal bank")
         self.bank, self.validation_bank = bank, validation_bank
@@ -116,6 +118,7 @@ class ManipulationTask:
             "reward": reward_config(self.settings),
             "cue": self.cue,
             "velocities": self.velocities,
+            "phase_cue": self.phase_cue,
         }
         if self.stages:
             assert self.bank is not None
@@ -271,6 +274,7 @@ def record_banks(
             asset_root=asset_root,
             cue=imitation.cue,
             velocities=imitation.velocities,
+            phase_cue=imitation.phase_cue,
         )
         bank = cu.record_bank(env, episodes)
         bank.save(output / f"{name}.npz")
@@ -314,6 +318,7 @@ def run_manipulation_ppo(
         asset_root,
         cue=imitation.cue,
         velocities=imitation.velocities,
+        phase_cue=imitation.phase_cue,
         bank=bank,
         validation_bank=validation_bank,
     )

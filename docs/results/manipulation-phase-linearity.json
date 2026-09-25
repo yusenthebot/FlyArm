@@ -1,79 +1,88 @@
 {
- "steps": 42575,
- "held_steps": 21570,
+ "steps": 42927,
+ "held_steps": 21390,
  "global linear": [
-  0.258,
-  0.595
+  0.246,
+  0.581
  ],
  "linear per skill": [
-  0.214,
-  0.574
+  0.203,
+  0.6
  ],
  "linear per teacher phase": [
-  0.094,
-  0.316
+  0.086,
+  0.34
  ],
  "linear per skill x phase": [
-  0.068,
-  0.245
+  0.063,
+  0.274
  ],
+ "linear per observable phase": [
+  0.097,
+  0.436
+ ],
+ "linear per skill x observable phase": [
+  0.074,
+  0.33
+ ],
+ "observable phase agreement": 0.936,
  "phase shares": {
-  "approach": 0.339,
-  "descend": 0.145,
-  "close": 0.027,
-  "move": 0.092,
-  "lift": 0.069,
-  "carry": 0.129,
-  "lower": 0.116,
+  "approach": 0.332,
+  "descend": 0.182,
+  "close": 0.026,
+  "move": 0.087,
+  "lift": 0.068,
+  "carry": 0.114,
+  "lower": 0.113,
   "release": 0.008,
-  "retreat": 0.058,
+  "retreat": 0.056,
   "finished": 0.007,
-  "clear": 0.01
+  "clear": 0.006
  },
  "per phase": {
   "approach": {
-   "share": 0.339,
-   "saturated": 0.438
+   "share": 0.332,
+   "saturated": 0.442
   },
   "descend": {
-   "share": 0.145,
-   "saturated": 0.158
+   "share": 0.182,
+   "saturated": 0.179
   },
   "close": {
-   "share": 0.027,
-   "saturated": 0.192
+   "share": 0.026,
+   "saturated": 0.193
   },
   "move": {
-   "share": 0.092,
-   "saturated": 0.43
+   "share": 0.087,
+   "saturated": 0.431
   },
   "lift": {
-   "share": 0.069,
-   "saturated": 0.391
+   "share": 0.068,
+   "saturated": 0.489
   },
   "carry": {
-   "share": 0.129,
-   "saturated": 0.508
+   "share": 0.114,
+   "saturated": 0.483
   },
   "lower": {
-   "share": 0.116,
-   "saturated": 0.2
+   "share": 0.113,
+   "saturated": 0.204
   },
   "release": {
    "share": 0.008,
    "saturated": 0.2
   },
   "retreat": {
-   "share": 0.058,
-   "saturated": 0.41
+   "share": 0.056,
+   "saturated": 0.409
   },
   "finished": {
    "share": 0.007,
    "saturated": 0.205
   },
   "clear": {
-   "share": 0.01,
-   "saturated": 0.301
+   "share": 0.006,
+   "saturated": 0.229
   }
  }
 }

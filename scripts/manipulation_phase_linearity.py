@@ -7,11 +7,12 @@ from pathlib import Path
 import numpy as np
 
 from flyarm.manipulation import rollout
+from flyarm.manipulation.phases import PHASE_NAMES, observable_phases
 from flyarm.manipulation.teacher import PHASES, ManipulationTeacher
 
 MODEL = Path("assets/menagerie/franka_emika_panda/scene.xml")
 per_template = int(sys.argv[1]) if len(sys.argv) > 1 else 3
-data = {"obs": [], "act": [], "phase": [], "skill": [], "episode": []}
+data = {"obs": [], "act": [], "phase": [], "observed": [], "skill": [], "episode": []}
 for offset, tag in ((0, "fit"), (500, "held")):
     p = rollout.plan("train", per_template, offset=offset)
     env = rollout.make_env(MODEL, p, velocities=False)
@@ -20,6 +21,8 @@ for offset, tag in ((0, "fit"), (500, "held")):
     teacher.reset()
     active = np.ones(env.num_envs, bool)
     for _ in range(int(env.horizons.max())):
+        state = env.scene_state()
+        observed = observable_phases(env, env.leading(env.subgoal_done(env.effects(state))))
         a = teacher.act().astype(np.float64)
         ph = teacher.phase.copy()
         sk = env.current_skill()
@@ -27,6 +30,7 @@ for offset, tag in ((0, "fit"), (500, "held")):
             data["obs"].append(obs[r])
             data["act"].append(a[r])
             data["phase"].append(ph[r])
+            data["observed"].append(observed[r])
             data["skill"].append(sk[r])
             data["episode"].append((tag, r))
         res = env.step(a, auto_reset=False)
@@ -37,6 +41,7 @@ for offset, tag in ((0, "fit"), (500, "held")):
 X = np.array(data["obs"], np.float64)
 Y = np.clip(np.array(data["act"]), -1, 1)
 phase = np.array(data["phase"])
+observed = np.array(data["observed"])
 skill = np.array(data["skill"])
 held = np.array([e[0] == "held" for e in data["episode"]])
 mu, sd = X[~held].mean(0), X[~held].std(0)
@@ -66,6 +71,20 @@ out = {
     "linear per skill": fit_eval(skill),
     "linear per teacher phase": fit_eval(phase),
     "linear per skill x phase": fit_eval(skill * 100 + phase),
+    # The observable phase (flyarm.manipulation.phases), what the phase cue gives a controller.
+    "linear per observable phase": fit_eval(observed),
+    "linear per skill x observable phase": fit_eval(skill * 100 + observed),
+    "observable phase agreement": round(
+        float(
+            np.mean(
+                [
+                    PHASE_NAMES.index("retreat" if PHASES[p] == "finished" else PHASES[p]) == o
+                    for p, o in zip(phase, observed, strict=True)
+                ]
+            )
+        ),
+        3,
+    ),
     "phase shares": {PHASES[p]: round(float((phase == p).mean()), 3) for p in np.unique(phase)},
 }
 per_phase = {}
