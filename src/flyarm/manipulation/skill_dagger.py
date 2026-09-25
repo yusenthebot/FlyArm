@@ -494,7 +494,8 @@ def finish(
     history: list[dict[str, Any]],
 ) -> dict[str, Any]:
     """Keep the best round on validation and evaluate it on every split and skill."""
-    best = max(range(len(history)), key=lambda r: selection_key(history[r]))
+    # Ties go to the later round, which has trained on more of the learner's own states.
+    best = max(range(len(history)), key=lambda r: (*selection_key(history[r]), r))
     policy.load(run / f"round-{best:02d}" / "policy.safetensors")
     final = run / "policy.safetensors"
     final.unlink(missing_ok=True)
