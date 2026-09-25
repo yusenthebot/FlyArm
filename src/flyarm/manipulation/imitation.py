@@ -52,6 +52,7 @@ from flyarm.whole_brain.policy import (
     MLPPolicy,
     SequencePolicy,
     gru_hidden_for_budget,
+    mlp_hidden_for_budget,
 )
 from flyarm.whole_brain.shuffle import shuffle_pack
 from flyarm.whole_brain.training import Budget, train_sequence_policy
@@ -110,24 +111,34 @@ def build_policy(
     """An untrained controller of one kind; the same constructor serves training and replay."""
     dims = {"obs_dim": OBS_DIM, "action_dim": ACTION_DIM, "chunk": config.action_chunk}
     if kind == "mlp":
+        if config.mlp_control == "matched":
+            hidden = mlp_hidden_for_budget(OBS_DIM, ACTION_DIM * config.action_chunk, brain_budget)
+            return MLPPolicy(**dims, hidden=hidden, seed=seed)
         return MLPPolicy(**dims, seed=seed)
     if kind == "gru":
         hidden = gru_hidden_for_budget(OBS_DIM, ACTION_DIM * config.action_chunk, brain_budget)
         return GRUPolicy(**dims, hidden=hidden, seed=seed)
     if dynamics is None:
         raise ValueError(f"{kind} needs connectome dynamics")
-    return BrainPolicy(kind, dynamics, neural_steps=config.neural_steps, seed=seed, **dims)
-
-
-def brain_budget(pack: ConnectomePack, interface: NeuralInterface, neural_steps: int) -> int:
-    """Trainable parameters of the connectome policy, the GRU control's budget."""
-    policy = BrainPolicy(
-        "connectome",
-        RateDynamics(pack, interface),
-        obs_dim=OBS_DIM,
-        action_dim=ACTION_DIM,
-        neural_steps=neural_steps,
+    return BrainPolicy(
+        kind,
+        dynamics,
+        neural_steps=config.neural_steps,
+        seed=seed,
+        encoder=config.encoder,
+        encoder_hidden=config.encoder_hidden,
+        encoder_activation=config.encoder_activation,
+        **dims,
     )
+
+
+def brain_budget(
+    pack: ConnectomePack,
+    interface: NeuralInterface,
+    config: ManipulationImitationConfig,
+) -> int:
+    """Trainable parameters of the connectome policy, the GRU and matched MLP controls' budget."""
+    policy = build_policy("connectome", config, 0, RateDynamics(pack, interface), 0)
     return policy.trainable_parameter_count()
 
 
@@ -215,6 +226,7 @@ def _train(
     if brain:
         samples = train["obs"][train["mask"] > 0]
         policy.set_normalization(samples.mean(0), np.maximum(samples.std(0), 0.05))
+        policy.scale_encoder(samples)  # a nonlinear encoder starts at the linear one's currents
         calibration = policy.calibrate_readout(train["obs"], train["mask"], unit_norm=True)
     validation_plan = rollout.plan(
         "train", config.val_episodes_per_template, rollout.VALIDATION_OFFSET
@@ -452,7 +464,7 @@ def _run(
         results["teacher"] = bench.evaluate(None, plans)
     save_json(output / "results.json", results)
 
-    budget = brain_budget(pack, interface, config.neural_steps)
+    budget = brain_budget(pack, interface, config)
     for seed in config.seeds:
         for kind in config.policies:
             print(f"manipulation {kind} seed={seed}", flush=True)
@@ -507,7 +519,7 @@ def load_manipulation_policy(
         recorded = json.loads((run_root / f"shuffled-{seed}.json").read_text())
         if recorded["fingerprint"] != shuffle_record["fingerprint"]:
             raise ValueError("Regenerated shuffle differs from the one used in training")
-    budget = brain_budget(pack, interface, config.neural_steps)
+    budget = brain_budget(pack, interface, config)
     policy = build_policy(kind, config, seed, dynamics, budget)
     path = checkpoint or run_root / f"{kind}-{seed}" / "policy.safetensors"
     if not path.is_file():

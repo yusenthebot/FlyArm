@@ -139,7 +139,7 @@ def main() -> None:
         pack.validate_b1a_provenance()
         interface = annotation_interface(pack)
         dynamics, _ = dynamics_for("connectome", 0, pack, interface)
-        budget = brain_budget(pack, interface, config.neural_steps)
+        budget = brain_budget(pack, interface, config)
     policy = build_policy(args.policy, config, 0, dynamics, budget)
     curves, training, _ = _train(
         policy, config, bench, train, validation, 0, time.monotonic() + 36_000, args.output
