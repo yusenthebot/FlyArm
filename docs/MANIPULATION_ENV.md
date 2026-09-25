@@ -300,6 +300,37 @@ Run (after the imitation run): `FLYARM_SIM_THREADS=4 PYTHONPATH=src .venv/bin/py
 Smoke (a tiny imitation base, 128 environments, 6 iterations through both stage switches, bank of 3 episodes per template: 86 subgoal starts over all 7 skills, validation bank 30): 8.4 minutes end to end; rollouts at 530 to 645 steps/s with the full imitation run sharing the GPU, 14.5 s per iteration including the update; the per-skill and per-split evaluations ran and the checkpoint was selected on validation.
 Estimate for the shipped config on the shared GPU: 1,000 iterations x 14.5 s = 4.0 hours, 11 evaluations x 4 to 6 minutes = 45 to 65 minutes, the banks (168 teacher episodes) and the DAPG replay about 8 minutes: about 5 hours, less with the GPU to itself.
 
+### Sensory encoder (branch feat/sensory-encoder)
+
+Curriculum PPO on the linear interface did not learn (research log), so the peripheral interface gains a trainable nonlinear sensory encoder: `BrainPolicy(encoder="mlp")` maps the observation through hidden layers (default 2 x 256, tanh) and a linear layer to the 1,846 ascending currents; the connectome stays frozen and the readout linear, so the claim becomes "only the peripheral interface is trained".
+`encoder="linear"` is the default and bit-identical to every earlier policy (test: same weights, same parameter names).
+At the start the output layer is scaled so the ascending currents have the linear encoder's RMS (0.5); the encoder then trains through BPTT in imitation, through `encoder_pass` in PPO (any module works), in ablation clones and in checkpoints.
+In PPO the encoder stays frozen whenever the DAPG term is on (the config refuses both): the demonstration features are then exact, imitation has already trained the encoder with full BPTT gradients where PPO's encoder pass has one-step ones, and the readout is what PPO tuned on the kitchen.
+
+Capacity probe (`scripts/sensory_encoder_probe.py`, docs/results/sensory-encoder-probe.json): the 28 demonstrations and held-out split of the rate-response probe, every variant trained by the imitation pipeline's trainer for 20 epochs (window sampling, L1, the epoch with the lowest training loss kept, so the held-out episodes select nothing), controls matched to the encoder policy's 606,905 trainable parameters.
+
+| Variant | Trainable parameters | L1 train / held out |
+| --- | --- | --- |
+| MLP encoder + measured connectome + linear readout, encoder learning rate x1 | 606,905 | 0.134 / 0.166 |
+| the same, encoder learning rate x0.1 | 606,905 | 0.189 / 0.218 |
+| MLP encoder + degree-preserving shuffle | 606,905 | 0.132 / 0.159 |
+| MLP encoder + direct input-to-output synapses only | 606,905 | 0.145 / 0.174 |
+| linear encoder + measured connectome (the pipeline's x0.1) | 418,081 | 0.216 / 0.236 |
+| MLP policy, 2 x 674 | 607,279 | 0.100 / 0.145 |
+| GRU, 352 units, 128-step burn-in | 607,205 | 0.099 / 0.135 |
+| GRU, 16-step burn-in | 607,205 | 0.261 / 0.273 |
+| GRU, episode sweep | 607,205 | 0.281 / 0.299 |
+| frame-wise references: linear policy / MLP 3 x 512 | | 0.211 / 0.267, 0.021 / 0.140 |
+
+Reading: the encoder variant passes the bar (0.166 held out, well under 0.22 and near the matched MLP's 0.145), so it earns a full run; but the connectome contributes nothing specific to it.
+The degree-preserving shuffle fits as well (0.159) and the direct synapses alone almost as well (0.174), so the gain is the encoder's, and the graph acts as a fixed random projection plus the ascending neurons' saturation (the trained encoder drives their currents to RMS 6.1, far into the tanh, from 0.5).
+The encoder needs its full learning rate; the tenth that keeps a linear encoder out of saturation leaves this one underfit.
+The GRU control needs a burn-in longer than its memory: with 16 steps its windows fit (0.09) but whole episodes from a zero state do not (0.26), and the episode sweep underfits it; the connectome's memory is about 0.2 s, so it keeps 16.
+
+Configs (connectome seed 0, the fixed imitation recipe plus the encoder, encoder learning rate x1): configs/whole-brain-manipulation-encoder.json (measured connectome), -encoder-shuffled.json (the same encoder on the degree-preserving shuffle), -encoder-baselines.json (parameter-matched MLP and GRU, burn-in 128), and configs/ppo-manipulation-encoder-curriculum.json (the curriculum PPO from runs/whole-brain-manipulation-encoder-001, encoder frozen, DAPG on).
+Smoke (tiny imitation with the MLP encoder, one DAgger round, then 6 curriculum PPO iterations through both stage switches and a progress clip): imitation 3.7 minutes, PPO 3.7 minutes at 1,160 to 1,325 steps/s with the GPU free.
+Estimates with the GPU to one run at a time: encoder imitation about 4.5 hours (the linear run took 4.0; an encoder epoch costs about 15% more), the shuffle the same, the MLP and GRU baselines about 2 hours (their training is minutes, rollouts and evaluations dominate), curriculum PPO about 3 hours (1,000 iterations of about 8 s plus 11 evaluations).
+
 ### Imitation failure analysis
 
 The first full imitation runs (runs/whole-brain-manipulation-001 and -diagnostic-001 in the main checkout) completed no episode on any split with any controller: subgoal fraction 0.01 to 0.03 for the connectome and the GRU and 0.000 for the MLP, although the MLP fit best (L1 0.078) and the teacher solves 91 to 98% of the same episodes.

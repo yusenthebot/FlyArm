@@ -416,3 +416,25 @@ def test_the_cue_names_the_turn_the_teacher_makes() -> None:
         checked += int(turning.sum())
         obs = env.step(action.astype(np.float64)).obs
     assert checked > 50
+
+
+def test_the_encoder_study_configs_and_matched_controls() -> None:
+    from flyarm.whole_brain.policy import mlp_hidden_for_budget
+
+    policies = {}
+    for name in ("encoder", "encoder-shuffled", "encoder-baselines"):
+        path = CONFIGS / f"whole-brain-manipulation-{name}.json"
+        config = ManipulationImitationConfig.model_validate_json(path.read_text())
+        assert config.encoder == "mlp" and config.mlp_control == "matched"
+        assert config.encoder_learning_rate_scale == 1.0
+        policies[name] = (config.policies, config.burn_in)
+    assert policies["encoder"] == (["connectome"], 16)
+    assert policies["encoder-shuffled"] == (["shuffled"], 16)
+    assert policies["encoder-baselines"] == (["mlp", "gru"], 128)  # the GRU needs a long burn-in
+    hidden = mlp_hidden_for_budget(220, 5, 606_905)
+    count = 221 * hidden + (hidden + 1) * hidden + (hidden + 1) * 5
+    assert abs(count - 606_905) / 606_905 < 0.002
+    ppo = ManipulationPPOConfig.model_validate_json(
+        (CONFIGS / "ppo-manipulation-encoder-curriculum.json").read_text()
+    )
+    assert ppo.encoder_lr == 0.0 and ppo.bc_weight > 0  # the encoder stays as imitation left it
