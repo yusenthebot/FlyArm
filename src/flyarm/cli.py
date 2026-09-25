@@ -175,6 +175,17 @@ def main() -> None:
     )
     imitate.add_argument("--asset-root", type=Path, default=Path("assets/objects"))
     imitate.add_argument("--output", type=Path, required=True)
+    skill = manipulation_sub.add_parser(
+        "skill-dagger", help="Skill-level DAgger at scale from subgoal resets (resumable)"
+    )
+    skill.add_argument("--config", type=Path, required=True)
+    skill.add_argument("--pack", type=Path, default=Path(DEFAULT_PACK))
+    skill.add_argument(
+        "--model", type=Path, default=Path("assets/menagerie/franka_emika_panda/scene.xml")
+    )
+    skill.add_argument("--asset-root", type=Path, default=Path("assets/objects"))
+    skill.add_argument("--output", type=Path, required=True)
+    skill.add_argument("--resume", action="store_true", help="continue after the last round")
     report = sub.add_parser("report", help="Aggregate completed runs into a Markdown report")
     report.add_argument("--output", type=Path, required=True)
     board = sub.add_parser("dashboard", help="Local run history, curves, logs and rollouts")
@@ -283,6 +294,20 @@ def main() -> None:
         kitchen_config = KitchenPPOConfig.model_validate_json(args.config.read_text())
         kitchen_outcome = run_kitchen_ppo(kitchen_config, args.pack, args.output)
         print(json.dumps({k: kitchen_outcome[k] for k in ("base", "best")}, indent=2))
+    elif args.command == "manipulation" and args.manipulation_command == "skill-dagger":
+        from flyarm.config import SkillDaggerConfig
+        from flyarm.manipulation.skill_dagger import run_skill_dagger
+
+        dagger_config = SkillDaggerConfig.model_validate_json(args.config.read_text())
+        dagger = run_skill_dagger(
+            args.pack,
+            args.model,
+            args.output,
+            dagger_config,
+            args.asset_root,
+            resume=args.resume,
+        )
+        print(json.dumps({m["kind"]: m["evaluation"] for m in dagger["models"]}, indent=2))
     elif args.command == "manipulation":
         from flyarm.config import ManipulationImitationConfig
         from flyarm.manipulation.imitation import run_manipulation_imitation

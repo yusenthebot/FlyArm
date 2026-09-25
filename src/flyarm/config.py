@@ -788,3 +788,85 @@ class ManipulationPPOConfig(BaseModel):
         if self.subgoal_bonus <= self.shaping:
             raise ValueError("subgoal_bonus must exceed shaping, the most shaping pays a subgoal")
         return self
+
+
+class DaggerStage(BaseModel):
+    """Rounds of skill-level DAgger with one episode mix (flyarm.manipulation.skill_dagger).
+
+    A share ``true_start_share`` of each round's episodes starts from a true start and runs the
+    whole template; the rest start from recorded teacher states at the start of a subgoal
+    (skills balanced) and run between ``min_subgoals`` and ``max_subgoals`` subgoals.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+    name: str
+    rounds: int = Field(ge=1, le=40)
+    min_subgoals: int = Field(default=1, ge=1, le=8)
+    max_subgoals: int = Field(default=1, ge=1, le=8)
+    true_start_share: float = Field(gt=0, le=1)
+
+    @model_validator(mode="after")
+    def ordered_range(self) -> DaggerStage:
+        if self.max_subgoals < self.min_subgoals:
+            raise ValueError("max_subgoals must be at least min_subgoals")
+        return self
+
+
+def default_dagger_stages() -> list[DaggerStage]:
+    return [
+        DaggerStage(name="single_subgoal", rounds=4, true_start_share=0.1),
+        DaggerStage(
+            name="two_or_three", rounds=3, min_subgoals=2, max_subgoals=3, true_start_share=0.15
+        ),
+        DaggerStage(
+            name="full_templates", rounds=3, min_subgoals=8, max_subgoals=8, true_start_share=1.0
+        ),
+    ]
+
+
+class SkillDaggerConfig(BaseModel):
+    """Skill-level DAgger at scale on the manipulation benchmark.
+
+    Round 0 records teacher episodes; every later round rolls out the current learner (the
+    teacher's action executed instead with probability ``betas[r - 1]``, 0 once the list ends),
+    labels every visited state with the teacher, adds them to the aggregate and trains the
+    warm-started controller for a fixed number of updates. Rounds belong to ``stages`` in order
+    (round 0 to the first stage). ``model`` is the controller and its trainer (encoder, learning
+    rates, windows, burn-in, policies, seeds); its episode counts and DAgger fields are unused.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+    model: ManipulationImitationConfig = Field(default_factory=ManipulationImitationConfig)
+    stages: list[DaggerStage] = Field(default_factory=default_dagger_stages, min_length=1)
+    teacher_episodes: int = Field(default=256, ge=1, le=4096)
+    episodes_per_round: int = Field(default=256, ge=1, le=4096)
+    betas: list[float] = Field(default_factory=lambda: [0.5, 0.25])
+    first_round_updates: int = Field(default=3000, ge=1, le=1_000_000)
+    updates_per_round: int = Field(default=1500, ge=1, le=1_000_000)
+    # Decoder-only updates at the start of round 0 for brain policies (the readout first).
+    warmup_updates: int = Field(default=300, ge=0, le=100_000)
+    bank_episodes_per_template: int = Field(default=20, ge=1, le=999)
+    validation_bank_episodes_per_template: int = Field(default=4, ge=1, le=999)
+    skill_eval_episodes: int = Field(default=4, ge=1, le=100)
+    val_episodes_per_template: int = Field(default=2, ge=1, le=999)
+    eval_episodes_per_template: int = Field(default=8, ge=1, le=999)
+    eval_splits: list[ManipulationSplitName] = Field(
+        default_factory=default_manipulation_eval_splits, min_length=1
+    )
+    max_seconds: int = Field(default=86400, ge=60, le=604800)
+
+    @property
+    def rounds(self) -> int:
+        return sum(stage.rounds for stage in self.stages)
+
+    @model_validator(mode="after")
+    def consistent(self) -> SkillDaggerConfig:
+        if any(not 0 <= beta <= 1 for beta in self.betas):
+            raise ValueError("betas must be in [0, 1]")
+        if self.rounds > 40:
+            raise ValueError("at most 40 rounds (DAgger seeds end below the PPO block)")
+        if self.warmup_updates >= self.first_round_updates:
+            raise ValueError("warmup_updates must leave joint updates in round 0")
+        if self.model.sampling != "windows":
+            raise ValueError("skill DAgger trains by window sampling")
+        return self
