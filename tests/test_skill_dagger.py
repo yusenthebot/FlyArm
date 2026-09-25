@@ -316,3 +316,35 @@ def test_a_teacher_that_finds_the_hand_down_at_the_handle_keeps_descending() -> 
     # the hover 7 cm above.
     assert fresh.phase[0] in (DESCEND, CLOSE) and fresh.phase[0] != APPROACH
     assert label[0, 2] <= 0.0
+
+
+@needs_env
+def test_the_teacher_moves_a_hand_that_is_millimetres_off_and_closes_from_geometry() -> None:
+    from flyarm.manipulation import teacher as mt
+
+    episodes = rollout.plan("train", 1, 400_000, templates=["put_away"])
+    env = rollout.make_env(Path(MODEL), episodes, asset_root=OBJECTS, velocities=False)
+    env.reset(seeds=np.array(episodes.seeds), templates=list(episodes.templates))
+    teacher = mt.ManipulationTeacher(env)
+    teacher.reset()
+    scene = teacher._scene()
+    ee = scene["ee"][0]
+    # 3 mm off: a plain P command would be 0.21; the floor keeps it at COMMAND_FLOOR at least.
+    command = teacher._command(0, ee, ee + np.array([0.003, 0.0, 0.0]), 1.0, None, floor=0.25)
+    assert np.isclose(np.linalg.norm(command[:3]), 0.25)
+    inside = teacher._command(0, ee, ee + np.array([0.001, 0.0, 0.0]), 1.0, None, floor=0.25)
+    assert np.isclose(inside[0], 0.001 / 0.014)  # inside half a floor step: plain P, no overshoot
+    # The drawer's bar (radius 8 mm) between pads 8 cm apart: 29 mm of room, capped at 10 mm;
+    # across the jaws the pad's half width less the margin.
+    tolerance = teacher._handle_tolerance(0, 0, 1.0)
+    assert np.allclose(tolerance, [mt.ARTICULATION_CAP, mt.PAD_HALF - mt.MARGIN])
+    lid_bar = teacher._handle_tolerance(0, 2, mt.LID_BAR_GRIP) if env.lid_knob[0] < 0.5 else None
+    if lid_bar is not None:  # the lid bar is pinched from a part-open hand: little room along
+        assert lid_bar[0] < 0.004
+    axis = scene["jaw_axis"][0] / np.linalg.norm(scene["jaw_axis"][0])
+    across = np.array([-axis[1], axis[0]])
+    site = ee.copy()
+    site[:2] += 0.006 * axis
+    assert teacher._straddles(0, scene, site, tolerance)  # 6 mm along the jaws: close
+    site[:2] = ee[:2] + 0.008 * across
+    assert not teacher._straddles(0, scene, site, tolerance)  # 8 mm across: pads miss

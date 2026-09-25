@@ -146,7 +146,7 @@ The reward shapes training only; evaluation reports the success rule.
 Each step it takes the current subgoal from the scene and runs that skill's controller:
 
 - articulation: travel above everything, descend beside the handle, centre on it using finger contacts, pinch (the lid bar front to back, knobs along the hinge), move the handle along its joint path to a goal past the stop (so the servos' lag does not leave it a few millimetres short; drawers open all the way, so brushing one while picking from it cannot push it back under the threshold), release and step back;
-- pick, place and stack: the grasp task's rule (jaws across the narrow side, or along a drawer's width when picking from one and that is still across the object, so no finger lands on the front panel; pads at the geometry-derived height, proportional xy alignment (an integral term was removed with the gravity compensation, see Imitation failure analysis), closes only when centred within 3 mm), carry above every furniture top and object, turn to the receptacle's axis (finishing the turn before coming within 15 cm of the target, so the hand does not sweep an opened lid shut), lower until the bottom reaches the target surface or the descent stalls, release and rise.
+- pick, place and stack: the grasp task's rule (jaws across the narrow side, or along a drawer's width when picking from one and that is still across the object, so no finger lands on the front panel; pads at the geometry-derived height, proportional xy alignment (an integral term was removed with the gravity compensation, see Imitation failure analysis), closes once the object lies between the pads with 3 mm to spare, at most 5 mm off centre along the jaws, see Skill-level DAgger failure analysis), carry above every furniture top and object, turn to the receptacle's axis (finishing the turn before coming within 15 cm of the target, so the hand does not sweep an opened lid shut), lower until the bottom reaches the target surface or the descent stalls, release and rise.
 
 Its memory is the subgoal it is executing, a phase, a counter and a held xy; watchdogs restart a subgoal whose phase stalls.
 It re-derives its phase from the scene whenever the current subgoal changes, so it can label any state a learner reaches (DAgger), and it never writes simulator state.
@@ -437,9 +437,30 @@ Reading:
   Close_door is solved (1.00 in both), open_drawer and close_drawer reach 0.33 to 0.67, place and stack stay at 0.
 - The frame-wise MLP with the features and the re-entry holds 0.44 to 0.54 over four beta-0 rounds; the pipeline's sequence trainer (windows, gradient clipping) stays below it with the same features (the matched MLP 0.17 to 0.33), which a window-versus-frame fit on the same aggregate does not explain (held-out L1 0.146 against 0.140), so part of the gap is run-to-run variance at 12 episodes per skill.
 - Remaining stalls: the re-entry connectome is still stationary 42% of its steps after round 3, now mostly (49%) in DESCEND 3.1 mm (quartiles 2.5 to 4.2 mm) from the handle, just outside the teacher's 2 mm gate to close; APPROACH stalls fell from 56% to 25%.
-  The next memoryless fix is the same argument one gate further (close from a few millimetres with the finger-contact centring the teacher already has), which may change the teacher table and has to be re-measured; not done here.
+  The next memoryless fix is the same argument one gate further (close from a few millimetres with the finger-contact centring the teacher already has), which may change the teacher table and has to be re-measured; done next (below).
 
-Relaunch (the shipped configs carry the fix: `control_features`, 10 epochs a round capped at 3,000 updates for the connectome and the shuffle, 6,000 for the GRU and 20,000 for the MLP, 64 windows an update; the teacher's re-entry is in the code):
+H-G, the teacher's precision gates are tighter than a learner can hold: supported, fixed at the root in the teacher.
+- Commands with a floor: while aligning (APPROACH, DESCEND, CARRY) a proportional command smaller than `COMMAND_FLOOR` (0.25 of a full step, 3.5 mm or 12.5 mrad) is raised to it, unless the error is already inside half a floor step (1.75 mm, 6 mrad), so the hand cannot overshoot by more than that.
+  A learner a few millimetres off now gets a label that moves it (a plain P command at 3 mm was 0.21, and the regression smoothed such labels to zero), never a near-zero hover.
+- Closing gates from geometry instead of 2 mm (handles) and 3 mm (objects): the jaws close once the target lies between the pads with 3 mm to spare along the jaw axis (half the gap the grip settles at, 8 cm fully open, minus the handle's radius or the object's half narrow side), the pads overlap it across the jaw axis (the Panda pad's 8.5 mm half width for a vertical bar or a knob; the lid bar runs across the jaws), and the pads are at the handle's height as before.
+  Floored at the old gates, capped at 10 mm for handles and 5 mm for objects, so the coupled fingers still meet an object together; the closing hand keeps servoing to the grasp point and centring on the finger contacts.
+  Resulting tolerances: the drawer bar and knobs 10 mm along and 5.5 mm across, the lid bar 3 mm along (pinched from a part-open hand) and 10 mm across, objects 5 mm by 5 mm.
+- Teacher table (all 32 cells, 20 episodes each, same seeds): identical successes in every cell (619 of 640 before and after), mean steps to success within 0.5% (docs/results/manipulation-teacher.json).
+  The teacher's own path rarely meets the changed rules: it is already under the floors' half steps or inside the old gates when they apply.
+
+Learner-only probe with the teacher's new gates (single subgoals, round 0 the teacher, round 1 beta 0.5, then two rounds with the learner alone; configs as shipped, banks of runs/skill-dagger-connectome-001; mean single-subgoal success over the seven skills, 12 validation-bank episodes per skill; stationary = the hand moved under 5 mm over 10 steps):
+
+| Run | Episodes a round | Round 0 | Round 1 | Learner alone | Stationary share |
+| --- | --- | --- | --- | --- | --- |
+| Connectome (MLP encoder), before the gate change | 128 | 0.23 | 0.37 | 0.39, 0.31 | 0.42 |
+| Connectome (MLP encoder), new gates | 128 | 0.30 | 0.37 | 0.51, 0.55 | 0.30, 0.32 |
+| Matched MLP, new gates | 256 | 0.25 | 0.28 | 0.32, 0.52 | 0.37, 0.30 |
+
+The connectome's last round: open_drawer 1.00, close_drawer 1.00, close_door 1.00, open_door 0.50, pick 0.38, place and stack 0; the round is selected on validation and scores 0 of 7 iid episodes from true starts with subgoal fraction 0.18.
+The stalls left are mostly APPROACH (53%) and DESCEND (19%); in DESCEND the xy correction asked for is now 1.6 mm at the median (quartiles 1.1 to 4.5 mm), inside the new gates, so these are no longer gate stalls.
+Place and stack are still 0 for every learner: the next gate to examine is CARRY to LOWER (8 mm and 0.05 rad) and the placement's rest test.
+
+Relaunch (the shipped configs carry the fix: `control_features`, 10 epochs a round capped at 3,000 updates for the connectome and the shuffle, 6,000 for the GRU and 20,000 for the MLP, 64 windows an update; the teacher's re-entry, command floors and geometric closing gates are in the code):
 
 ```
 FLYARM_SIM_THREADS=4 PYTHONPATH=src .venv/bin/python -m flyarm.cli manipulation skill-dagger --config configs/skill-dagger-connectome.json --output runs/skill-dagger-connectome-002
