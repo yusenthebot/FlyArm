@@ -115,6 +115,15 @@ def round_plans(
     return plans
 
 
+def round_updates(config: SkillDaggerConfig, index: int, aggregate_steps: int) -> int:
+    """Updates of round ``index``: the fixed count, or ``epochs_per_round`` passes over the
+    aggregate when that is more, capped at ``max_updates_per_round``."""
+    fixed = config.first_round_updates if index == 0 else config.updates_per_round
+    per_update = config.model.window_batch * config.model.bptt_steps
+    passes = int(np.ceil(config.epochs_per_round * aggregate_steps / per_update))
+    return min(max(fixed, passes), max(fixed, config.max_updates_per_round))
+
+
 # ----------------------------------------------------------------------------------- data
 def ragged(logs: list[rollout.EpisodeLog]) -> dict[str, np.ndarray]:
     """The recorded steps of ``logs`` stored end to end: obs, labels, skill, episode lengths."""
@@ -435,7 +444,7 @@ def train_rounds(
                 window_batch=model.window_batch,
                 burn_in=model.burn_in,
             ),
-            config.first_round_updates if index == 0 else config.updates_per_round,
+            round_updates(config, index, int(data.lengths.sum())),
             np.random.default_rng([seed, index, 17]),
             warmup_updates=config.warmup_updates if brain and index == 0 else 0,
         )

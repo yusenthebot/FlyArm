@@ -241,14 +241,28 @@ class StepData:
             raise ValueError("episodes must be stored end to end in order")
 
 
-def window_indices(
-    data: StepData, picked: np.ndarray, burn_in: int, width: int
+def window_starts(
+    data: StepData, count: int, width: int, generator: np.random.Generator
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Flat step indices [W, burn_in + width] of windows ending ``width`` steps after each
-    picked step's burn-in, and whether each index lies inside its own episode (steps before
-    the episode's start are padding; windows never cross into another episode)."""
-    episode = np.searchsorted(data.starts, picked, side="right") - 1
-    position = picked - data.starts[episode]
+    """``count`` windows (episode, first position) such that every step of every episode is
+    inside exactly as many possible windows: first positions run from ``width - 1`` steps before
+    an episode's start to its last step, episodes drawn in proportion to that range. Drawing the
+    first step uniformly from the steps instead covers an episode's first steps up to ``width``
+    times less, and those are where a reset episode starts moving."""
+    spans = data.lengths + width - 1
+    ends = np.cumsum(spans)
+    drawn = generator.integers(0, int(ends[-1]), count)
+    episode = np.searchsorted(ends, drawn, side="right")
+    position = drawn - (ends[episode] - spans[episode]) - (width - 1)
+    return episode, position
+
+
+def window_indices(
+    data: StepData, episode: np.ndarray, position: np.ndarray, burn_in: int, width: int
+) -> tuple[np.ndarray, np.ndarray]:
+    """Flat step indices [W, burn_in + width] of windows whose loss part starts at ``position``
+    of ``episode`` (after ``burn_in`` steps), and whether each index lies inside its own episode
+    (steps outside are padding; windows never cross into another episode)."""
     steps = position[:, None] + np.arange(-burn_in, width)[None, :]
     inside = (steps >= 0) & (steps < data.lengths[episode][:, None])
     clipped = np.clip(steps, 0, data.lengths[episode][:, None] - 1)
@@ -266,16 +280,16 @@ def train_windows(
 ) -> list[float]:
     """``updates`` Adam steps of window sampling on ragged episodes (one action per step).
 
-    Each update fits ``budget.window_batch`` windows of ``budget.bptt_steps`` steps starting at
-    uniformly drawn weighted steps, entered after ``budget.burn_in`` steps without gradient;
+    Each update fits ``budget.window_batch`` windows of ``budget.bptt_steps`` steps that cover
+    every step equally often (window_starts), entered after ``budget.burn_in`` steps without
+    gradient;
     the first ``warmup_updates`` train the decoder only. Returns the per-update losses.
     """
     if policy.chunk != 1:
         raise ValueError("train_windows drives one action per step")
     if budget.window_batch is None:
         raise ValueError("train_windows needs budget.window_batch")
-    candidates = np.flatnonzero(data.weights > 0)
-    if not candidates.size:
+    if not (data.weights > 0).any():
         raise ValueError("no weighted steps to train on")
     gradient_fn = nn.value_and_grad(policy, partial(_chunk_loss, loss=budget.loss))
     width, burn = budget.bptt_steps, budget.burn_in
@@ -288,10 +302,10 @@ def train_windows(
         if optimizer is None or update == warmup_updates:
             _set_input_frozen(policy, warmup)
             optimizer = _optimizer(policy, budget, warmup)
-        picked = candidates[generator.integers(0, len(candidates), budget.window_batch)]
-        flat, inside = window_indices(data, picked, burn, width)
+        episode, position = window_starts(data, budget.window_batch, width, generator)
+        flat, inside = window_indices(data, episode, position, burn, width)
         obs = data.obs[flat] * inside[..., None]
-        state = policy.initial_state(len(picked))
+        state = policy.initial_state(len(episode))
         for t in range(burn):
             _, state = policy.step(mx.array(obs[:, t]), state)
             state = _keep_state(policy, state, inside[:, t])

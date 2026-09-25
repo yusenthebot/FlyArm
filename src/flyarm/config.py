@@ -586,6 +586,12 @@ class ManipulationImitationConfig(BaseModel):
     # The "mlp" control: the D4RL BC architecture (two 256-unit layers), or two layers sized to
     # the connectome policy's trainable parameters ("matched").
     mlp_control: Literal["d4rl", "matched"] = "d4rl"
+    # Control-scale input features (flyarm.manipulation.features): tanh of every hand-relative
+    # offset at 1 and 4 cm and of the heading errors at 0.05 and 0.2 rad, appended to the
+    # normalized observation inside the policy. Without them learners stall a few millimetres
+    # short of the teacher's gates (docs/MANIPULATION_ENV.md, "Skill-level DAgger failure
+    # analysis"). Every controller of a run gets them; the matched budgets count them.
+    control_features: bool = False
     # Frozen readout normalization. At 2,022 outputs anything but "unit_norm" saturates the
     # decoder on its first Adam updates (research log E26), so the other values are refused.
     readout_calibration: Literal["scale", "standardize", "unit_norm"] = "unit_norm"
@@ -843,6 +849,12 @@ class SkillDaggerConfig(BaseModel):
     betas: list[float] = Field(default_factory=lambda: [0.5, 0.25])
     first_round_updates: int = Field(default=3000, ge=1, le=1_000_000)
     updates_per_round: int = Field(default=1500, ge=1, le=1_000_000)
+    # Passes over the whole aggregate each round: the round trains for at least this many
+    # epochs' worth of windows (``window_batch`` x ``bptt_steps`` labelled steps per update), and
+    # never fewer updates than the fixed counts above. 0 keeps the fixed counts, which spread
+    # thinner over a growing aggregate (0.4 epochs a round by 2 M steps; docs/MANIPULATION_ENV.md).
+    epochs_per_round: float = Field(default=0.0, ge=0.0, le=1000.0)
+    max_updates_per_round: int = Field(default=100_000, ge=1, le=10_000_000)
     # Decoder-only updates at the start of round 0 for brain policies (the readout first).
     warmup_updates: int = Field(default=300, ge=0, le=100_000)
     bank_episodes_per_template: int = Field(default=20, ge=1, le=999)
