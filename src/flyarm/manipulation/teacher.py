@@ -701,7 +701,13 @@ class ManipulationTeacher:
             desired = np.array([self.anchor[row, 0], self.anchor[row, 1], carry_z])
             if bottom >= safe - 0.01:
                 self.phase[row] = FINISHED if kind == tk.PICK else CARRY
-            return self._command(row, ee, desired, -1.0, None)
+            # Turn toward the placement as soon as the object is out of every receptacle, as
+            # CARRY does from the same held states: a LIFT that never turned labelled yaw 0
+            # where CARRY labels a full turn, and learners holding the object stopped turning
+            # (docs/MANIPULATION_ENV.md, "Place and stack").
+            free = not bool(scene["inside"][row, slot].any())
+            turn = place_yaw if kind in (tk.PLACE, tk.STACK) and free else None
+            return self._command(row, ee, desired, -1.0, turn)
         if phase == CARRY:
             offset = target[:2] - centre[:2]
             # Near the target, finish turning before closing in: a hand still turning sweeps
