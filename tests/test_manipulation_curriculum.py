@@ -96,7 +96,7 @@ def test_preset_subgoals_are_done_unpaid_and_the_cue_names_subgoal_k(recorded) -
     cue = cue_slices()
     assert obs[0, cue["skill"]].argmax() + 1 == tk.OPEN_DOOR  # tidy's subgoal 3
     assert env.high_water[0] == 3 and env.goal_count[0] == 4
-    assert env.horizons[0] == tk.HORIZON_PER_SUBGOAL
+    assert env.horizons[0] == tk.horizon(1)
     result = env.step(np.array([[0.0, 0.0, 0.0, 0.0, 1.0]]), auto_reset=False)
     assert result.reward[0] < 1.0  # no bonus for the preset subgoals
     assert result.subgoals_done[0] == 3 and not result.success[0]
@@ -152,14 +152,14 @@ def test_the_bank_and_the_curriculum_environment() -> None:
     assert np.all(training.preset == 0) and np.all(training.goal_count == training.sub_count)
     training.set_stage(2)
     training.reset()
-    reset_rows = training.horizons < training.sub_count * tk.HORIZON_PER_SUBGOAL
+    reset_rows = training.horizons < tk.horizon(training.sub_count)
     budget = training.goal_count - training.preset
     remaining = training.sub_count - training.preset
     assert reset_rows.any()
     assert np.all(
         (budget[reset_rows] >= np.minimum(2, remaining[reset_rows])) & (budget[reset_rows] <= 3)
     )
-    assert np.all(training.horizons[reset_rows] == tk.HORIZON_PER_SUBGOAL * budget[reset_rows])
+    assert np.all(training.horizons[reset_rows] == tk.horizon(budget[reset_rows]))
     plans = cu.skill_plans(bank, 2)
     assert {p.label for p in plans} == {f"skill:{name}" for name in tk.SKILLS[1:]}
     logs = rollout.run_episodes(
@@ -168,4 +168,4 @@ def test_the_bank_and_the_curriculum_environment() -> None:
         None,
     )
     for log in logs:  # the teacher finishes single-subgoal episodes from bank states
-        assert log.success.mean() >= 0.5 and np.all(log.steps <= tk.HORIZON_PER_SUBGOAL)
+        assert log.success.mean() >= 0.5 and np.all(log.steps <= tk.horizon(1))

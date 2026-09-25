@@ -348,3 +348,49 @@ def test_the_teacher_moves_a_hand_that_is_millimetres_off_and_closes_from_geomet
     assert teacher._straddles(0, scene, site, tolerance)  # 6 mm along the jaws: close
     site[:2] = ee[:2] + 0.008 * across
     assert not teacher._straddles(0, scene, site, tolerance)  # 8 mm across: pads miss
+
+
+@needs_env
+def test_a_fresh_teacher_closes_on_an_object_the_open_hand_is_already_at() -> None:
+    from flyarm.manipulation.teacher import APPROACH, CLOSE, DESCEND, ManipulationTeacher
+
+    episodes = rollout.plan("train", 1, 400_000, templates=["tower"])  # picks from the table
+    env = rollout.make_env(Path(MODEL), episodes, asset_root=OBJECTS, velocities=False)
+    env.reset(seeds=np.array(episodes.seeds), templates=list(episodes.templates))
+    teacher = ManipulationTeacher(env)
+    teacher.reset()
+    for _ in range(400):  # drive to the first object, stop as the jaws start closing
+        action = teacher.act()
+        if teacher.phase[0] == CLOSE:
+            break
+        env.step(action.astype(np.float64), auto_reset=False)
+    assert teacher.phase[0] == CLOSE
+    fresh = ManipulationTeacher(env)  # no memory of the path: what a learner's state gets
+    fresh.reset()
+    label = fresh.act()
+    assert fresh.phase[0] in (DESCEND, CLOSE) and fresh.phase[0] != APPROACH
+    assert label[0, 2] <= 0.0  # not sent back up to the hover
+
+
+def test_a_single_subgoal_reset_gets_a_template_s_budget_for_one_subgoal() -> None:
+    assert tk.horizon(1) == tk.HORIZON_BASE + tk.HORIZON_PER_SUBGOAL == 500
+
+
+@needs_env
+def test_the_pads_close_on_an_object_from_a_little_below_the_grasp_point() -> None:
+    from flyarm.grasp import task as arm_task
+    from flyarm.manipulation import teacher as mt
+
+    episodes = rollout.plan("train", 1, 400_000, templates=["tower"])
+    env = rollout.make_env(Path(MODEL), episodes, asset_root=OBJECTS, velocities=False)
+    env.reset(seeds=np.array(episodes.seeds), templates=list(episodes.templates))
+    teacher = mt.ManipulationTeacher(env)
+    grasp = np.array([0.4, 0.0, 0.10])
+    bottom = 0.02  # pads bottom out at bottom + PAD_BELOW_SITE + PAD_HALF
+    lowest = bottom + arm_task.PAD_BELOW_SITE + mt.PAD_HALF + 0.001
+    for dz, expected in ((0.007, True), (0.009, False), (-0.006, True), (-0.015, True)):
+        ee = grasp + np.array([0.0, 0.0, dz])
+        assert teacher._pads_on_object(0, ee, grasp, bottom) is expected, dz
+    too_low = grasp.copy()
+    too_low[2] = lowest - 0.001
+    assert not teacher._pads_on_object(0, too_low, grasp, bottom)  # pads would hit the support
