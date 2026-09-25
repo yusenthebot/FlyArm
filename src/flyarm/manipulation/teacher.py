@@ -88,6 +88,34 @@ ARRIVING = 0.15  # m from the place target inside which the hand turns before mo
 TURN_BEFORE_ARRIVING = 0.3  # rad of heading error that still counts as turning
 TRAVEL_SINK = 0.002  # m per control step
 PHASE_PATIENCE = 250  # steps any phase may last before the subgoal starts over
+# Memoryless re-entry into an articulation's descent: a hand already below its hover point,
+# within this of the handle in xy, turned within REENTRY_YAW and open, continues down instead of
+# being sent back up to the hover to pass the strict alignment gate there. The teacher itself
+# always passes that gate on the way, but a learner that descends without the pause otherwise
+# gets "rise" labels at states the teacher's own data labels "descend" or "close", and stalls
+# there (docs/MANIPULATION_ENV.md, "Skill-level DAgger failure analysis"). Not for objects:
+# rising from a just-placed object is how the teacher lets a placement settle (a re-entry
+# there picks it up again).
+REENTRY_XY = 0.012
+REENTRY_YAW = 0.15
+# Proportional commands with a floor while aligning (APPROACH, DESCEND, CARRY): a command whose
+# proportional size is under COMMAND_FLOOR is raised to it, unless the error is already inside
+# half a floor step (so the hand cannot overshoot by more than that). A learner a few millimetres
+# off then gets a label that moves it, never a near-zero hover (a P command at 3 mm is 0.2, and
+# regressions smoothed such labels to zero; docs/MANIPULATION_ENV.md).
+COMMAND_FLOOR = 0.25
+# Closing gates from geometry rather than a fixed 2 to 3 mm: the jaws close once the target lies
+# between the pads with MARGIN to spare along the jaw axis (half the opening the grip command
+# settles at, minus the handle's radius or the object's half width), the pads overlap it across
+# the jaw axis (PAD_HALF, the Panda fingertip pad's half width, for a vertical bar or a knob), and
+# the pad height is within AT_HEIGHT. Capped, so the fingers still meet an object together
+# instead of one pushing it far before the other arrives; the closing hand keeps servoing to the
+# grasp point and centring on the finger contacts, as before.
+FULL_GAP = 0.08  # m between the pads with the gripper fully open
+PAD_HALF = 0.0085
+MARGIN = 0.003
+ARTICULATION_CAP = 0.01
+OBJECT_CAP = 0.005
 
 
 def _angle(vector: np.ndarray) -> float:
@@ -257,20 +285,26 @@ class ManipulationTeacher:
         yaw: float | None,
         descent: float = 1.0,
         speed: float = 1.0,
+        floor: float = 0.0,
     ) -> np.ndarray:
-        """P control toward ``desired``, a function of the scene only.
+        """P control toward ``desired``, a function of the scene only (``floor``: COMMAND_FLOOR).
 
         An integral term on the xy error used to make up for the hand sagging under its own
         weight between steps; with the arm gravity-compensated it is not needed, and it was
         hidden state that no policy imitating the teacher could see (docs/MANIPULATION_ENV.md,
         "Imitation failure analysis").
         """
-        xyz = np.clip((desired - ee) / arm_task.STEP_METERS, -speed, speed)
+        xyz = (desired - ee) / arm_task.STEP_METERS
+        if floor > 0.0:
+            size = float(np.linalg.norm(xyz))
+            if floor / 2 < size < floor:
+                xyz = xyz * (floor / size)
+        xyz = np.clip(xyz, -speed, speed)
         xyz[2] = max(xyz[2], -descent)
-        turn = 0.0 if yaw is None else self._turn(row, yaw)
+        turn = 0.0 if yaw is None else self._turn(row, yaw, floor)
         return np.array([*xyz, turn, grip], dtype=np.float32)
 
-    def _turn(self, row: int, yaw: float) -> float:
+    def _turn(self, row: int, yaw: float, floor: float = 0.0) -> float:
         """Turn the commanded jaw axis onto ``yaw`` (mod pi) within the yaw limit."""
         sim = self.sim
         commanded = float(sim.commanded_closing_yaw()[row])
@@ -280,7 +314,10 @@ class ManipulationTeacher:
             delta -= math.pi
         elif goal < -arm_task.YAW_LIMIT:
             delta += math.pi
-        return float(np.clip(delta / arm_task.YAW_STEP, -1.0, 1.0))
+        turn = delta / arm_task.YAW_STEP
+        if floor / 2 < abs(turn) < floor:
+            turn = math.copysign(floor, turn)
+        return float(np.clip(turn, -1.0, 1.0))
 
     def _yaw_error(self, row: int, yaw: float) -> float:
         closing = float(self.sim.closing_yaw()[row])
@@ -341,13 +378,15 @@ class ManipulationTeacher:
         if xy_error > 0.03:
             transit = max(hover[2], self._transit_z(row, scene))
             if ee[2] < transit - 0.02:
-                return self._command(row, ee, np.array([ee[0], ee[1], transit]), grip, yaw), False
+                rise = np.array([ee[0], ee[1], transit])
+                return self._command(row, ee, rise, grip, yaw, floor=COMMAND_FLOOR), False
             # Sink only slowly while still travelling (an opened lid stands up to 0.45 m high):
             # TRAVEL_SINK per step toward the transit height, the rate at which the hand used to
             # sag under its own weight before the arm was gravity-compensated, so the episodes
             # keep the time budget they were measured with.
             height = max(transit, ee[2] - TRAVEL_SINK)
-            return self._command(row, ee, np.array([hover[0], hover[1], height]), grip, yaw), False
+            travel = np.array([hover[0], hover[1], height])
+            return self._command(row, ee, travel, grip, yaw, floor=COMMAND_FLOOR), False
         opened = (grip + 1.0) / 2.0  # the opening this grip command settles at
         aligned = (
             xy_error < ALIGN_XY
@@ -355,7 +394,58 @@ class ManipulationTeacher:
             and self._yaw_error(row, yaw) < ALIGN_YAW
             and abs(scene["opening"][row] - opened) < 0.1
         )
-        return self._command(row, ee, hover, grip, yaw), aligned
+        return self._command(row, ee, hover, grip, yaw, floor=COMMAND_FLOOR), aligned
+
+    def _already_down(
+        self,
+        row: int,
+        scene: dict[str, np.ndarray],
+        site: np.ndarray,
+        hover: np.ndarray,
+        yaw: float,
+        grip: float = 1.0,
+    ) -> bool:
+        """The hand is below the hover, over the site, roughly turned and open (REENTRY_XY)."""
+        ee = scene["ee"][row]
+        opened = (grip + 1.0) / 2.0
+        return (
+            ee[2] < hover[2] - 0.02
+            and float(np.linalg.norm(ee[:2] - site[:2])) < REENTRY_XY
+            and self._yaw_error(row, yaw) < REENTRY_YAW
+            and abs(float(scene["opening"][row]) - opened) < 0.15
+        )
+
+    def _straddles(
+        self, row: int, scene: dict[str, np.ndarray], target: np.ndarray, tolerance: np.ndarray
+    ) -> bool:
+        """The xy offset of ``target`` from the hand, split along and across the jaw axis, is
+        within ``tolerance`` (along, across)."""
+        offset = target[:2] - scene["ee"][row, :2]
+        axis = scene["jaw_axis"][row] / max(float(np.linalg.norm(scene["jaw_axis"][row])), 1e-9)
+        along = abs(float(offset @ axis))
+        across = abs(float(offset[0] * axis[1] - offset[1] * axis[0]))
+        return along < tolerance[0] and across < tolerance[1]
+
+    def _handle_tolerance(self, row: int, articulation: int, grip: float) -> np.ndarray:
+        """Along the jaw axis: half the gap the grip opens to, minus the handle's radius and the
+        margin; across: the pad's half width (a vertical bar or a knob) or the lid bar's half
+        length (it runs across the jaws). Floored at the old 2 mm gate, capped."""
+        sim = self.sim
+        knob = (sim.lid_knob[row] if articulation == 2 else sim.drawer_knob[row]) > 0.5
+        radius = fu.KNOB_RADIUS if knob else fu.BAR_RADIUS
+        gap = FULL_GAP * (grip + 1.0) / 2.0
+        along = gap / 2 - radius - MARGIN
+        across_bar = articulation == 2 and not knob
+        across = fu.LID_BAR_LENGTH / 2 - MARGIN if across_bar else PAD_HALF - MARGIN
+        return np.clip(np.array([along, across]), 0.002, ARTICULATION_CAP)
+
+    def _object_tolerance(self, row: int, slot: int) -> np.ndarray:
+        """Along the jaw axis: half the open gap minus half the object's narrow side and the
+        margin; across: the pad's half width. Floored at the old 3 mm gate, capped."""
+        size = self.sim.object_size()[row, slot]
+        narrow = float(min(size[0], size[1]))
+        along = FULL_GAP / 2 - narrow / 2 - MARGIN
+        return np.clip(np.array([along, PAD_HALF - MARGIN]), 0.003, OBJECT_CAP)
 
     def _clear(self, row: int, scene: dict[str, np.ndarray]) -> np.ndarray:
         """Open the hand and rise before starting the next subgoal."""
@@ -408,6 +498,8 @@ class ManipulationTeacher:
         # Across the lid's bar the back finger goes down between the bar and the lid's edge, so
         # the hand opens only part way there.
         grip = LID_BAR_GRIP if across else 1.0
+        if phase == APPROACH and self._already_down(row, scene, site, hover, yaw, grip):
+            phase = self.phase[row] = DESCEND
         if phase == APPROACH:
             action, aligned = self._approach(row, scene, hover, yaw, grip)
             if aligned:
@@ -416,10 +508,12 @@ class ManipulationTeacher:
         if phase == DESCEND:
             if xy_error > ABORT_XY:
                 self.phase[row] = APPROACH
-            elif abs(ee[2] - site[2]) < AT_HEIGHT and xy_error < 0.002:
+            elif abs(ee[2] - site[2]) < AT_HEIGHT and self._straddles(
+                row, scene, site, self._handle_tolerance(row, articulation, grip)
+            ):
                 self.phase[row] = CLOSE
                 self.counter[row] = 0
-            return self._command(row, ee, site, grip, yaw, descent=DESCENT)
+            return self._command(row, ee, site, grip, yaw, descent=DESCENT, floor=COMMAND_FLOOR)
         if phase == CLOSE:
             self.counter[row] += 1
             left = bool(scene["handle_fingers"][0][row, articulation])
@@ -524,14 +618,18 @@ class ManipulationTeacher:
         if phase == DESCEND:
             if xy_error > 0.02 or self._yaw_error(row, object_yaw) > 0.15:
                 self.phase[row] = APPROACH
-            elif abs(ee[2] - grasp[2]) < 0.008 and xy_error < 0.003:
-                # Centred within 3 mm: the coupled fingers then meet the object together
+            elif abs(ee[2] - grasp[2]) < 0.008 and self._straddles(
+                row, scene, grasp, self._object_tolerance(row, slot)
+            ):
+                # Centred within OBJECT_CAP: the coupled fingers then meet the object together
                 # instead of one pushing it over before the other arrives.
                 self.phase[row] = CLOSE
                 self.counter[row] = 0
                 self.close_steps[row] = 0
                 self.anchor[row] = grasp[:2]
-            return self._command(row, ee, grasp, 1.0, object_yaw, descent=DESCENT)
+            return self._command(
+                row, ee, grasp, 1.0, object_yaw, descent=DESCENT, floor=COMMAND_FLOOR
+            )
         if phase == CLOSE:
             self.close_steps[row] += 1
             self.counter[row] = self.counter[row] + 1 if grasped else 0
@@ -574,7 +672,7 @@ class ManipulationTeacher:
                 self.phase[row] = LOWER
                 self.counter[row] = 0
                 self.previous_z[row] = ee[2] + 1.0
-            return self._command(row, ee, desired, -1.0, place_yaw)
+            return self._command(row, ee, desired, -1.0, place_yaw, floor=COMMAND_FLOOR)
         if phase == LOWER:
             offset = target[:2] - centre[:2]
             drop = target[2] + 0.006 - bottom

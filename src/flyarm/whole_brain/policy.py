@@ -22,6 +22,9 @@ from flyarm.whole_brain.backend_mlx import RateDynamics
 # ACT's temporal-ensembling constant: w_i = exp(-m * i), i = 0 for the oldest prediction.
 ENSEMBLE_DECAY = 0.01
 
+# A fixed input expansion: observation indices and, per index, the scale of tanh(obs / scale).
+Expansion = tuple[Sequence[int], Sequence[float]]
+
 
 class _Normalized(nn.Module):
     """Observation normalization plus the action-chunk layout shared by every policy.
@@ -33,7 +36,9 @@ class _Normalized(nn.Module):
     #: Buffers saved with the checkpoint but never trained.
     frozen_keys: tuple[str, ...] = ("obs_mean", "obs_scale")
 
-    def __init__(self, obs_dim: int, action_dim: int, chunk: int) -> None:
+    def __init__(
+        self, obs_dim: int, action_dim: int, chunk: int, expansion: Expansion | None = None
+    ) -> None:
         super().__init__()
         if action_dim < 1 or chunk < 1:
             raise ValueError("action_dim and chunk must be positive")
@@ -42,7 +47,29 @@ class _Normalized(nn.Module):
         self.chunk = chunk
         self.obs_mean = mx.zeros((obs_dim,))
         self.obs_scale = mx.ones((obs_dim,))
+        # Plain numpy (not parameters, not saved): the expansion is fixed by the configuration.
+        self._expand_index = np.zeros(0, dtype=np.int64)
+        self._expand_scale = np.zeros(0, dtype=np.float32)
+        if expansion is not None:
+            index = np.asarray(expansion[0], dtype=np.int64)
+            scale = np.asarray(expansion[1], dtype=np.float32)
+            if index.shape != scale.shape or index.ndim != 1:
+                raise ValueError("an expansion needs one scale per observation index")
+            if index.size and (index.min() < 0 or index.max() >= obs_dim or scale.min() <= 0):
+                raise ValueError("expansion indices must lie in the observation, scales > 0")
+            self._expand_index, self._expand_scale = index, scale
         self._freeze_buffers()
+
+    @property
+    def expansion(self) -> Expansion | None:
+        if not self._expand_index.size:
+            return None
+        return self._expand_index.tolist(), self._expand_scale.tolist()
+
+    @property
+    def input_dim(self) -> int:
+        """Width of what normalize() returns: the observation plus any fixed expansion."""
+        return self.obs_dim + int(self._expand_index.size)
 
     @property
     def output_dim(self) -> int:
@@ -64,7 +91,14 @@ class _Normalized(nn.Module):
     def normalize(self, obs: mx.array) -> mx.array:
         if obs.ndim != 2 or obs.shape[1] != self.obs_dim:
             raise ValueError(f"Expected observations shaped [batch, {self.obs_dim}]")
-        return (obs - self.obs_mean) / self.obs_scale
+        x = (obs - self.obs_mean) / self.obs_scale
+        if not self._expand_index.size:
+            return x
+        # Control-scale copies of chosen features (for example hand-to-target offsets in units
+        # of a control step): a smooth regressor on the normalized feature alone cannot
+        # resolve the millimetres the teacher's gates and proportional commands turn on.
+        fine = mx.tanh(obs[:, mx.array(self._expand_index)] / mx.array(self._expand_scale))
+        return mx.concatenate([x, fine], axis=1)
 
     def trainable_parameter_count(self) -> int:
         leaves = cast(list[tuple[str, mx.array]], tree_flatten(self.trainable_parameters()))
@@ -145,14 +179,17 @@ class BrainPolicy(_Normalized):
         encoder: str = "linear",
         encoder_hidden: Sequence[int] = (256, 256),
         encoder_activation: str = "tanh",
+        expansion: Expansion | None = None,
     ) -> None:
-        super().__init__(obs_dim, action_dim, chunk)
+        super().__init__(obs_dim, action_dim, chunk, expansion)
         if neural_steps < 1:
             raise ValueError("neural_steps must be positive")
         if encoder not in ENCODERS:
             raise ValueError(f"encoder must be one of {ENCODERS}")
         if encoder != "linear" and channels is not None:
             raise ValueError("a nonlinear encoder drives all input neurons; no channels")
+        if expansion is not None and channels is not None:
+            raise ValueError("channels slice the observation; an expansion needs one encoder")
         self.encoder_kind = encoder
         self.encoder_hidden = tuple(int(size) for size in encoder_hidden)
         self.encoder_activation = encoder_activation
@@ -164,10 +201,10 @@ class BrainPolicy(_Normalized):
         mx.random.seed(seed)
         if encoder == "mlp":
             self.encoder = SensoryEncoder(
-                obs_dim, dynamics.input_count, self.encoder_hidden, encoder_activation
+                self.input_dim, dynamics.input_count, self.encoder_hidden, encoder_activation
             )
         elif self.channels is None:
-            self.encoder = nn.Linear(obs_dim, dynamics.input_count)
+            self.encoder = nn.Linear(self.input_dim, dynamics.input_count)
         else:
             if sum(size for _, _, size in self.channels) != dynamics.input_count:
                 raise ValueError("Channel input blocks must cover every declared input neuron")
@@ -296,6 +333,7 @@ class BrainPolicy(_Normalized):
             encoder=self.encoder_kind,
             encoder_hidden=self.encoder_hidden,
             encoder_activation=self.encoder_activation,
+            expansion=self.expansion,
         )
         clone.update(self.parameters())
         clone._freeze_buffers()
@@ -340,12 +378,19 @@ class GRUPolicy(_Normalized):
         return [self.cell]
 
     def __init__(
-        self, *, obs_dim: int, action_dim: int, hidden: int, seed: int = 0, chunk: int = 1
+        self,
+        *,
+        obs_dim: int,
+        action_dim: int,
+        hidden: int,
+        seed: int = 0,
+        chunk: int = 1,
+        expansion: Expansion | None = None,
     ) -> None:
-        super().__init__(obs_dim, action_dim, chunk)
+        super().__init__(obs_dim, action_dim, chunk, expansion)
         self.hidden = hidden
         mx.random.seed(seed)
-        self.cell = nn.GRU(obs_dim, hidden)
+        self.cell = nn.GRU(self.input_dim, hidden)
         self.readout = nn.Linear(hidden, self.output_dim)
 
     @property
@@ -366,13 +411,20 @@ class MLPPolicy(_Normalized):
     kind = "mlp"
 
     def __init__(
-        self, *, obs_dim: int, action_dim: int, hidden: int = 256, seed: int = 0, chunk: int = 1
+        self,
+        *,
+        obs_dim: int,
+        action_dim: int,
+        hidden: int = 256,
+        seed: int = 0,
+        chunk: int = 1,
+        expansion: Expansion | None = None,
     ) -> None:
-        super().__init__(obs_dim, action_dim, chunk)
+        super().__init__(obs_dim, action_dim, chunk, expansion)
         self.hidden = hidden
         mx.random.seed(seed)
         self.layers = [
-            nn.Linear(obs_dim, hidden),
+            nn.Linear(self.input_dim, hidden),
             nn.Linear(hidden, hidden),
             nn.Linear(hidden, self.output_dim),
         ]

@@ -1,0 +1,1324 @@
+[
+ {
+  "run": "/Users/yusenthebot/Documents/Codex/FlyArm/runs/skill-dagger-connectome-001",
+  "kind": "connectome",
+  "seed": 0,
+  "checkpoint": "/Users/yusenthebot/Documents/Codex/FlyArm/runs/skill-dagger-connectome-001/connectome-0/round-01/policy.safetensors",
+  "test": "gain",
+  "episodes": 80,
+  "gain_1.0": {
+   "skills": {
+    "open_drawer": {
+     "episodes": 12,
+     "success_rate": 0.25,
+     "reasons": {
+      "success": 3,
+      "timeout": 9
+     }
+    },
+    "close_drawer": {
+     "episodes": 12,
+     "success_rate": 0.833,
+     "reasons": {
+      "success": 10,
+      "timeout": 2
+     }
+    },
+    "open_door": {
+     "episodes": 12,
+     "success_rate": 0.0,
+     "reasons": {
+      "timeout": 12
+     }
+    },
+    "close_door": {
+     "episodes": 12,
+     "success_rate": 0.667,
+     "reasons": {
+      "success": 8,
+      "timeout": 4
+     }
+    },
+    "pick": {
+     "episodes": 8,
+     "success_rate": 0.25,
+     "reasons": {
+      "stalled": 1,
+      "success": 2,
+      "timeout": 4,
+      "wrong_direction": 1
+     }
+    },
+    "place": {
+     "episodes": 12,
+     "success_rate": 0.0,
+     "reasons": {
+      "timeout": 12
+     }
+    },
+    "stack": {
+     "episodes": 12,
+     "success_rate": 0.0,
+     "reasons": {
+      "timeout": 12
+     }
+    },
+    "mean_success": 0.286
+   },
+   "magnitudes": {
+    "steps": 21020,
+    "x": {
+     "mean_abs_command": 0.16,
+     "mean_abs_label": 0.395,
+     "saturated_command": 0.032,
+     "saturated_label": 0.26,
+     "slope_on_label": 0.161,
+     "sign_agreement": 0.561,
+     "l1": 0.404,
+     "histogram_command": [
+      13999,
+      3273,
+      1185,
+      1215,
+      683,
+      665
+     ],
+     "histogram_label": [
+      9759,
+      1372,
+      1826,
+      1538,
+      1063,
+      5462
+     ]
+    },
+    "y": {
+     "mean_abs_command": 0.313,
+     "mean_abs_label": 0.437,
+     "saturated_command": 0.189,
+     "saturated_label": 0.328,
+     "slope_on_label": 0.452,
+     "sign_agreement": 0.616,
+     "l1": 0.351,
+     "histogram_command": [
+      10861,
+      3507,
+      892,
+      758,
+      1035,
+      3967
+     ],
+     "histogram_label": [
+      9350,
+      1009,
+      1541,
+      1543,
+      688,
+      6889
+     ]
+    },
+    "z": {
+     "mean_abs_command": 0.409,
+     "mean_abs_label": 0.78,
+     "saturated_command": 0.133,
+     "saturated_label": 0.717,
+     "slope_on_label": -0.027,
+     "sign_agreement": 0.435,
+     "l1": 0.828,
+     "histogram_command": [
+      6058,
+      3848,
+      2274,
+      4235,
+      1802,
+      2803
+     ],
+     "histogram_label": [
+      1294,
+      3271,
+      492,
+      530,
+      359,
+      15074
+     ]
+    },
+    "yaw": {
+     "mean_abs_command": 0.063,
+     "mean_abs_label": 0.793,
+     "saturated_command": 0.0,
+     "saturated_label": 0.73,
+     "slope_on_label": 0.055,
+     "sign_agreement": 0.621,
+     "l1": 0.756,
+     "histogram_command": [
+      18752,
+      1040,
+      395,
+      803,
+      30,
+      0
+     ],
+     "histogram_label": [
+      2931,
+      585,
+      934,
+      802,
+      418,
+      15350
+     ]
+    },
+    "grip": {
+     "mean_abs_command": 0.988,
+     "mean_abs_label": 0.81,
+     "saturated_command": 0.948,
+     "saturated_label": 0.728,
+     "slope_on_label": 0.598,
+     "sign_agreement": 0.824,
+     "l1": 0.549,
+     "histogram_command": [
+      8,
+      15,
+      51,
+      273,
+      741,
+      19932
+     ],
+     "histogram_label": [
+      0,
+      0,
+      5717,
+      0,
+      0,
+      15303
+     ]
+    },
+    "full_speed_label_steps": 19678,
+    "full_speed_norm_ratio": 0.56,
+    "full_speed_cosine": -0.143
+   }
+  },
+  "gain_1.5": {
+   "skills": {
+    "open_drawer": {
+     "episodes": 12,
+     "success_rate": 0.0,
+     "reasons": {
+      "timeout": 12
+     }
+    },
+    "close_drawer": {
+     "episodes": 12,
+     "success_rate": 0.917,
+     "reasons": {
+      "success": 11,
+      "timeout": 1
+     }
+    },
+    "open_door": {
+     "episodes": 12,
+     "success_rate": 0.0,
+     "reasons": {
+      "timeout": 12
+     }
+    },
+    "close_door": {
+     "episodes": 12,
+     "success_rate": 0.667,
+     "reasons": {
+      "success": 8,
+      "timeout": 4
+     }
+    },
+    "pick": {
+     "episodes": 8,
+     "success_rate": 0.375,
+     "reasons": {
+      "success": 3,
+      "timeout": 4,
+      "wrong_direction": 1
+     }
+    },
+    "place": {
+     "episodes": 12,
+     "success_rate": 0.0,
+     "reasons": {
+      "timeout": 12
+     }
+    },
+    "stack": {
+     "episodes": 12,
+     "success_rate": 0.0,
+     "reasons": {
+      "lost_grasp": 1,
+      "stalled": 2,
+      "timeout": 9
+     }
+    },
+    "mean_success": 0.28
+   },
+   "magnitudes": {
+    "steps": 20799,
+    "x": {
+     "mean_abs_command": 0.154,
+     "mean_abs_label": 0.342,
+     "saturated_command": 0.031,
+     "saturated_label": 0.234,
+     "slope_on_label": 0.167,
+     "sign_agreement": 0.497,
+     "l1": 0.361,
+     "histogram_command": [
+      13930,
+      3089,
+      1526,
+      1039,
+      571,
+      644
+     ],
+     "histogram_label": [
+      11344,
+      1083,
+      1559,
+      985,
+      965,
+      4863
+     ]
+    },
+    "y": {
+     "mean_abs_command": 0.303,
+     "mean_abs_label": 0.41,
+     "saturated_command": 0.19,
+     "saturated_label": 0.336,
+     "slope_on_label": 0.48,
+     "sign_agreement": 0.614,
+     "l1": 0.31,
+     "histogram_command": [
+      10860,
+      3397,
+      1249,
+      590,
+      753,
+      3950
+     ],
+     "histogram_label": [
+      10821,
+      508,
+      992,
+      866,
+      621,
+      6991
+     ]
+    },
+    "z": {
+     "mean_abs_command": 0.386,
+     "mean_abs_label": 0.767,
+     "saturated_command": 0.133,
+     "saturated_label": 0.711,
+     "slope_on_label": -0.042,
+     "sign_agreement": 0.417,
+     "l1": 0.825,
+     "histogram_command": [
+      5933,
+      4122,
+      2980,
+      3515,
+      1483,
+      2766
+     ],
+     "histogram_label": [
+      1268,
+      3682,
+      414,
+      401,
+      245,
+      14789
+     ]
+    },
+    "yaw": {
+     "mean_abs_command": 0.055,
+     "mean_abs_label": 0.79,
+     "saturated_command": 0.0,
+     "saturated_label": 0.729,
+     "slope_on_label": 0.036,
+     "sign_agreement": 0.544,
+     "l1": 0.768,
+     "histogram_command": [
+      18886,
+      876,
+      327,
+      688,
+      22,
+      0
+     ],
+     "histogram_label": [
+      3065,
+      667,
+      658,
+      701,
+      543,
+      15165
+     ]
+    },
+    "grip": {
+     "mean_abs_command": 0.987,
+     "mean_abs_label": 0.812,
+     "saturated_command": 0.948,
+     "saturated_label": 0.731,
+     "slope_on_label": 0.534,
+     "sign_agreement": 0.8,
+     "l1": 0.597,
+     "histogram_command": [
+      14,
+      20,
+      60,
+      171,
+      816,
+      19718
+     ],
+     "histogram_label": [
+      0,
+      0,
+      5589,
+      0,
+      0,
+      15210
+     ]
+    },
+    "full_speed_label_steps": 19699,
+    "full_speed_norm_ratio": 0.566,
+    "full_speed_cosine": -0.293
+   }
+  },
+  "gain_2.0": {
+   "skills": {
+    "open_drawer": {
+     "episodes": 12,
+     "success_rate": 0.083,
+     "reasons": {
+      "success": 1,
+      "timeout": 11
+     }
+    },
+    "close_drawer": {
+     "episodes": 12,
+     "success_rate": 0.917,
+     "reasons": {
+      "success": 11,
+      "timeout": 1
+     }
+    },
+    "open_door": {
+     "episodes": 12,
+     "success_rate": 0.083,
+     "reasons": {
+      "stalled": 2,
+      "success": 1,
+      "timeout": 9
+     }
+    },
+    "close_door": {
+     "episodes": 12,
+     "success_rate": 0.5,
+     "reasons": {
+      "success": 6,
+      "timeout": 6
+     }
+    },
+    "pick": {
+     "episodes": 8,
+     "success_rate": 0.0,
+     "reasons": {
+      "lost_grasp": 1,
+      "stalled": 1,
+      "timeout": 6
+     }
+    },
+    "place": {
+     "episodes": 12,
+     "success_rate": 0.0,
+     "reasons": {
+      "lost_grasp": 1,
+      "timeout": 11
+     }
+    },
+    "stack": {
+     "episodes": 12,
+     "success_rate": 0.0,
+     "reasons": {
+      "lost_grasp": 1,
+      "stalled": 2,
+      "timeout": 9
+     }
+    },
+    "mean_success": 0.226
+   },
+   "magnitudes": {
+    "steps": 21326,
+    "x": {
+     "mean_abs_command": 0.152,
+     "mean_abs_label": 0.365,
+     "saturated_command": 0.03,
+     "saturated_label": 0.266,
+     "slope_on_label": 0.144,
+     "sign_agreement": 0.535,
+     "l1": 0.385,
+     "histogram_command": [
+      14294,
+      3151,
+      1599,
+      1105,
+      537,
+      640
+     ],
+     "histogram_label": [
+      11305,
+      969,
+      1511,
+      1046,
+      814,
+      5681
+     ]
+    },
+    "y": {
+     "mean_abs_command": 0.293,
+     "mean_abs_label": 0.406,
+     "saturated_command": 0.19,
+     "saturated_label": 0.341,
+     "slope_on_label": 0.483,
+     "sign_agreement": 0.611,
+     "l1": 0.299,
+     "histogram_command": [
+      12004,
+      2861,
+      1196,
+      529,
+      686,
+      4050
+     ],
+     "histogram_label": [
+      11176,
+      724,
+      900,
+      685,
+      568,
+      7273
+     ]
+    },
+    "z": {
+     "mean_abs_command": 0.392,
+     "mean_abs_label": 0.767,
+     "saturated_command": 0.126,
+     "saturated_label": 0.706,
+     "slope_on_label": -0.054,
+     "sign_agreement": 0.408,
+     "l1": 0.848,
+     "histogram_command": [
+      6099,
+      3816,
+      2653,
+      4900,
+      1167,
+      2691
+     ],
+     "histogram_label": [
+      1245,
+      3788,
+      480,
+      398,
+      351,
+      15064
+     ]
+    },
+    "yaw": {
+     "mean_abs_command": 0.053,
+     "mean_abs_label": 0.791,
+     "saturated_command": 0.0,
+     "saturated_label": 0.721,
+     "slope_on_label": 0.028,
+     "sign_agreement": 0.489,
+     "l1": 0.775,
+     "histogram_command": [
+      19563,
+      792,
+      290,
+      659,
+      22,
+      0
+     ],
+     "histogram_label": [
+      2977,
+      585,
+      991,
+      790,
+      610,
+      15373
+     ]
+    },
+    "grip": {
+     "mean_abs_command": 0.98,
+     "mean_abs_label": 0.81,
+     "saturated_command": 0.942,
+     "saturated_label": 0.729,
+     "slope_on_label": 0.527,
+     "sign_agreement": 0.796,
+     "l1": 0.603,
+     "histogram_command": [
+      21,
+      48,
+      221,
+      300,
+      649,
+      20087
+     ],
+     "histogram_label": [
+      0,
+      0,
+      5786,
+      0,
+      0,
+      15540
+     ]
+    },
+    "full_speed_label_steps": 20211,
+    "full_speed_norm_ratio": 0.542,
+    "full_speed_cosine": -0.355
+   }
+  },
+  "seconds": 93.3
+ },
+ {
+  "run": "/Users/yusenthebot/Documents/Codex/FlyArm/runs/skill-dagger-connectome-001",
+  "kind": "connectome",
+  "seed": 0,
+  "checkpoint": "/Users/yusenthebot/Documents/Codex/FlyArm/runs/skill-dagger-connectome-001/connectome-0/round-01/policy.safetensors",
+  "test": "labels",
+  "episodes": 80,
+  "learner_trajectories": {
+   "pairs": 20940,
+   "x": {
+    "flip": 0.0007,
+    "jump": 0.009
+   },
+   "y": {
+    "flip": 0.0013,
+    "jump": 0.0096
+   },
+   "z": {
+    "flip": 0.0048,
+    "jump": 0.013
+   },
+   "yaw": {
+    "flip": 0.0003,
+    "jump": 0.0067
+   },
+   "grip": {
+    "flip": 0.0017,
+    "jump": 0.0017
+   },
+   "any_flip_or_jump": 0.0267,
+   "xyz_flip_or_jump": 0.0248
+  },
+  "teacher_trajectories": {
+   "pairs": 16303,
+   "x": {
+    "flip": 0.0006,
+    "jump": 0.0096
+   },
+   "y": {
+    "flip": 0.0006,
+    "jump": 0.0099
+   },
+   "z": {
+    "flip": 0.0042,
+    "jump": 0.0161
+   },
+   "yaw": {
+    "flip": 0.0,
+    "jump": 0.0093
+   },
+   "grip": {
+    "flip": 0.0061,
+    "jump": 0.0076
+   },
+   "any_flip_or_jump": 0.0364,
+   "xyz_flip_or_jump": 0.0245
+  },
+  "teacher_success": {
+   "open_drawer": {
+    "episodes": 12,
+    "success_rate": 1.0,
+    "reasons": {
+     "success": 12
+    }
+   },
+   "close_drawer": {
+    "episodes": 12,
+    "success_rate": 1.0,
+    "reasons": {
+     "success": 12
+    }
+   },
+   "open_door": {
+    "episodes": 12,
+    "success_rate": 0.583,
+    "reasons": {
+     "success": 7,
+     "timeout": 5
+    }
+   },
+   "close_door": {
+    "episodes": 12,
+    "success_rate": 1.0,
+    "reasons": {
+     "success": 12
+    }
+   },
+   "pick": {
+    "episodes": 8,
+    "success_rate": 1.0,
+    "reasons": {
+     "success": 8
+    }
+   },
+   "place": {
+    "episodes": 12,
+    "success_rate": 0.5,
+    "reasons": {
+     "lost_grasp": 1,
+     "success": 6,
+     "timeout": 5
+    }
+   },
+   "stack": {
+    "episodes": 12,
+    "success_rate": 0.75,
+    "reasons": {
+     "lost_grasp": 3,
+     "success": 9
+    }
+   },
+   "mean_success": 0.833
+  },
+  "teacher_label_phases": {
+   "approach": {
+    "share": 0.421,
+    "z_down_zero_up": [
+     5103,
+     0,
+     1800
+    ]
+   },
+   "descend": {
+    "share": 0.126,
+    "z_down_zero_up": [
+     2056,
+     0,
+     8
+    ]
+   },
+   "close": {
+    "share": 0.032,
+    "z_down_zero_up": [
+     530,
+     0,
+     1
+    ]
+   },
+   "move": {
+    "share": 0.127,
+    "z_down_zero_up": [
+     1271,
+     0,
+     805
+    ]
+   },
+   "lift": {
+    "share": 0.057,
+    "z_down_zero_up": [
+     32,
+     0,
+     908
+    ]
+   },
+   "carry": {
+    "share": 0.098,
+    "z_down_zero_up": [
+     1114,
+     0,
+     496
+    ]
+   },
+   "lower": {
+    "share": 0.067,
+    "z_down_zero_up": [
+     1097,
+     0,
+     6
+    ]
+   },
+   "release": {
+    "share": 0.004,
+    "z_down_zero_up": [
+     0,
+     64,
+     0
+    ]
+   },
+   "retreat": {
+    "share": 0.02,
+    "z_down_zero_up": [
+     0,
+     25,
+     302
+    ]
+   },
+   "finished": {
+    "share": 0.005,
+    "z_down_zero_up": [
+     0,
+     76,
+     8
+    ]
+   },
+   "clear": {
+    "share": 0.042,
+    "z_down_zero_up": [
+     0,
+     176,
+     505
+    ]
+   }
+  },
+  "learner_success": {
+   "open_drawer": {
+    "episodes": 12,
+    "success_rate": 0.25,
+    "reasons": {
+     "success": 3,
+     "timeout": 9
+    }
+   },
+   "close_drawer": {
+    "episodes": 12,
+    "success_rate": 0.833,
+    "reasons": {
+     "success": 10,
+     "timeout": 2
+    }
+   },
+   "open_door": {
+    "episodes": 12,
+    "success_rate": 0.0,
+    "reasons": {
+     "timeout": 12
+    }
+   },
+   "close_door": {
+    "episodes": 12,
+    "success_rate": 0.667,
+    "reasons": {
+     "success": 8,
+     "timeout": 4
+    }
+   },
+   "pick": {
+    "episodes": 8,
+    "success_rate": 0.25,
+    "reasons": {
+     "stalled": 1,
+     "success": 2,
+     "timeout": 4,
+     "wrong_direction": 1
+    }
+   },
+   "place": {
+    "episodes": 12,
+    "success_rate": 0.0,
+    "reasons": {
+     "timeout": 12
+    }
+   },
+   "stack": {
+    "episodes": 12,
+    "success_rate": 0.0,
+    "reasons": {
+     "timeout": 12
+    }
+   },
+   "mean_success": 0.286
+  },
+  "learner_magnitudes": {
+   "steps": 21020,
+   "x": {
+    "mean_abs_command": 0.16,
+    "mean_abs_label": 0.395,
+    "saturated_command": 0.032,
+    "saturated_label": 0.26,
+    "slope_on_label": 0.161,
+    "sign_agreement": 0.561,
+    "l1": 0.404,
+    "histogram_command": [
+     13999,
+     3273,
+     1185,
+     1215,
+     683,
+     665
+    ],
+    "histogram_label": [
+     9759,
+     1372,
+     1826,
+     1538,
+     1063,
+     5462
+    ]
+   },
+   "y": {
+    "mean_abs_command": 0.313,
+    "mean_abs_label": 0.437,
+    "saturated_command": 0.189,
+    "saturated_label": 0.328,
+    "slope_on_label": 0.452,
+    "sign_agreement": 0.616,
+    "l1": 0.351,
+    "histogram_command": [
+     10861,
+     3507,
+     892,
+     758,
+     1035,
+     3967
+    ],
+    "histogram_label": [
+     9350,
+     1009,
+     1541,
+     1543,
+     688,
+     6889
+    ]
+   },
+   "z": {
+    "mean_abs_command": 0.409,
+    "mean_abs_label": 0.78,
+    "saturated_command": 0.133,
+    "saturated_label": 0.717,
+    "slope_on_label": -0.027,
+    "sign_agreement": 0.435,
+    "l1": 0.828,
+    "histogram_command": [
+     6058,
+     3848,
+     2274,
+     4235,
+     1802,
+     2803
+    ],
+    "histogram_label": [
+     1294,
+     3271,
+     492,
+     530,
+     359,
+     15074
+    ]
+   },
+   "yaw": {
+    "mean_abs_command": 0.063,
+    "mean_abs_label": 0.793,
+    "saturated_command": 0.0,
+    "saturated_label": 0.73,
+    "slope_on_label": 0.055,
+    "sign_agreement": 0.621,
+    "l1": 0.756,
+    "histogram_command": [
+     18752,
+     1040,
+     395,
+     803,
+     30,
+     0
+    ],
+    "histogram_label": [
+     2931,
+     585,
+     934,
+     802,
+     418,
+     15350
+    ]
+   },
+   "grip": {
+    "mean_abs_command": 0.988,
+    "mean_abs_label": 0.81,
+    "saturated_command": 0.948,
+    "saturated_label": 0.728,
+    "slope_on_label": 0.598,
+    "sign_agreement": 0.824,
+    "l1": 0.549,
+    "histogram_command": [
+     8,
+     15,
+     51,
+     273,
+     741,
+     19932
+    ],
+    "histogram_label": [
+     0,
+     0,
+     5717,
+     0,
+     0,
+     15303
+    ]
+   },
+   "full_speed_label_steps": 19678,
+   "full_speed_norm_ratio": 0.56,
+   "full_speed_cosine": -0.143
+  },
+  "watching_magnitudes": {
+   "steps": 16383,
+   "x": {
+    "mean_abs_command": 0.232,
+    "mean_abs_label": 0.211,
+    "saturated_command": 0.061,
+    "saturated_label": 0.121,
+    "slope_on_label": 0.833,
+    "sign_agreement": 0.972,
+    "l1": 0.1,
+    "histogram_command": [
+     9530,
+     2101,
+     1430,
+     1343,
+     984,
+     995
+    ],
+    "histogram_label": [
+     11507,
+     779,
+     760,
+     898,
+     452,
+     1987
+    ]
+   },
+   "y": {
+    "mean_abs_command": 0.486,
+    "mean_abs_label": 0.456,
+    "saturated_command": 0.364,
+    "saturated_label": 0.409,
+    "slope_on_label": 0.947,
+    "sign_agreement": 0.986,
+    "l1": 0.091,
+    "histogram_command": [
+     6478,
+     1443,
+     782,
+     627,
+     1085,
+     5968
+    ],
+    "histogram_label": [
+     8167,
+     489,
+     444,
+     316,
+     264,
+     6703
+    ]
+   },
+   "z": {
+    "mean_abs_command": 0.543,
+    "mean_abs_label": 0.509,
+    "saturated_command": 0.3,
+    "saturated_label": 0.345,
+    "slope_on_label": 0.934,
+    "sign_agreement": 0.956,
+    "l1": 0.116,
+    "histogram_command": [
+     3149,
+     2473,
+     1504,
+     3025,
+     1320,
+     4912
+    ],
+    "histogram_label": [
+     4085,
+     2753,
+     362,
+     3273,
+     251,
+     5659
+    ]
+   },
+   "yaw": {
+    "mean_abs_command": 0.057,
+    "mean_abs_label": 0.096,
+    "saturated_command": 0.0,
+    "saturated_label": 0.094,
+    "slope_on_label": 0.342,
+    "sign_agreement": 0.864,
+    "l1": 0.086,
+    "histogram_command": [
+     14682,
+     662,
+     292,
+     723,
+     24,
+     0
+    ],
+    "histogram_label": [
+     14773,
+     8,
+     26,
+     23,
+     17,
+     1536
+    ]
+   },
+   "grip": {
+    "mean_abs_command": 0.993,
+    "mean_abs_label": 0.858,
+    "saturated_command": 0.979,
+    "saturated_label": 0.797,
+    "slope_on_label": 0.996,
+    "sign_agreement": 0.976,
+    "l1": 0.183,
+    "histogram_command": [
+     9,
+     19,
+     29,
+     98,
+     193,
+     16035
+    ],
+    "histogram_label": [
+     0,
+     0,
+     3319,
+     0,
+     0,
+     13064
+    ]
+   },
+   "full_speed_label_steps": 12018,
+   "full_speed_norm_ratio": 0.993,
+   "full_speed_cosine": 0.997
+  },
+  "label_phases": {
+   "approach": {
+    "share": 0.876,
+    "z_down_zero_up": [
+     5039,
+     0,
+     13376
+    ]
+   },
+   "descend": {
+    "share": 0.008,
+    "z_down_zero_up": [
+     107,
+     0,
+     58
+    ]
+   },
+   "clear": {
+    "share": 0.116,
+    "z_down_zero_up": [
+     0,
+     883,
+     1557
+    ]
+   }
+  },
+  "seconds": 121.4
+ },
+ {
+  "run": "/Users/yusenthebot/Documents/Codex/FlyArm/runs/skill-dagger-connectome-001",
+  "kind": "connectome",
+  "seed": 0,
+  "checkpoint": "/Users/yusenthebot/Documents/Codex/FlyArm/runs/skill-dagger-connectome-001/connectome-0/round-01/policy.safetensors",
+  "test": "burnin",
+  "episodes": 80,
+  "teacher_16_state_kept": {
+   "open_drawer": {
+    "episodes": 12,
+    "success_rate": 0.333,
+    "reasons": {
+     "success": 4,
+     "timeout": 8
+    }
+   },
+   "close_drawer": {
+    "episodes": 12,
+    "success_rate": 0.917,
+    "reasons": {
+     "success": 11,
+     "timeout": 1
+    }
+   },
+   "open_door": {
+    "episodes": 12,
+    "success_rate": 0.0,
+    "reasons": {
+     "timeout": 12
+    }
+   },
+   "close_door": {
+    "episodes": 12,
+    "success_rate": 0.583,
+    "reasons": {
+     "success": 7,
+     "timeout": 5
+    }
+   },
+   "pick": {
+    "episodes": 8,
+    "success_rate": 0.25,
+    "reasons": {
+     "lost_grasp": 1,
+     "stalled": 1,
+     "success": 2,
+     "timeout": 4
+    }
+   },
+   "place": {
+    "episodes": 12,
+    "success_rate": 0.0,
+    "reasons": {
+     "timeout": 12
+    }
+   },
+   "stack": {
+    "episodes": 12,
+    "success_rate": 0.0,
+    "reasons": {
+     "lost_grasp": 1,
+     "timeout": 11
+    }
+   },
+   "mean_success": 0.298
+  },
+  "teacher_16_state_reset": {
+   "open_drawer": {
+    "episodes": 12,
+    "success_rate": 0.333,
+    "reasons": {
+     "success": 4,
+     "timeout": 8
+    }
+   },
+   "close_drawer": {
+    "episodes": 12,
+    "success_rate": 0.917,
+    "reasons": {
+     "success": 11,
+     "timeout": 1
+    }
+   },
+   "open_door": {
+    "episodes": 12,
+    "success_rate": 0.0,
+    "reasons": {
+     "timeout": 12
+    }
+   },
+   "close_door": {
+    "episodes": 12,
+    "success_rate": 0.5,
+    "reasons": {
+     "success": 6,
+     "timeout": 6
+    }
+   },
+   "pick": {
+    "episodes": 8,
+    "success_rate": 0.25,
+    "reasons": {
+     "lost_grasp": 1,
+     "stalled": 1,
+     "success": 2,
+     "timeout": 4
+    }
+   },
+   "place": {
+    "episodes": 12,
+    "success_rate": 0.0,
+    "reasons": {
+     "timeout": 12
+    }
+   },
+   "stack": {
+    "episodes": 12,
+    "success_rate": 0.0,
+    "reasons": {
+     "lost_grasp": 1,
+     "timeout": 11
+    }
+   },
+   "mean_success": 0.286
+  },
+  "no_burn_in": {
+   "open_drawer": {
+    "episodes": 12,
+    "success_rate": 0.25,
+    "reasons": {
+     "success": 3,
+     "timeout": 9
+    }
+   },
+   "close_drawer": {
+    "episodes": 12,
+    "success_rate": 0.833,
+    "reasons": {
+     "success": 10,
+     "timeout": 2
+    }
+   },
+   "open_door": {
+    "episodes": 12,
+    "success_rate": 0.0,
+    "reasons": {
+     "timeout": 12
+    }
+   },
+   "close_door": {
+    "episodes": 12,
+    "success_rate": 0.667,
+    "reasons": {
+     "success": 8,
+     "timeout": 4
+    }
+   },
+   "pick": {
+    "episodes": 8,
+    "success_rate": 0.25,
+    "reasons": {
+     "stalled": 1,
+     "success": 2,
+     "timeout": 4,
+     "wrong_direction": 1
+    }
+   },
+   "place": {
+    "episodes": 12,
+    "success_rate": 0.0,
+    "reasons": {
+     "timeout": 12
+    }
+   },
+   "stack": {
+    "episodes": 12,
+    "success_rate": 0.0,
+    "reasons": {
+     "timeout": 12
+    }
+   },
+   "mean_success": 0.286
+  },
+  "seconds": 95.1
+ }
+]

@@ -1,5 +1,5 @@
 {
-  "base_run": "runs/skill-dagger-connectome-001",
+  "base_run": "runs/skill-dagger-connectome-002",
   "base_kind": "connectome",
   "base_seed": 0,
   "num_envs": 128,

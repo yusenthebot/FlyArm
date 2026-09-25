@@ -58,6 +58,7 @@ def test_the_shipped_configs_validate() -> None:
         config = SkillDaggerConfig.model_validate_json((CONFIGS / name).read_text())
         assert config.model.policies == [kind] and config.model.encoder == encoder
         assert config.rounds == 10 and config.model.sampling == "windows"
+        assert config.model.control_features and config.epochs_per_round > 0
     ppo = ManipulationPPOConfig.model_validate_json(
         (CONFIGS / "ppo-manipulation-skill-dagger.json").read_text()
     )
@@ -92,19 +93,21 @@ def test_aggregation_keeps_every_round_s_episodes_end_to_end_and_balances_skills
         StepData(data.obs, data.actions, data.weights, data.starts[::-1].copy(), data.lengths)
 
 
-def test_windows_never_cross_into_another_episode() -> None:
+def test_windows_never_cross_into_another_episode_and_cover_every_step_equally() -> None:
+    from flyarm.whole_brain.training import window_starts
+
     data = sd.aggregate([_steps([3, 5, 2], [1, 1, 1])], max_weight=10.0)
-    picked = np.arange(10)
-    flat, inside = window_indices(data, picked, burn_in=4, width=3)
-    episode = np.searchsorted(data.starts, flat, side="right") - 1
-    own = np.searchsorted(data.starts, picked, side="right") - 1
-    assert np.all(episode == own[:, None])  # every index, padding included, is the episode's
-    position = picked - data.starts[own]
-    expected = (np.arange(-4, 3)[None] + position[:, None] >= 0) & (
-        np.arange(-4, 3)[None] + position[:, None] < data.lengths[own][:, None]
-    )
-    assert np.array_equal(inside, expected)
-    assert np.array_equal(flat[inside], (picked[:, None] + np.arange(-4, 3)[None])[inside])
+    episode, position = window_starts(data, 200_000, 3, np.random.default_rng(0))
+    assert position.min() == -2 and np.all(position < data.lengths[episode])
+    flat, inside = window_indices(data, episode, position, burn_in=4, width=3)
+    owner = np.searchsorted(data.starts, flat, side="right") - 1
+    assert np.all(owner == episode[:, None])  # every index, padding included, is the episode's
+    expected = position[:, None] + np.arange(-4, 3)[None]
+    assert np.array_equal(inside, (expected >= 0) & (expected < data.lengths[episode][:, None]))
+    assert np.array_equal(flat[inside], (data.starts[episode][:, None] + expected)[inside])
+    loss_part = flat[:, 4:][inside[:, 4:]]
+    coverage = np.bincount(loss_part, minlength=10) / len(position)
+    np.testing.assert_allclose(coverage, coverage.mean(), rtol=0.03)  # starts included
 
 
 def test_padding_round_trips_the_ragged_steps() -> None:
@@ -248,3 +251,100 @@ def test_two_rounds_resume_after_a_crash_and_aggregate(bank, tmp_path) -> None:
     )
     again = sd.train_rounds(policy(), run, config, bench, bank, bank, 0, 1e12)
     assert again is not None and [m["round"] for m in again] == [0, 1]  # nothing to redo
+
+
+def test_rounds_train_for_epochs_over_the_aggregate_when_asked() -> None:
+    fixed = SkillDaggerConfig()
+    assert sd.round_updates(fixed, 0, 10**6) == 3000 and sd.round_updates(fixed, 5, 10**7) == 1500
+    epochs = SkillDaggerConfig(epochs_per_round=2.0, max_updates_per_round=5000)
+    per_update = epochs.model.window_batch * epochs.model.bptt_steps
+    assert sd.round_updates(epochs, 3, 1000 * per_update) == 2000
+    assert sd.round_updates(epochs, 3, 100 * per_update) == 1500  # never below the fixed count
+    assert sd.round_updates(epochs, 3, 10**5 * per_update) == 5000  # capped
+
+
+def test_control_features_append_control_scale_offsets_inside_the_policy() -> None:
+    import mlx.core as mx
+
+    from flyarm.config import ManipulationImitationConfig
+    from flyarm.manipulation import sim as ms
+    from flyarm.manipulation.features import control_expansion, control_indices
+    from flyarm.manipulation.imitation import build_policy
+
+    positions, angles = control_indices()
+    cue = ms.CUE_START + sum(
+        size
+        for name, size in ms.CUE_FIELDS[: [n for n, _ in ms.CUE_FIELDS].index("handle_minus_ee")]
+    )
+    assert list(range(cue, cue + 3)) == positions[-3:] and len(angles) == 2
+    index, scale = control_expansion()
+    assert len(index) == 2 * len(positions) + 2 * len(angles) == len(scale)
+    plain = build_policy("mlp", ManipulationImitationConfig(), 0, None, 0)
+    assert plain.input_dim == ms.OBS_DIM and plain.expansion is None
+    policy = build_policy("mlp", ManipulationImitationConfig(control_features=True), 0, None, 0)
+    assert policy.input_dim == ms.OBS_DIM + len(index)
+    obs = np.random.default_rng(0).normal(size=(4, ms.OBS_DIM)).astype(np.float32) * 0.02
+    x = np.asarray(policy.normalize(mx.array(obs)))
+    np.testing.assert_allclose(x[:, : ms.OBS_DIM], obs, atol=1e-6)  # default normalization
+    expected = np.tanh(obs[:, index] / np.array(scale, dtype=np.float32))
+    np.testing.assert_allclose(x[:, ms.OBS_DIM :], expected, atol=1e-5)
+    matched = ManipulationImitationConfig(control_features=True, mlp_control="matched")
+    for kind in ("mlp", "gru"):  # matched budgets count the expanded inputs
+        control = build_policy(kind, matched, 0, None, 606_905)
+        assert abs(control.trainable_parameter_count() - 606_905) < 3000
+
+
+@needs_env
+def test_a_teacher_that_finds_the_hand_down_at_the_handle_keeps_descending() -> None:
+    from flyarm.manipulation.teacher import APPROACH, CLOSE, DESCEND, ManipulationTeacher
+
+    episodes = rollout.plan("train", 1, 400_000, templates=["put_away"])
+    env = rollout.make_env(Path(MODEL), episodes, asset_root=OBJECTS, velocities=False)
+    env.reset(seeds=np.array(episodes.seeds), templates=list(episodes.templates))
+    teacher = ManipulationTeacher(env)
+    teacher.reset()
+    for _ in range(400):  # drive to the drawer handle, stop as the pinch starts
+        action = teacher.act()
+        if teacher.phase[0] == CLOSE:
+            break
+        env.step(action.astype(np.float64), auto_reset=False)
+    assert teacher.phase[0] == CLOSE
+    fresh = ManipulationTeacher(env)  # no memory of the path: what a learner's state gets
+    fresh.reset()
+    label = fresh.act()
+    # Straight on to the pinch, as the teacher's own path labels this state, not back up to
+    # the hover 7 cm above.
+    assert fresh.phase[0] in (DESCEND, CLOSE) and fresh.phase[0] != APPROACH
+    assert label[0, 2] <= 0.0
+
+
+@needs_env
+def test_the_teacher_moves_a_hand_that_is_millimetres_off_and_closes_from_geometry() -> None:
+    from flyarm.manipulation import teacher as mt
+
+    episodes = rollout.plan("train", 1, 400_000, templates=["put_away"])
+    env = rollout.make_env(Path(MODEL), episodes, asset_root=OBJECTS, velocities=False)
+    env.reset(seeds=np.array(episodes.seeds), templates=list(episodes.templates))
+    teacher = mt.ManipulationTeacher(env)
+    teacher.reset()
+    scene = teacher._scene()
+    ee = scene["ee"][0]
+    # 3 mm off: a plain P command would be 0.21; the floor keeps it at COMMAND_FLOOR at least.
+    command = teacher._command(0, ee, ee + np.array([0.003, 0.0, 0.0]), 1.0, None, floor=0.25)
+    assert np.isclose(np.linalg.norm(command[:3]), 0.25)
+    inside = teacher._command(0, ee, ee + np.array([0.001, 0.0, 0.0]), 1.0, None, floor=0.25)
+    assert np.isclose(inside[0], 0.001 / 0.014)  # inside half a floor step: plain P, no overshoot
+    # The drawer's bar (radius 8 mm) between pads 8 cm apart: 29 mm of room, capped at 10 mm;
+    # across the jaws the pad's half width less the margin.
+    tolerance = teacher._handle_tolerance(0, 0, 1.0)
+    assert np.allclose(tolerance, [mt.ARTICULATION_CAP, mt.PAD_HALF - mt.MARGIN])
+    lid_bar = teacher._handle_tolerance(0, 2, mt.LID_BAR_GRIP) if env.lid_knob[0] < 0.5 else None
+    if lid_bar is not None:  # the lid bar is pinched from a part-open hand: little room along
+        assert lid_bar[0] < 0.004
+    axis = scene["jaw_axis"][0] / np.linalg.norm(scene["jaw_axis"][0])
+    across = np.array([-axis[1], axis[0]])
+    site = ee.copy()
+    site[:2] += 0.006 * axis
+    assert teacher._straddles(0, scene, site, tolerance)  # 6 mm along the jaws: close
+    site[:2] = ee[:2] + 0.008 * across
+    assert not teacher._straddles(0, scene, site, tolerance)  # 8 mm across: pads miss

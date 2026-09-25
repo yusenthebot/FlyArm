@@ -41,6 +41,7 @@ from flyarm.experiment import save_json
 from flyarm.interfaces import NeuralInterface
 from flyarm.manipulation import rollout
 from flyarm.manipulation.env import DEFAULT_ASSET_ROOT, BatchedManipulation
+from flyarm.manipulation.features import control_expansion
 from flyarm.manipulation.sim import OBS_DIM
 from flyarm.manipulation.splits import record_path
 from flyarm.whole_brain.backend_mlx import RateDynamics
@@ -109,14 +110,22 @@ def build_policy(
     brain_budget: int,
 ) -> SequencePolicy:
     """An untrained controller of one kind; the same constructor serves training and replay."""
-    dims = {"obs_dim": OBS_DIM, "action_dim": ACTION_DIM, "chunk": config.action_chunk}
+    expansion = control_expansion() if config.control_features else None
+    dims: dict[str, Any] = {
+        "obs_dim": OBS_DIM,
+        "action_dim": ACTION_DIM,
+        "chunk": config.action_chunk,
+        "expansion": expansion,
+    }
+    inputs = OBS_DIM + (len(expansion[0]) if expansion is not None else 0)
+    outputs = ACTION_DIM * config.action_chunk
     if kind == "mlp":
         if config.mlp_control == "matched":
-            hidden = mlp_hidden_for_budget(OBS_DIM, ACTION_DIM * config.action_chunk, brain_budget)
+            hidden = mlp_hidden_for_budget(inputs, outputs, brain_budget)
             return MLPPolicy(**dims, hidden=hidden, seed=seed)
         return MLPPolicy(**dims, seed=seed)
     if kind == "gru":
-        hidden = gru_hidden_for_budget(OBS_DIM, ACTION_DIM * config.action_chunk, brain_budget)
+        hidden = gru_hidden_for_budget(inputs, outputs, brain_budget)
         return GRUPolicy(**dims, hidden=hidden, seed=seed)
     if dynamics is None:
         raise ValueError(f"{kind} needs connectome dynamics")

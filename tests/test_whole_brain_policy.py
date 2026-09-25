@@ -330,3 +330,35 @@ def test_the_linear_encoder_is_unchanged_and_the_mlp_encoder_trains(pack, tmp_pa
     )
     with pytest.raises(ValueError, match="channels"):
         BrainPolicy("c", dynamics, obs_dim=4, action_dim=2, encoder="mlp", channels=[(0, 4, 6)])
+
+
+def test_an_input_expansion_feeds_the_encoder_and_survives_clones_and_checkpoints(
+    pack, tmp_path
+) -> None:
+    dynamics = RateDynamics(pack, interface_for(pack))
+    expansion = ([0, 2, 2], [0.5, 0.5, 2.0])
+    policy = BrainPolicy(
+        "connectome", dynamics, obs_dim=4, action_dim=2, encoder="mlp", expansion=expansion
+    )
+    assert policy.input_dim == 7 and policy.encoder.hidden[0].weight.shape[1] == 7
+    obs = np.array([[0.3, -1.0, 0.8, 2.0]], dtype=np.float32)
+    x = np.asarray(policy.normalize(mx.array(obs)))
+    np.testing.assert_allclose(x[0, 4:], np.tanh([0.6, 1.6, 0.4]), atol=1e-6)
+    clone = policy.with_dynamics("edges_off", RateDynamics(pack, interface_for(pack), edges=False))
+    assert clone.expansion == policy.expansion
+    policy.save(tmp_path / "policy.safetensors")
+    restored = BrainPolicy(
+        "connectome", dynamics, obs_dim=4, action_dim=2, encoder="mlp", expansion=expansion
+    )
+    restored.load(tmp_path / "policy.safetensors")
+    probe = np.random.default_rng(2).standard_normal(4)
+    assert np.array_equal(MlxController(policy).act(probe), MlxController(restored).act(probe))
+    with pytest.raises(ValueError, match="one encoder"):
+        BrainPolicy(
+            "connectome",
+            dynamics,
+            obs_dim=4,
+            action_dim=2,
+            channels=[(0, 4, dynamics.input_count)],
+            expansion=expansion,
+        )
