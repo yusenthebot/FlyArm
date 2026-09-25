@@ -180,7 +180,7 @@ def main() -> None:
     bank = cu.SubgoalBank.load(args.bank or args.run / "validation-bank.npz")
     picks = np.flatnonzero(np.isin(bank.skill, (tk.PLACE, tk.STACK)))
     policy = None
-    cue, velocities = True, False
+    cue, velocities, phase_cue = True, False, False
     if not args.teacher:
         checkpoint = None
         if args.round is not None:
@@ -189,14 +189,19 @@ def main() -> None:
         config, policy = load_manipulation_policy(
             args.run, args.kind, args.seed, args.pack, checkpoint
         )
-        cue, velocities = config.cue, config.velocities
+        cue, velocities, phase_cue = config.cue, config.velocities, config.phase_cue
     plan = rollout.EpisodePlan(
         "train",
         tuple(int(s) for s in bank.seeds[picks]),
         tuple(str(t) for t in bank.templates[picks]),
     )
     env = rollout.make_env(
-        args.model, plan, asset_root=args.asset_root, cue=cue, velocities=velocities
+        args.model,
+        plan,
+        asset_root=args.asset_root,
+        cue=cue,
+        velocities=velocities,
+        phase_cue=phase_cue,
     )
     row = {
         "run": str(args.run),
