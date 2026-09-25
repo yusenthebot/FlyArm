@@ -53,6 +53,7 @@ class EpisodePlan:
     # episode ending after ``budget`` subgoals; empty for true starts.
     starts: tuple[int, ...] = ()
     budget: int = 0
+    budgets: tuple[int, ...] = ()  # per-episode budgets; empty uses ``budget`` for all
     bank: Any = field(default=None, compare=False, repr=False)
     label: str = ""  # the summary's name ("" names it by the split)
 
@@ -162,7 +163,12 @@ def run_episodes(
         if env.split.name != episodes.split:
             raise ValueError(f"environment is split {env.split.name}, plan is {episodes.split}")
     obs = [
-        p.bank.reset(env, env.rows, np.array(p.starts), np.full(len(p), p.budget))
+        p.bank.reset(
+            env,
+            env.rows,
+            np.array(p.starts),
+            np.array(p.budgets) if p.budgets else np.full(len(p), p.budget),
+        )
         if p.starts
         else env.reset(seeds=np.array(p.seeds), templates=list(p.templates))
         for env, p in zip(envs, plans, strict=True)
