@@ -92,6 +92,7 @@ def make_env(
     reward: RewardConfig | None = None,
     cue: bool = True,
     velocities: bool = True,
+    phase_cue: bool = False,
 ) -> BatchedManipulation:
     return BatchedManipulation(
         model_path,
@@ -101,6 +102,7 @@ def make_env(
         reward=reward,
         cue=cue,
         velocities=velocities,
+        phase_cue=phase_cue,
     )
 
 

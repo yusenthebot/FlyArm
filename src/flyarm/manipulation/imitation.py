@@ -155,10 +155,16 @@ class Workbench:
     """The batched environments of one run, built once and reused (a compile takes seconds)."""
 
     def __init__(
-        self, model_path: Path, asset_root: Path, cue: bool, velocities: bool = True
+        self,
+        model_path: Path,
+        asset_root: Path,
+        cue: bool,
+        velocities: bool = True,
+        phase_cue: bool = False,
     ) -> None:
         self.model_path, self.asset_root, self.cue = Path(model_path), Path(asset_root), cue
         self.velocities = velocities
+        self.phase_cue = phase_cue
         self._envs: dict[tuple[str, int, str], BatchedManipulation] = {}
 
     def env(self, episodes: rollout.EpisodePlan) -> BatchedManipulation:
@@ -171,6 +177,7 @@ class Workbench:
                 asset_root=self.asset_root,
                 cue=self.cue,
                 velocities=self.velocities,
+                phase_cue=self.phase_cue,
             )
         return self._envs[key]
 
@@ -432,7 +439,7 @@ def _run(
     save_json(output / "interface_report.json", interface_report(pack, interface))
     save_json(output / "config.json", config.model_dump())
     save_json(output / "provenance.json", _provenance(pack, interface, config))
-    bench = Workbench(model_path, asset_root, config.cue, config.velocities)
+    bench = Workbench(model_path, asset_root, config.cue, config.velocities, config.phase_cue)
     demonstrations = rollout.plan(
         "train", config.train_episodes_per_template, rollout.DEMONSTRATION_OFFSET
     )

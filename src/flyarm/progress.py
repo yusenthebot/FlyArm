@@ -121,6 +121,7 @@ def _manipulation_frames(
         asset_root=asset_root,
         cue=base.cue,
         velocities=base.velocities,
+        phase_cue=base.phase_cue,
         render_size=(304, 400),
     )
     clips, outcomes = [], []

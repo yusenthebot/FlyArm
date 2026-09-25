@@ -627,6 +627,9 @@ class ManipulationImitationConfig(BaseModel):
     dagger_beta_decay: float = Field(default=0.5, ge=0, le=1)
     # The memoryless sub-task cue in the observation; False is the no-cue control.
     cue: bool = True
+    # The observable motor phase in the cue (flyarm.manipulation.phases); False zeroes it,
+    # the no-phase-cue control (docs/MANIPULATION_ENV.md, "Phase cue").
+    phase_cue: bool = False
     # Joint and object velocities in the policy's observation. Off by default: a controller
     # cloned from states with velocities learns to keep doing what they say, and a well-fit MLP
     # never left the start pose (the copycat problem, docs/MANIPULATION_ENV.md, "Imitation
