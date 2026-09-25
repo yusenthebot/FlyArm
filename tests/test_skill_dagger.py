@@ -292,3 +292,27 @@ def test_control_features_append_control_scale_offsets_inside_the_policy() -> No
     for kind in ("mlp", "gru"):  # matched budgets count the expanded inputs
         control = build_policy(kind, matched, 0, None, 606_905)
         assert abs(control.trainable_parameter_count() - 606_905) < 3000
+
+
+@needs_env
+def test_a_teacher_that_finds_the_hand_down_at_the_handle_keeps_descending() -> None:
+    from flyarm.manipulation.teacher import APPROACH, CLOSE, DESCEND, ManipulationTeacher
+
+    episodes = rollout.plan("train", 1, 400_000, templates=["put_away"])
+    env = rollout.make_env(Path(MODEL), episodes, asset_root=OBJECTS, velocities=False)
+    env.reset(seeds=np.array(episodes.seeds), templates=list(episodes.templates))
+    teacher = ManipulationTeacher(env)
+    teacher.reset()
+    for _ in range(400):  # drive to the drawer handle, stop as the pinch starts
+        action = teacher.act()
+        if teacher.phase[0] == CLOSE:
+            break
+        env.step(action.astype(np.float64), auto_reset=False)
+    assert teacher.phase[0] == CLOSE
+    fresh = ManipulationTeacher(env)  # no memory of the path: what a learner's state gets
+    fresh.reset()
+    label = fresh.act()
+    # Straight on to the pinch, as the teacher's own path labels this state, not back up to
+    # the hover 7 cm above.
+    assert fresh.phase[0] in (DESCEND, CLOSE) and fresh.phase[0] != APPROACH
+    assert label[0, 2] <= 0.0

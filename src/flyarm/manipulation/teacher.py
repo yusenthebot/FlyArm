@@ -88,6 +88,16 @@ ARRIVING = 0.15  # m from the place target inside which the hand turns before mo
 TURN_BEFORE_ARRIVING = 0.3  # rad of heading error that still counts as turning
 TRAVEL_SINK = 0.002  # m per control step
 PHASE_PATIENCE = 250  # steps any phase may last before the subgoal starts over
+# Memoryless re-entry into an articulation's descent: a hand already below its hover point,
+# within this of the handle in xy, turned within REENTRY_YAW and open, continues down instead of
+# being sent back up to the hover to pass the strict alignment gate there. The teacher itself
+# always passes that gate on the way, but a learner that descends without the pause otherwise
+# gets "rise" labels at states the teacher's own data labels "descend" or "close", and stalls
+# there (docs/MANIPULATION_ENV.md, "Skill-level DAgger failure analysis"). Not for objects:
+# rising from a just-placed object is how the teacher lets a placement settle (a re-entry
+# there picks it up again).
+REENTRY_XY = 0.012
+REENTRY_YAW = 0.15
 
 
 def _angle(vector: np.ndarray) -> float:
@@ -357,6 +367,25 @@ class ManipulationTeacher:
         )
         return self._command(row, ee, hover, grip, yaw), aligned
 
+    def _already_down(
+        self,
+        row: int,
+        scene: dict[str, np.ndarray],
+        site: np.ndarray,
+        hover: np.ndarray,
+        yaw: float,
+        grip: float = 1.0,
+    ) -> bool:
+        """The hand is below the hover, over the site, roughly turned and open (REENTRY_XY)."""
+        ee = scene["ee"][row]
+        opened = (grip + 1.0) / 2.0
+        return (
+            ee[2] < hover[2] - 0.02
+            and float(np.linalg.norm(ee[:2] - site[:2])) < REENTRY_XY
+            and self._yaw_error(row, yaw) < REENTRY_YAW
+            and abs(float(scene["opening"][row]) - opened) < 0.15
+        )
+
     def _clear(self, row: int, scene: dict[str, np.ndarray]) -> np.ndarray:
         """Open the hand and rise before starting the next subgoal."""
         ee = scene["ee"][row]
@@ -408,6 +437,8 @@ class ManipulationTeacher:
         # Across the lid's bar the back finger goes down between the bar and the lid's edge, so
         # the hand opens only part way there.
         grip = LID_BAR_GRIP if across else 1.0
+        if phase == APPROACH and self._already_down(row, scene, site, hover, yaw, grip):
+            phase = self.phase[row] = DESCEND
         if phase == APPROACH:
             action, aligned = self._approach(row, scene, hover, yaw, grip)
             if aligned:

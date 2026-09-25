@@ -41,7 +41,7 @@
     "max_seconds": 43200,
     "velocities": false,
     "sampling": "windows",
-    "window_batch": 32,
+    "window_batch": 64,
     "burn_in": 16,
     "encoder": "mlp",
     "encoder_hidden": [
@@ -49,7 +49,8 @@
       256
     ],
     "encoder_activation": "tanh",
-    "mlp_control": "matched"
+    "mlp_control": "matched",
+    "control_features": true
   },
   "stages": [
     {
@@ -81,7 +82,7 @@
     0.25
   ],
   "first_round_updates": 3000,
-  "updates_per_round": 1500,
+  "updates_per_round": 1000,
   "warmup_updates": 300,
   "bank_episodes_per_template": 20,
   "validation_bank_episodes_per_template": 4,
@@ -94,5 +95,7 @@
     "unseen_furniture",
     "unseen_composition"
   ],
-  "max_seconds": 172800
+  "max_seconds": 172800,
+  "epochs_per_round": 10.0,
+  "max_updates_per_round": 20000
 }
