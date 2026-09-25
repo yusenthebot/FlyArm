@@ -504,6 +504,43 @@ The connectome's last round solves open_drawer, close_drawer, close_door and pic
 
 Remaining failures of place (both learners): 23 and 25 of 44 `dropped` (the pick part: a place start begins after another subgoal, often with the hand at a handle) and 6 to 10 `carry`; the MLP is stationary 41% of its steps.
 
+### Phase cue (branch feat/phase-cue)
+
+docs/ARCHITECTURE_ANALYSIS.md found that one linear map per teacher phase fits the teacher's commands about three times better than one map overall: most of what a controller has to learn is the switching between motor phases.
+The memoryless cue therefore gains the current motor phase (`motor_phase`, a one-hot over approach, descend, close, move, lift, carry, lower, release, retreat, clear, before the progress field), computed by `flyarm.manipulation.phases` from scene predicates only, with the teacher's own geometry (alignment at the hover, the closing gates, a pad on the handle at its height, a held object that fits over its destination, the previous subgoal's handle not yet at the teacher's stop) and never the teacher's memory.
+`phase_cue: false` (the default) zeroes it, the no-phase-cue control, as `cue: false` zeroes the whole cue.
+The observation grows from 220 to 230 features, so checkpoints of earlier runs no longer load.
+
+Agreement with the teacher on its own episodes (`scripts/phase_cue_agreement.py`, three per train template from true starts, 22,074 steps, docs/results/phase-cue-agreement.json): 95.9% with the phase the teacher decides from the same state, 94.0% with the phase it acts in (which lags by one step at every switch).
+By skill 87% (close_drawer) to 99% (stack).
+Where they differ: the pads already touching a handle while the teacher still counts its 6 settling steps in CLOSE (181 steps, 11% of CLOSE), the teacher's retreat ending on its own counters (reach, not rising) against the observable height (142 and 157 steps between retreat and approach), a pad brushing the handle during the descent (87), an object held but not yet risen (81), and the teacher's retry paths (CLEAR, 58%).
+
+Phase linearity (scripts/manipulation_phase_linearity.py, 42,927 teacher steps, train / held-out episodes, docs/results/manipulation-phase-linearity.json): one linear map 0.246 / 0.581, per skill 0.203 / 0.600, per teacher phase 0.086 / 0.340, per skill and teacher phase 0.063 / 0.274, per observable phase 0.097 / 0.436, per skill and observable phase 0.074 / 0.330.
+The observable phase recovers almost all of the teacher phase's gain on the fitted episodes.
+
+Capacity probe with and without the phase cue (scripts/sensory_encoder_probe.py on 28 new teacher episodes, 4 per train template, 28,307 steps, one in seven held out, 12 epochs, matched budgets; docs/results/phase-cue-capacity.json):
+
+| Variant | Held-out L1 without / with the phase cue | Training L1 without / with |
+| --- | --- | --- |
+| Linear encoder + measured connectome (encoder rate x0.1) | 0.260 / 0.206 | 0.225 / 0.169 |
+| MLP encoder + measured connectome | 0.219 / 0.150 | 0.166 / 0.120 |
+| MLP encoder + degree-preserving shuffle | 0.196 / 0.153 | 0.158 / 0.125 |
+| Matched MLP | 0.165 / 0.107 | 0.110 / 0.078 |
+
+The phase cue lowers every variant's error by 21 to 35%, but the linear-encoder connectome does not reach the MLP: with the cue it fits about as well as the MLP-encoder connectome did without it (0.206 against 0.219), and still twice the MLP's error; the measured wiring and its shuffle remain equal.
+
+Learner-only skill DAgger with the phase cue (as for place and stack: single subgoals, round 0 the teacher, round 1 beta 0.5, then two rounds with the learner alone; against the same runs without the cue):
+
+| Run | Mean skill success, learner-only rounds | Place (44) | Stack (12) | Stationary | True starts, train validation: subgoal fraction (successes of 7) | iid, selected round (7 episodes) |
+| --- | --- | --- | --- | --- | --- | --- |
+| Connectome (MLP encoder), no phase cue | 0.53, 0.73 | 10/44 | 5/12 | 0.34 | 0.13, 0.41 (0, 2) | 3/7, 0.55 |
+| Connectome (MLP encoder), phase cue | 0.76, 0.80 | 20/44 | 12/12 | 0.23 | 0.35, 0.59 (1, 3) | 1/7, 0.35 |
+| Matched MLP, no phase cue | 0.42, 0.55 | 10/44 | 1/12 | 0.41 | 0.21, 0.18 (0, 0) | 0/7, 0.25 |
+| Matched MLP, phase cue | 0.49, 0.68 | 17/44 | 12/12 | 0.29 | 0.20, 0.40 (1, 1) | 2/7, 0.43 |
+
+The phase cue helps both learners on every single-subgoal measure and on the train-split true starts; the seven iid episodes are too few to separate the connectome runs (1 and 3 successes).
+The shipped skill-DAgger configs turn it on; the no-phase-cue control is the same config with `phase_cue: false`.
+
 ### Imitation failure analysis
 
 The first full imitation runs (runs/whole-brain-manipulation-001 and -diagnostic-001 in the main checkout) completed no episode on any split with any controller: subgoal fraction 0.01 to 0.03 for the connectome and the GRU and 0.000 for the MLP, although the MLP fit best (L1 0.078) and the teacher solves 91 to 98% of the same episodes.
