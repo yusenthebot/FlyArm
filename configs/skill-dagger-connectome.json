@@ -1,0 +1,98 @@
+{
+  "model": {
+    "train_episodes_per_template": 24,
+    "val_episodes_per_template": 2,
+    "eval_episodes_per_template": 8,
+    "eval_splits": [
+      "iid_test",
+      "unseen_objects",
+      "unseen_furniture",
+      "unseen_composition"
+    ],
+    "evaluate_teacher": false,
+    "epochs": 12,
+    "decoder_warmup_epochs": 2,
+    "batch_size": 16,
+    "bptt_steps": 16,
+    "learning_rate": 0.001,
+    "encoder_learning_rate_scale": 1.0,
+    "loss": "l1",
+    "neural_steps": 3,
+    "readout_calibration": "unit_norm",
+    "action_chunk": 1,
+    "sample_weights": "skill_balanced",
+    "max_skill_weight": 5.0,
+    "length_buckets": true,
+    "selection": "closed_loop",
+    "select_every": 4,
+    "phase_selection": "validation_success",
+    "dagger_iterations": 4,
+    "dagger_episodes_per_template": 8,
+    "dagger_epochs": 6,
+    "dagger_beta": 0.5,
+    "dagger_beta_decay": 0.5,
+    "cue": true,
+    "seeds": [
+      0
+    ],
+    "policies": [
+      "connectome"
+    ],
+    "max_seconds": 43200,
+    "velocities": false,
+    "sampling": "windows",
+    "window_batch": 32,
+    "burn_in": 16,
+    "encoder": "mlp",
+    "encoder_hidden": [
+      256,
+      256
+    ],
+    "encoder_activation": "tanh",
+    "mlp_control": "matched"
+  },
+  "stages": [
+    {
+      "name": "single_subgoal",
+      "rounds": 4,
+      "min_subgoals": 1,
+      "max_subgoals": 1,
+      "true_start_share": 0.1
+    },
+    {
+      "name": "two_or_three",
+      "rounds": 3,
+      "min_subgoals": 2,
+      "max_subgoals": 3,
+      "true_start_share": 0.15
+    },
+    {
+      "name": "full_templates",
+      "rounds": 3,
+      "min_subgoals": 8,
+      "max_subgoals": 8,
+      "true_start_share": 1.0
+    }
+  ],
+  "teacher_episodes": 256,
+  "episodes_per_round": 256,
+  "betas": [
+    0.5,
+    0.25
+  ],
+  "first_round_updates": 3000,
+  "updates_per_round": 1500,
+  "warmup_updates": 300,
+  "bank_episodes_per_template": 20,
+  "validation_bank_episodes_per_template": 4,
+  "skill_eval_episodes": 4,
+  "val_episodes_per_template": 2,
+  "eval_episodes_per_template": 8,
+  "eval_splits": [
+    "iid_test",
+    "unseen_objects",
+    "unseen_furniture",
+    "unseen_composition"
+  ],
+  "max_seconds": 172800
+}

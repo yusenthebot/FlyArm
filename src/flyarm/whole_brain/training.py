@@ -221,6 +221,100 @@ def _window_epoch(
     return losses
 
 
+@dataclass(frozen=True)
+class StepData:
+    """Episodes stored end to end on the host (no padding): step arrays and, per episode, the
+    index of its first step and its length. DAgger data sets of millions of mostly short
+    episodes would not fit padded to the longest one."""
+
+    obs: np.ndarray  # [S, obs_dim]
+    actions: np.ndarray  # [S, action_dim]
+    weights: np.ndarray  # [S]
+    starts: np.ndarray  # [E]
+    lengths: np.ndarray  # [E]
+
+    def __post_init__(self) -> None:
+        steps = int(self.lengths.sum())
+        if len(self.obs) != steps or len(self.actions) != steps or len(self.weights) != steps:
+            raise ValueError("step arrays must hold exactly the episodes' steps")
+        if not np.array_equal(self.starts, np.concatenate(([0], np.cumsum(self.lengths)[:-1]))):
+            raise ValueError("episodes must be stored end to end in order")
+
+
+def window_indices(
+    data: StepData, picked: np.ndarray, burn_in: int, width: int
+) -> tuple[np.ndarray, np.ndarray]:
+    """Flat step indices [W, burn_in + width] of windows ending ``width`` steps after each
+    picked step's burn-in, and whether each index lies inside its own episode (steps before
+    the episode's start are padding; windows never cross into another episode)."""
+    episode = np.searchsorted(data.starts, picked, side="right") - 1
+    position = picked - data.starts[episode]
+    steps = position[:, None] + np.arange(-burn_in, width)[None, :]
+    inside = (steps >= 0) & (steps < data.lengths[episode][:, None])
+    clipped = np.clip(steps, 0, data.lengths[episode][:, None] - 1)
+    return data.starts[episode][:, None] + clipped, inside
+
+
+def train_windows(
+    policy: SequencePolicy,
+    data: StepData,
+    budget: Budget,
+    updates: int,
+    generator: np.random.Generator,
+    *,
+    warmup_updates: int = 0,
+) -> list[float]:
+    """``updates`` Adam steps of window sampling on ragged episodes (one action per step).
+
+    Each update fits ``budget.window_batch`` windows of ``budget.bptt_steps`` steps starting at
+    uniformly drawn weighted steps, entered after ``budget.burn_in`` steps without gradient;
+    the first ``warmup_updates`` train the decoder only. Returns the per-update losses.
+    """
+    if policy.chunk != 1:
+        raise ValueError("train_windows drives one action per step")
+    if budget.window_batch is None:
+        raise ValueError("train_windows needs budget.window_batch")
+    candidates = np.flatnonzero(data.weights > 0)
+    if not candidates.size:
+        raise ValueError("no weighted steps to train on")
+    gradient_fn = nn.value_and_grad(policy, partial(_chunk_loss, loss=budget.loss))
+    width, burn = budget.bptt_steps, budget.burn_in
+    optimizer: optim.Optimizer | None = None
+    losses: list[float] = []
+    for update in range(updates):
+        if update % 50 == 0 and time.monotonic() >= budget.deadline:
+            raise TimeoutError("training budget exhausted; completed rounds are kept")
+        warmup = update < warmup_updates
+        if optimizer is None or update == warmup_updates:
+            _set_input_frozen(policy, warmup)
+            optimizer = _optimizer(policy, budget, warmup)
+        picked = candidates[generator.integers(0, len(candidates), budget.window_batch)]
+        flat, inside = window_indices(data, picked, burn, width)
+        obs = data.obs[flat] * inside[..., None]
+        state = policy.initial_state(len(picked))
+        for t in range(burn):
+            _, state = policy.step(mx.array(obs[:, t]), state)
+            state = _keep_state(policy, state, inside[:, t])
+        state = mx.stop_gradient(state)
+        window = slice(burn, burn + width)
+        weights = (data.weights[flat[:, window]] * inside[:, window])[..., None]
+        if float(weights.sum()) == 0.0:
+            continue
+        (loss, _), gradients = gradient_fn(
+            policy,
+            mx.array(obs[:, window]),
+            mx.array(data.actions[flat[:, window]][:, :, None, :]),
+            mx.array(weights.astype(np.float32)),
+            state,
+        )
+        gradients, _ = optim.clip_grad_norm(gradients, 1.0)
+        optimizer.update(policy, gradients)
+        mx.eval(policy.parameters(), optimizer.state, loss)
+        losses.append(float(loss))
+    _set_input_frozen(policy, False)
+    return losses
+
+
 def train_sequence_policy(
     policy: SequencePolicy,
     train_data: dict[str, np.ndarray],

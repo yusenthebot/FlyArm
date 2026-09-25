@@ -331,6 +331,47 @@ Configs (connectome seed 0, the fixed imitation recipe plus the encoder, encoder
 Smoke (tiny imitation with the MLP encoder, one DAgger round, then 6 curriculum PPO iterations through both stage switches and a progress clip): imitation 3.7 minutes, PPO 3.7 minutes at 1,160 to 1,325 steps/s with the GPU free.
 Estimates with the GPU to one run at a time: encoder imitation about 4.5 hours (the linear run took 4.0; an encoder epoch costs about 15% more), the shuffle the same, the MLP and GRU baselines about 2 hours (their training is minutes, rollouts and evaluations dominate), curriculum PPO about 3 hours (1,000 iterations of about 8 s plus 11 evaluations).
 
+### Skill-level DAgger (flyarm.manipulation.skill_dagger)
+
+The encoder imitation run (runs/whole-brain-manipulation-encoder-001) fit the teacher to the MLP's level (L1 0.086 to 0.093 train, 0.094 validation) and still completed no episode on any split (subgoal fraction 0.060 iid, 0.004 unseen composition).
+That is covariate shift: four DAgger rounds of 56 full-length episodes are far too little on-policy data for tasks of 1,100 to 2,600 steps.
+The teacher is Markov and cheap and the batched environment is fast, so skill-level DAgger scales the on-policy data by an order of magnitude and starts on short horizons.
+
+- Round 0 records `teacher_episodes` teacher episodes.
+  Round r >= 1 rolls out the current learner on `episodes_per_round` episodes in the batched environment, executing the teacher's action instead with probability `betas[r - 1]` (0.5, 0.25, then 0).
+  Every visited state is labelled with the teacher's action (test: a replay of the learner's actions with a watching teacher gives the same states and labels for 200 steps).
+- Episodes follow the round's stage (`stages`, switched by round): a share of true starts running the whole template (always at least one), the rest from the curriculum's subgoal bank (fingerprint and bit-exact restore), skills equally likely, each with a budget of subgoals from the stage's range.
+  Default: 4 rounds of single subgoals (10% true starts), 3 rounds of two or three (15%), 3 rounds of full templates from true starts only.
+- The aggregate lives on the host with episodes stored end to end (`StepData`, no padding), weighted so every skill has the same total weight (capped at `max_skill_weight`).
+- Each round trains the warm-started controller for a fixed number of window-sampled updates (`train_windows`: 32 windows of 16 steps after the config's burn-in, windows never cross episodes, fresh Adam per round), 3,000 in round 0 (the first 300 decoder only for the connectome) and 1,500 afterwards.
+  Round 0 sets the frozen normalization, the encoder scale and the readout calibration from the teacher's data, as imitation does.
+- Per round `{kind}-{seed}/round-XX/` holds the round's labelled steps (data.npz), the weights and metrics.json: rollout statistics (steps, labelled steps per second, share of teacher steps), the training loss, single-subgoal success per skill from the validation bank, and success, subgoal fraction and selection score from true starts on the train split's validation seeds.
+  metrics.json is written last, so `--resume` continues after the last complete round (a run that finished a controller skips it).
+- The best round on validation (success first, subgoals second, mean skill success third, later rounds on ties) is evaluated on every split and every skill with the quality metrics.
+- The run directory has an imitation run's layout (config.json is the controller's `ManipulationImitationConfig`, interface.json, train.npz with the round-0 teacher episodes, `{kind}-{seed}/policy.safetensors`), so curriculum PPO warm-starts from it unchanged.
+
+Configs (seed 0, the encoder imitation recipe: MLP encoder, encoder learning rate x1, L1, window sampling): configs/skill-dagger-connectome.json, -shuffled.json (degree-preserving shuffle), -mlp.json and -gru.json (matched to the MLP-encoder connectome's 606,905 parameters, so they keep `encoder: mlp`; the GRU keeps its 128-step burn-in), 256 episodes per round, 10 rounds, 48 hour limit.
+configs/ppo-manipulation-skill-dagger.json is the encoder curriculum PPO from runs/skill-dagger-connectome-001 starting at stage 2 (300 iterations of two or three subgoals, 400 of full templates, evaluation every 50).
+
+```
+FLYARM_SIM_THREADS=4 PYTHONPATH=src .venv/bin/python -m flyarm.cli manipulation skill-dagger --config configs/skill-dagger-connectome.json --output runs/skill-dagger-connectome-001
+FLYARM_SIM_THREADS=4 PYTHONPATH=src .venv/bin/python -m flyarm.cli manipulation skill-dagger --config configs/skill-dagger-connectome.json --output runs/skill-dagger-connectome-001 --resume
+FLYARM_SIM_THREADS=4 PYTHONPATH=src .venv/bin/python -m flyarm.cli rl manipulation --config configs/ppo-manipulation-skill-dagger.json --output runs/ppo-manipulation-skill-dagger-001
+```
+
+Smoke (connectome with the MLP encoder, 64 episodes per round, one round of single subgoals and one of two or three, 300 and 150 updates, banks of 2 and 1 episodes per template), the encoder PPO and the matched imitation sharing the GPU: 17.7 minutes end to end, peak memory 14.4 GB.
+Round 0: the teacher labelled 16,733 steps in 55 s (true starts 6 of 6, subgoal starts 50 of 58); L1 0.39 to 0.23 in 161 s (0.54 s per update).
+Round 1 (beta 0.5): 45,604 labelled steps in 190 s (240 per second, 49% teacher steps), aggregate 62,337; L1 0.28 on the aggregate after 150 updates (87 s).
+Each round's evaluation (7 true starts, 14 single subgoals) took about 2 minutes; validation and every split were 0 successes at this size, as expected; `--resume` on the finished run returned its evaluation in 9 s.
+Window updates of the matched controls on that aggregate: MLP 11.7 ms, GRU with 128-step burn-in 83 ms.
+Curriculum PPO from that run (16 environments, one iteration per stage from stage 2, DAPG on 2,000 steps of its train.npz) loaded the selected checkpoint, scored it on every split and skill, and completed.
+
+Estimates for the shipped configs on the shared GPU: about 2.0 to 2.6 M labelled steps (stage 1 rounds about 120,000, stage 2 about 180,000, stage 3 about 430,000 when the learner fails and runs to the horizon).
+Connectome or shuffle: 16,500 updates x 0.55 s = 2.5 hours, 9 learner rounds of rollouts 1 to 1.5 hours (a lockstep round lasts as long as its longest episode), 10 evaluations about 30 minutes, banks and final evaluation about 20 minutes: about 4.5 to 5 hours each, less with the GPU free.
+MLP about 1.5 to 2 hours and GRU about 2 to 2.5 hours (training 3 and 25 minutes, rollouts and evaluations dominate).
+The PPO from stage 2: 700 iterations x 10 to 15 s plus 15 evaluations, about 3 to 4 hours.
+Host memory grows with the aggregate (2.6 M steps are 2.3 GB, held twice while a round concatenates), so run the four controllers one or two at a time.
+
 ### Imitation failure analysis
 
 The first full imitation runs (runs/whole-brain-manipulation-001 and -diagnostic-001 in the main checkout) completed no episode on any split with any controller: subgoal fraction 0.01 to 0.03 for the connectome and the GRU and 0.000 for the MLP, although the MLP fit best (L1 0.078) and the teacher solves 91 to 98% of the same episodes.
