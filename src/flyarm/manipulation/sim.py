@@ -1037,7 +1037,7 @@ class ManipulationSim(ArmSim):
         The seed and template rebuild the recorded episode (furniture, objects, poses), then the
         recorded state replaces the physics and task state. Subgoals before ``subgoal`` count as
         done and pay no bonus; the episode succeeds after ``budget`` more subgoals (or the
-        template's end) and is cut after SUBGOAL_HORIZON steps per subgoal it has to do.
+        template's end) and is cut at a template's horizon for the subgoals it has to do.
         """
         ids = np.asarray(ids, dtype=np.int64)
         ManipulationSim.reset(self, ids, np.asarray(seeds), templates)
@@ -1056,7 +1056,10 @@ class ManipulationSim(ArmSim):
         subgoal = np.asarray(subgoal, dtype=np.int64)
         self.preset[ids] = subgoal
         self.goal_count[ids] = np.minimum(self.sub_count[ids], subgoal + np.asarray(budget))
-        self.horizons[ids] = tk.HORIZON_PER_SUBGOAL * (self.goal_count[ids] - subgoal)
+        # The templates' own budget for that many subgoals (HORIZON_BASE included): without the
+        # base a single place, which picks, carries, places and waits for the rest test, left
+        # the teacher itself 50% of its starts (docs/MANIPULATION_ENV.md, place and stack).
+        self.horizons[ids] = tk.horizon(self.goal_count[ids] - subgoal)
         self.steps[ids] = 0
         self.remember_poses(ids)
         state = self.scene_state()
