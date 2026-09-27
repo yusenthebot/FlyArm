@@ -146,6 +146,7 @@ class ManipulationTask:
                 bank=self.bank,
                 stages=self.stages,
                 curriculum_seed=self.settings.seed,
+                group_weights_by_name=self.settings.reset_group_weights,
                 **options,
             )
         else:

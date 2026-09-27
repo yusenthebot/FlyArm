@@ -1,0 +1,64 @@
+{
+ "r08": {
+  "source": "file",
+  "run": "runs/skill-dagger-connectome-003",
+  "kind": "connectome",
+  "seed": 0,
+  "checkpoint": "runs/skill-dagger-connectome-003/connectome-0/round-08/policy.safetensors",
+  "episodes": 112,
+  "successes": 65,
+  "success_rate": 0.5804,
+  "wilson_95": [
+   0.4878,
+   0.6676
+  ],
+  "subgoal_fraction": 0.7453
+ },
+ "r13": {
+  "source": "file",
+  "run": "runs/skill-dagger-connectome-003",
+  "kind": "connectome",
+  "seed": 0,
+  "checkpoint": "runs/skill-dagger-connectome-003/connectome-0/round-13/policy.safetensors",
+  "episodes": 112,
+  "successes": 64,
+  "success_rate": 0.5714,
+  "wilson_95": [
+   0.4789,
+   0.6592
+  ],
+  "subgoal_fraction": 0.7552
+ },
+ "r12": {
+  "source": "file",
+  "run": "runs/skill-dagger-connectome-003",
+  "kind": "connectome",
+  "seed": 0,
+  "checkpoint": "runs/skill-dagger-connectome-003/connectome-0/round-12/policy.safetensors",
+  "episodes": 112,
+  "successes": 62,
+  "success_rate": 0.5536,
+  "wilson_95": [
+   0.4613,
+   0.6423
+  ],
+  "subgoal_fraction": 0.7094
+ },
+ "ppo300": {
+  "source": "ppo",
+  "run": "runs/ppo-manipulation-skill-dagger-002",
+  "iteration": 300,
+  "base_run": "runs/skill-dagger-connectome-002",
+  "kind": "connectome",
+  "seed": 0,
+  "checkpoint": "runs/ppo-manipulation-skill-dagger-002/policy-0300.safetensors",
+  "episodes": 112,
+  "successes": 73,
+  "success_rate": 0.6518,
+  "wilson_95": [
+   0.5599,
+   0.7337
+  ],
+  "subgoal_fraction": 0.7905
+ }
+}

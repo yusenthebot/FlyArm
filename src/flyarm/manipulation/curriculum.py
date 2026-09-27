@@ -224,12 +224,13 @@ class CurriculumManipulation(BatchedManipulation):
         bank: SubgoalBank,
         stages: Sequence[Stage],
         curriculum_seed: int = 0,
+        group_weights_by_name: dict[str, float] | None = None,
         **kwargs: Any,
     ) -> None:
         self.bank = bank
         self.stages = tuple(stages)
         self.stage_index = 0
-        self._weights = skill_weights(bank)
+        self._weights = group_weights(bank, group_weights_by_name or {})
         self._draws = np.random.default_rng([curriculum_seed, 91])
         self.subgoal_starts = 0
         self.true_starts = 0

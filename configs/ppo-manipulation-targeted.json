@@ -1,0 +1,64 @@
+{
+  "base_run": "runs/skill-dagger-connectome-002",
+  "base_kind": "connectome",
+  "base_seed": 0,
+  "num_envs": 128,
+  "rollout_steps": 64,
+  "iterations": 700,
+  "epochs": 4,
+  "minibatch": 2048,
+  "gamma": 0.995,
+  "lam": 0.95,
+  "clip": 0.2,
+  "decoder_lr": 0.0003,
+  "encoder_lr": 0.0,
+  "critic_lr": 0.001,
+  "advantage_clip": 10.0,
+  "log_std": -1.2,
+  "critic_warmup": 50,
+  "subgoal_bonus": 50.0,
+  "shaping": 10.0,
+  "stray_contact_weight": 0.05,
+  "disturbance_weight": 5.0,
+  "action_weight": 0.01,
+  "smoothness_weight": 0.0,
+  "bc_weight": 1.0,
+  "bc_decay": 1.0,
+  "bc_minibatch": 1024,
+  "bc_max_steps": 60000,
+  "init_checkpoint": "runs/ppo-manipulation-skill-dagger-002/policy-0300.safetensors",
+  "eval_every": 50,
+  "eval_episodes_per_template": 4,
+  "val_episodes_per_template": 8,
+  "eval_splits": [
+    "iid_test",
+    "unseen_objects",
+    "unseen_furniture",
+    "unseen_composition"
+  ],
+  "seed": 0,
+  "curriculum": [
+    {
+      "name": "targeted",
+      "iterations": 400,
+      "min_subgoals": 1,
+      "max_subgoals": 3,
+      "true_start_share": 0.3
+    },
+    {
+      "name": "full_templates",
+      "iterations": 300,
+      "min_subgoals": 8,
+      "max_subgoals": 8,
+      "true_start_share": 1.0
+    }
+  ],
+  "bank_episodes_per_template": 20,
+  "validation_bank_episodes_per_template": 4,
+  "skill_eval_episodes": 4,
+  "reset_group_weights": {
+    "place:shelf": 4.0,
+    "place:region": 3.0,
+    "stack": 1.5
+  }
+}

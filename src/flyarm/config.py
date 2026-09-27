@@ -746,6 +746,9 @@ class ManipulationPPOConfig(BaseModel):
     # Continue from a PPO checkpoint instead of the imitation checkpoint; base_run still supplies
     # the interface and the demonstrations.
     init_checkpoint: str | None = None
+    # Subgoal-reset sampling weights by group, as in SkillDaggerConfig.reset_group_weights;
+    # empty keeps every skill equally likely (every run before research log E59).
+    reset_group_weights: dict[str, float] = Field(default_factory=dict)
     # Evaluation: every eval_every iterations, eval_episodes_per_template test episodes of every
     # split in eval_splits (reported) and val_episodes_per_template episodes of the train split's
     # validation seeds (the checkpoint is selected on these only).
