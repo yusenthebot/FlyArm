@@ -30,6 +30,21 @@ Replicated on three PPO seeds; controls for the RL stage are still to run, so a 
 Details, recipe, videos and open items: [kitchen milestone](docs/MILESTONE_KITCHEN.md).
 Pick and place after PPO on the output map: 95.8%, 97.9% and 91.7% placement over three seeds (48 test episodes each).
 
+## Articulated manipulation (in progress)
+
+Drawers, a lidded cabinet, a bin and stacking with 41 scanned household objects, tasks of 3 to 8 subgoals (1,100 to 2,600 control steps), five preregistered splits ([environment](docs/MANIPULATION_ENV.md)).
+Frozen connectome with a trained nonlinear sensory encoder and a linear readout, skill-level DAgger with an observable motor-phase cue, then PPO; full-task success from true starts:
+
+| Split | Imitation | After PPO |
+|---|---:|---:|
+| iid | 51.8% | 67.9% |
+| unseen objects | 57.1% | 75.0% |
+| unseen furniture | 28.6% | 39.3% |
+| unseen composition | 21.9% | 43.8% |
+
+Controls through the same pipeline (imitation only): matched MLP 26.8% iid, matched GRU 66.1% iid; the shuffled connectome is running.
+Why earlier attempts failed and what changed: [architecture analysis](docs/ARCHITECTURE_ANALYSIS.md).
+
 ## Earlier results
 
 Real-contact pick and place, 3 training seeds x 24 held-out episodes:
