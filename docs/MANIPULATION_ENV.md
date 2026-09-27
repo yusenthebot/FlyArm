@@ -541,6 +541,30 @@ Learner-only skill DAgger with the phase cue (as for place and stack: single sub
 The phase cue helps both learners on every single-subgoal measure and on the train-split true starts; the seven iid episodes are too few to separate the connectome runs (1 and 3 successes).
 The shipped skill-DAgger configs turn it on; the no-phase-cue control is the same config with `phase_cue: false`.
 
+### PPO for the controls and the final evaluation (branch feat/fair-controls)
+
+The curriculum PPO stage used to accept brain policies only, so the matched MLP and GRU got imitation alone while the connectome got imitation and PPO.
+PPO now fine-tunes the controls with the same recipe (reward, curriculum from stage 2, DAPG, critic, clipping, selection on validation) and the comparable trainable part: the last linear map into the action's tanh, everything before it frozen.
+- Connectome and shuffle: the linear motor decoder (2,022 readout neurons to 5 actions, 10,115 parameters), encoder and graph frozen.
+- Matched MLP: its last linear layer (653 hidden units to 5 actions, 3,270 parameters), both hidden layers frozen.
+- Matched GRU: its linear readout (330 hidden units to 5 actions, 1,655 parameters), the recurrent cell frozen; the rollout carries the cell's state and zeroes it at episode ends like the connectome's, and the DAPG features replay each demonstration from a zero state through the frozen cell, as the policy runs.
+The trainable part is smaller for the controls than for the connectome (their feature layer is narrower); tuning more of them would give them trainable capacity the connectome does not get.
+The config refuses an encoder rate for the controls.
+Configs: configs/ppo-manipulation-skill-dagger-mlp.json and -gru.json (runs/skill-dagger-mlp-002 and -gru-002, otherwise identical to the connectome's).
+Smoke (16 environments, 3 iterations across the stage switch, DAPG on 2,000 steps, while the queue used the GPU): about 1.5 minutes each, 1,150 to 1,270 steps per second, the base checkpoints scored as expected (GRU 6 of 7 validation episodes, MLP 3 of 7) and the selected checkpoint saved.
+
+`scripts/final_evaluation.py` re-scores any set of checkpoints (imitation or skill-DAgger runs, PPO runs at their selected or any iteration, or any weights file; every policy kind) on the four test splits from true starts, with 32 episodes per template by default from seeds 500 onward in each template's block, disjoint from every episode any checkpoint was selected on (the train split and the first 8 seeds of each held-out block).
+Each policy runs with its own run's observation settings; per split it writes the successes, the success rate with a Wilson 95% interval, the subgoal fraction and the motion-quality metrics, into one JSON with a row per label (labels already scored are skipped, so a stopped evaluation continues).
+`scripts/manipulation_demo_video.py` renders one successful and one failed episode per template of a split for a checkpoint, side by side and labelled (checkpoint, template, seed, subgoals, current subgoal), from the same seed block.
+It runs the single-episode environment, whose episodes match the batched evaluation's but can end differently in contact-rich episodes (the GRU: 14 of 14 iid outcomes agreed, two subgoal counts differed; one unseen-composition success in the batched run failed in the single one), so it finds its own outcomes instead of taking the evaluation's.
+
+```
+FLYARM_SIM_THREADS=4 PYTHONPATH=src .venv/bin/python -m flyarm.cli rl manipulation --config configs/ppo-manipulation-skill-dagger-mlp.json --output runs/ppo-manipulation-skill-dagger-mlp-002
+FLYARM_SIM_THREADS=4 PYTHONPATH=src .venv/bin/python -m flyarm.cli rl manipulation --config configs/ppo-manipulation-skill-dagger-gru.json --output runs/ppo-manipulation-skill-dagger-gru-002
+FLYARM_SIM_THREADS=4 PYTHONPATH=src .venv/bin/python scripts/final_evaluation.py --policy connectome=runs/skill-dagger-connectome-002 --policy connectome-ppo=ppo:runs/ppo-manipulation-skill-dagger-002 --policy mlp=runs/skill-dagger-mlp-002 --policy mlp-ppo=ppo:runs/ppo-manipulation-skill-dagger-mlp-002 --policy gru=runs/skill-dagger-gru-002 --policy gru-ppo=ppo:runs/ppo-manipulation-skill-dagger-gru-002 --output docs/results/manipulation-final.json
+FLYARM_SIM_THREADS=4 PYTHONPATH=src .venv/bin/python scripts/manipulation_demo_video.py --policy ppo:runs/ppo-manipulation-skill-dagger-002 --label "connectome + PPO" --split iid_test --output runs/manipulation/demo-connectome-ppo-iid.mp4
+```
+
 ### Imitation failure analysis
 
 The first full imitation runs (runs/whole-brain-manipulation-001 and -diagnostic-001 in the main checkout) completed no episode on any split with any controller: subgoal fraction 0.01 to 0.03 for the connectome and the GRU and 0.000 for the MLP, although the MLP fit best (L1 0.078) and the teacher solves 91 to 98% of the same episodes.
