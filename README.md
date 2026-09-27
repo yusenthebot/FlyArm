@@ -28,6 +28,7 @@ With only the two linear maps trained (imitation, then PPO with a demonstration 
 
 Replicated on three PPO seeds; controls for the RL stage are still to run, so a wiring advantage is not claimed.
 Details, recipe, videos and open items: [kitchen milestone](docs/MILESTONE_KITCHEN.md).
+Demo: [four episodes from 0.3 rad perturbed starts](docs/videos/kitchen-four-tasks-perturbed.mp4).
 Pick and place after PPO on the output map: 95.8%, 97.9% and 91.7% placement over three seeds (48 test episodes each).
 
 ## Articulated manipulation (in progress)
@@ -42,6 +43,7 @@ Frozen connectome with a trained nonlinear sensory encoder and a linear readout,
 | unseen furniture | 28.6% | 39.3% |
 | unseen composition | 21.9% | 43.8% |
 
+Demo: [one success and one failure per task template, iid split](docs/videos/manipulation-connectome-ppo-iid.mp4) (checkpoint policy-0300; in 4 of 7 templates all four candidate episodes succeeded, so no failure is shown).
 Controls through the same pipeline (imitation only): matched MLP 26.8% iid, matched GRU 66.1% iid; the shuffled connectome is running.
 Why earlier attempts failed and what changed: [architecture analysis](docs/ARCHITECTURE_ANALYSIS.md).
 
