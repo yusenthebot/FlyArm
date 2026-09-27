@@ -169,3 +169,24 @@ def test_the_bank_and_the_curriculum_environment() -> None:
     )
     for log in logs:  # the teacher finishes single-subgoal episodes from bank states
         assert log.success.mean() >= 0.5 and np.all(log.steps <= tk.horizon(1))
+
+
+def test_group_weights_favour_the_listed_groups_and_default_to_skill_balance() -> None:
+    import numpy as np
+
+    from flyarm.manipulation import curriculum as cu
+
+    bank = cu.SubgoalBank(
+        seeds=np.arange(4),
+        templates=np.array(["shelve", "shelve", "put_away", "put_away"]),
+        subgoal=np.array([1, 0, 1, 0]),
+        skill=np.array([5, 2, 5, 0]),
+        remaining=np.array([3, 4, 2, 3]),
+        keys=np.array(["a", "b", "c", "d"]),
+    )
+    assert cu.subgoal_group("shelve", 1) == "place:shelf"
+    assert cu.subgoal_group("put_away", 1) == "place:drawer"
+    weights = cu.group_weights(bank, {"place:shelf": 4.0})
+    assert weights[0] == max(weights) and np.isclose(weights.sum(), 1.0)
+    assert np.allclose(weights[1:], weights[1])  # every other group weighs 1
+    assert np.allclose(cu.group_weights(bank, {}), cu.skill_weights(bank))

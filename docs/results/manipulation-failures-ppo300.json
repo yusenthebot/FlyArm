@@ -1,0 +1,327 @@
+{
+ "policy": {
+  "source": "ppo",
+  "run": "runs/ppo-manipulation-skill-dagger-002",
+  "iteration": 300,
+  "base_run": "runs/skill-dagger-connectome-002",
+  "kind": "connectome",
+  "seed": 0,
+  "checkpoint": "runs/ppo-manipulation-skill-dagger-002/policy-0300.safetensors"
+ },
+ "splits": {
+  "iid_test": {
+   "episodes": 112,
+   "learner": 67,
+   "teacher": 111,
+   "failed_at": {
+    "close_drawer": 4,
+    "pick": 5,
+    "place": 32,
+    "open_door": 1,
+    "stack": 3
+   },
+   "per_template": {
+    "put_away": {
+     "episodes": 16,
+     "learner": 16,
+     "teacher": 16,
+     "learner_fails_teacher_succeeds": 0,
+     "failed_at": {}
+    },
+    "retrieve": {
+     "episodes": 16,
+     "learner": 11,
+     "teacher": 16,
+     "learner_fails_teacher_succeeds": 5,
+     "failed_at": {
+      "close_drawer": 1,
+      "pick": 3,
+      "place": 1
+     }
+    },
+    "shelve": {
+     "episodes": 16,
+     "learner": 6,
+     "teacher": 16,
+     "learner_fails_teacher_succeeds": 10,
+     "failed_at": {
+      "place": 9,
+      "open_door": 1
+     }
+    },
+    "tower": {
+     "episodes": 16,
+     "learner": 11,
+     "teacher": 16,
+     "learner_fails_teacher_succeeds": 5,
+     "failed_at": {
+      "place": 5
+     }
+    },
+    "sort": {
+     "episodes": 16,
+     "learner": 11,
+     "teacher": 16,
+     "learner_fails_teacher_succeeds": 5,
+     "failed_at": {
+      "place": 2,
+      "stack": 3
+     }
+    },
+    "tidy": {
+     "episodes": 16,
+     "learner": 11,
+     "teacher": 16,
+     "learner_fails_teacher_succeeds": 5,
+     "failed_at": {
+      "place": 5
+     }
+    },
+    "unpack": {
+     "episodes": 16,
+     "learner": 1,
+     "teacher": 15,
+     "learner_fails_teacher_succeeds": 14,
+     "failed_at": {
+      "close_drawer": 3,
+      "place": 10,
+      "pick": 2
+     }
+    }
+   }
+  },
+  "unseen_objects": {
+   "episodes": 112,
+   "learner": 60,
+   "teacher": 111,
+   "failed_at": {
+    "place": 44,
+    "close_drawer": 1,
+    "open_door": 1,
+    "stack": 5,
+    "close_door": 1
+   },
+   "per_template": {
+    "put_away": {
+     "episodes": 16,
+     "learner": 14,
+     "teacher": 15,
+     "learner_fails_teacher_succeeds": 1,
+     "failed_at": {
+      "place": 2
+     }
+    },
+    "retrieve": {
+     "episodes": 16,
+     "learner": 10,
+     "teacher": 16,
+     "learner_fails_teacher_succeeds": 6,
+     "failed_at": {
+      "place": 5,
+      "close_drawer": 1
+     }
+    },
+    "shelve": {
+     "episodes": 16,
+     "learner": 9,
+     "teacher": 16,
+     "learner_fails_teacher_succeeds": 7,
+     "failed_at": {
+      "place": 6,
+      "open_door": 1
+     }
+    },
+    "tower": {
+     "episodes": 16,
+     "learner": 6,
+     "teacher": 16,
+     "learner_fails_teacher_succeeds": 10,
+     "failed_at": {
+      "stack": 3,
+      "place": 7
+     }
+    },
+    "sort": {
+     "episodes": 16,
+     "learner": 12,
+     "teacher": 16,
+     "learner_fails_teacher_succeeds": 4,
+     "failed_at": {
+      "place": 2,
+      "stack": 2
+     }
+    },
+    "tidy": {
+     "episodes": 16,
+     "learner": 4,
+     "teacher": 16,
+     "learner_fails_teacher_succeeds": 12,
+     "failed_at": {
+      "place": 11,
+      "close_door": 1
+     }
+    },
+    "unpack": {
+     "episodes": 16,
+     "learner": 5,
+     "teacher": 16,
+     "learner_fails_teacher_succeeds": 11,
+     "failed_at": {
+      "place": 11
+     }
+    }
+   }
+  },
+  "unseen_furniture": {
+   "episodes": 112,
+   "learner": 40,
+   "teacher": 110,
+   "failed_at": {
+    "place": 53,
+    "close_drawer": 4,
+    "pick": 2,
+    "open_door": 4,
+    "close_door": 2,
+    "stack": 7
+   },
+   "per_template": {
+    "put_away": {
+     "episodes": 16,
+     "learner": 16,
+     "teacher": 16,
+     "learner_fails_teacher_succeeds": 0,
+     "failed_at": {}
+    },
+    "retrieve": {
+     "episodes": 16,
+     "learner": 10,
+     "teacher": 16,
+     "learner_fails_teacher_succeeds": 6,
+     "failed_at": {
+      "place": 2,
+      "close_drawer": 3,
+      "pick": 1
+     }
+    },
+    "shelve": {
+     "episodes": 16,
+     "learner": 0,
+     "teacher": 15,
+     "learner_fails_teacher_succeeds": 15,
+     "failed_at": {
+      "place": 12,
+      "open_door": 3,
+      "close_door": 1
+     }
+    },
+    "tower": {
+     "episodes": 16,
+     "learner": 5,
+     "teacher": 16,
+     "learner_fails_teacher_succeeds": 11,
+     "failed_at": {
+      "stack": 3,
+      "place": 8
+     }
+    },
+    "sort": {
+     "episodes": 16,
+     "learner": 6,
+     "teacher": 16,
+     "learner_fails_teacher_succeeds": 10,
+     "failed_at": {
+      "place": 6,
+      "stack": 4
+     }
+    },
+    "tidy": {
+     "episodes": 16,
+     "learner": 1,
+     "teacher": 15,
+     "learner_fails_teacher_succeeds": 14,
+     "failed_at": {
+      "place": 14,
+      "close_drawer": 1
+     }
+    },
+    "unpack": {
+     "episodes": 16,
+     "learner": 2,
+     "teacher": 16,
+     "learner_fails_teacher_succeeds": 14,
+     "failed_at": {
+      "pick": 1,
+      "place": 11,
+      "close_door": 1,
+      "open_door": 1
+     }
+    }
+   }
+  },
+  "unseen_composition": {
+   "episodes": 64,
+   "learner": 15,
+   "teacher": 61,
+   "failed_at": {
+    "place": 22,
+    "open_drawer": 24,
+    "close_drawer": 1,
+    "stack": 1,
+    "open_door": 1
+   },
+   "per_template": {
+    "shelve_then_put_away": {
+     "episodes": 16,
+     "learner": 6,
+     "teacher": 16,
+     "learner_fails_teacher_succeeds": 10,
+     "failed_at": {
+      "place": 5,
+      "open_drawer": 5
+     }
+    },
+    "retrieve_to_shelf": {
+     "episodes": 16,
+     "learner": 0,
+     "teacher": 14,
+     "learner_fails_teacher_succeeds": 14,
+     "failed_at": {
+      "open_drawer": 16
+     }
+    },
+    "tower_then_put_away": {
+     "episodes": 16,
+     "learner": 9,
+     "teacher": 15,
+     "learner_fails_teacher_succeeds": 6,
+     "failed_at": {
+      "place": 6,
+      "open_drawer": 1
+     }
+    },
+    "full_cleanup": {
+     "episodes": 16,
+     "learner": 0,
+     "teacher": 16,
+     "learner_fails_teacher_succeeds": 16,
+     "failed_at": {
+      "close_drawer": 1,
+      "place": 11,
+      "open_drawer": 2,
+      "stack": 1,
+      "open_door": 1
+     }
+    }
+   }
+  }
+ },
+ "failed_at_all_splits": {
+  "place": 151,
+  "open_drawer": 24,
+  "stack": 16,
+  "close_drawer": 10,
+  "pick": 7,
+  "open_door": 7,
+  "close_door": 3
+ }
+}

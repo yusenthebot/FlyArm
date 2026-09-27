@@ -174,6 +174,31 @@ def skill_weights(bank: SubgoalBank) -> np.ndarray:
     return weights / weights.sum()
 
 
+def subgoal_group(template: str, subgoal: int) -> str:
+    """The skill of a subgoal, with the receptacle for placements ("place:shelf")."""
+    skill, _, target = tk.TEMPLATES[template].steps[subgoal]
+    if skill == "place":
+        return f"place:{'drawer' if target == 'D' else target}"
+    return skill
+
+
+def group_weights(bank: SubgoalBank, weights: dict[str, float]) -> np.ndarray:
+    """Sampling weights over bank entries: each group (skill, or placement receptacle) gets
+    its configured weight (a skill's weight when its group is not listed, 1 otherwise),
+    shared evenly among the group's entries. Empty ``weights`` gives skill_weights."""
+    if not weights:
+        return skill_weights(bank)
+    groups = np.array(
+        [subgoal_group(str(t), int(k)) for t, k in zip(bank.templates, bank.subgoal, strict=True)]
+    )
+    names, inverse, counts = np.unique(groups, return_inverse=True, return_counts=True)
+    base = np.array([weights.get(name, weights.get(name.split(":")[0], 1.0)) for name in names])
+    if np.any(base < 0) or not np.any(base > 0):
+        raise ValueError("group weights must be non-negative with at least one positive")
+    entry = base[inverse] / counts[inverse]
+    return entry / entry.sum()
+
+
 @dataclass(frozen=True)
 class Stage:
     """One curriculum stage: true-start share and the range of subgoals per reset episode."""

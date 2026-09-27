@@ -81,6 +81,7 @@ def round_plans(
     episodes: int,
     bank: cu.SubgoalBank,
     generator: np.random.Generator,
+    weights: dict[str, float] | None = None,
 ) -> list[rollout.EpisodePlan]:
     """The round's episodes: true starts (templates in turn) and skill-balanced subgoal starts."""
     true = min(episodes, max(1, int(round(stage.true_start_share * episodes))))
@@ -99,7 +100,7 @@ def round_plans(
     plans = [rollout.EpisodePlan("train", tuple(seeds), tuple(names), label="dagger-true-starts")]
     resets = episodes - true
     if resets:
-        picks = generator.choice(len(bank), size=resets, p=cu.skill_weights(bank))
+        picks = generator.choice(len(bank), size=resets, p=cu.group_weights(bank, weights or {}))
         budgets = generator.integers(stage.min_subgoals, stage.max_subgoals + 1, resets)
         plans.append(
             rollout.EpisodePlan(
@@ -416,7 +417,7 @@ def train_rounds(
         beta = beta_for_round(config, index)
         generator = np.random.default_rng([seed, index, 13])
         episodes = config.teacher_episodes if index == 0 else config.episodes_per_round
-        plans = round_plans(stage, index, episodes, bank, generator)
+        plans = round_plans(stage, index, episodes, bank, generator, config.reset_group_weights)
         part, collected = collect_round(
             bench, None if index == 0 else policy, plans, beta, generator
         )

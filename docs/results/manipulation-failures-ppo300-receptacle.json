@@ -1,0 +1,200 @@
+{
+ "policy": {
+  "source": "ppo",
+  "run": "runs/ppo-manipulation-skill-dagger-002",
+  "iteration": 300,
+  "base_run": "runs/skill-dagger-connectome-002",
+  "kind": "connectome",
+  "seed": 0,
+  "checkpoint": "runs/ppo-manipulation-skill-dagger-002/policy-0300.safetensors"
+ },
+ "splits": {
+  "iid_test": {
+   "episodes": 112,
+   "learner": 67,
+   "teacher": 111,
+   "failed_at": {
+    "close_drawer": 4,
+    "pick": 5,
+    "place:bin": 1,
+    "place:shelf": 18,
+    "open_door": 1,
+    "place:region": 13,
+    "stack:B": 3
+   },
+   "per_template": {
+    "put_away": {
+     "episodes": 16,
+     "learner": 16,
+     "teacher": 16,
+     "learner_fails_teacher_succeeds": 0,
+     "failed_at": {}
+    },
+    "retrieve": {
+     "episodes": 16,
+     "learner": 11,
+     "teacher": 16,
+     "learner_fails_teacher_succeeds": 5,
+     "failed_at": {
+      "close_drawer": 1,
+      "pick": 3,
+      "place:bin": 1
+     }
+    },
+    "shelve": {
+     "episodes": 16,
+     "learner": 6,
+     "teacher": 16,
+     "learner_fails_teacher_succeeds": 10,
+     "failed_at": {
+      "place:shelf": 9,
+      "open_door": 1
+     }
+    },
+    "tower": {
+     "episodes": 16,
+     "learner": 11,
+     "teacher": 16,
+     "learner_fails_teacher_succeeds": 5,
+     "failed_at": {
+      "place:region": 5
+     }
+    },
+    "sort": {
+     "episodes": 16,
+     "learner": 11,
+     "teacher": 16,
+     "learner_fails_teacher_succeeds": 5,
+     "failed_at": {
+      "place:region": 2,
+      "stack:B": 3
+     }
+    },
+    "tidy": {
+     "episodes": 16,
+     "learner": 11,
+     "teacher": 16,
+     "learner_fails_teacher_succeeds": 5,
+     "failed_at": {
+      "place:shelf": 5
+     }
+    },
+    "unpack": {
+     "episodes": 16,
+     "learner": 1,
+     "teacher": 15,
+     "learner_fails_teacher_succeeds": 14,
+     "failed_at": {
+      "close_drawer": 3,
+      "place:region": 6,
+      "place:shelf": 4,
+      "pick": 2
+     }
+    }
+   }
+  },
+  "unseen_furniture": {
+   "episodes": 112,
+   "learner": 40,
+   "teacher": 110,
+   "failed_at": {
+    "place:bin": 6,
+    "close_drawer": 4,
+    "pick": 2,
+    "place:shelf": 26,
+    "open_door": 4,
+    "close_door": 2,
+    "stack:B": 7,
+    "place:region": 16,
+    "place:D": 5
+   },
+   "per_template": {
+    "put_away": {
+     "episodes": 16,
+     "learner": 16,
+     "teacher": 16,
+     "learner_fails_teacher_succeeds": 0,
+     "failed_at": {}
+    },
+    "retrieve": {
+     "episodes": 16,
+     "learner": 10,
+     "teacher": 16,
+     "learner_fails_teacher_succeeds": 6,
+     "failed_at": {
+      "place:bin": 2,
+      "close_drawer": 3,
+      "pick": 1
+     }
+    },
+    "shelve": {
+     "episodes": 16,
+     "learner": 0,
+     "teacher": 15,
+     "learner_fails_teacher_succeeds": 15,
+     "failed_at": {
+      "place:shelf": 12,
+      "open_door": 3,
+      "close_door": 1
+     }
+    },
+    "tower": {
+     "episodes": 16,
+     "learner": 5,
+     "teacher": 16,
+     "learner_fails_teacher_succeeds": 11,
+     "failed_at": {
+      "stack:B": 3,
+      "place:region": 8
+     }
+    },
+    "sort": {
+     "episodes": 16,
+     "learner": 6,
+     "teacher": 16,
+     "learner_fails_teacher_succeeds": 10,
+     "failed_at": {
+      "place:bin": 4,
+      "place:region": 2,
+      "stack:B": 4
+     }
+    },
+    "tidy": {
+     "episodes": 16,
+     "learner": 1,
+     "teacher": 15,
+     "learner_fails_teacher_succeeds": 14,
+     "failed_at": {
+      "place:shelf": 9,
+      "place:D": 5,
+      "close_drawer": 1
+     }
+    },
+    "unpack": {
+     "episodes": 16,
+     "learner": 2,
+     "teacher": 16,
+     "learner_fails_teacher_succeeds": 14,
+     "failed_at": {
+      "pick": 1,
+      "place:region": 6,
+      "place:shelf": 5,
+      "close_door": 1,
+      "open_door": 1
+     }
+    }
+   }
+  }
+ },
+ "failed_at_all_splits": {
+  "place:shelf": 44,
+  "place:region": 29,
+  "stack:B": 10,
+  "close_drawer": 8,
+  "pick": 7,
+  "place:bin": 7,
+  "open_door": 5,
+  "place:D": 5,
+  "close_door": 2
+ }
+}

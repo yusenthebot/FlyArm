@@ -852,6 +852,10 @@ class SkillDaggerConfig(BaseModel):
     model: ManipulationImitationConfig = Field(default_factory=ManipulationImitationConfig)
     stages: list[DaggerStage] = Field(default_factory=default_dagger_stages, min_length=1)
     teacher_episodes: int = Field(default=256, ge=1, le=4096)
+    # Subgoal-reset sampling weights by group: a skill ("stack") or a placement receptacle
+    # ("place:shelf", "place:region", "place:bin", "place:drawer"); unlisted groups weigh 1.
+    # Empty keeps every skill equally likely, as every run before research log E59.
+    reset_group_weights: dict[str, float] = Field(default_factory=dict)
     episodes_per_round: int = Field(default=256, ge=1, le=4096)
     betas: list[float] = Field(default_factory=lambda: [0.5, 0.25])
     first_round_updates: int = Field(default=3000, ge=1, le=1_000_000)
