@@ -31,10 +31,28 @@ from flyarm.manipulation import rollout
 from flyarm.manipulation.env import DEFAULT_ASSET_ROOT, BatchedManipulation
 from flyarm.manipulation.imitation import Workbench, load_data, load_manipulation_policy
 from flyarm.manipulation.sim import OBS_DIM, PRIVILEGED_DIM, RewardConfig
-from flyarm.rl.ppo import MotorHead, rollout_for, train_ppo, trainable_count
-from flyarm.whole_brain.policy import BrainPolicy
+from flyarm.rl.ppo import (
+    Controller,
+    MotorHead,
+    motor_decoder,
+    rollout_for,
+    train_ppo,
+    trainable_count,
+)
+from flyarm.whole_brain.policy import BrainPolicy, GRUPolicy, MLPPolicy
 
 ACTION_DIM = rollout.ACTION_DIM
+# What PPO trains for each kind: one linear map into the action's tanh, everything before it
+# frozen, so the controls get the stage the connectome gets with the comparable trainable part
+# (docs/MANIPULATION_ENV.md, "PPO for the controls").
+CLAIMS = {
+    "connectome": "PPO tunes the imitation checkpoint's motor decoder; encoder and connectome "
+    "frozen",
+    "shuffled": "PPO tunes the imitation checkpoint's motor decoder; encoder and shuffled graph "
+    "frozen",
+    "mlp": "PPO tunes the matched MLP's last linear layer; its hidden layers frozen",
+    "gru": "PPO tunes the matched GRU's linear readout; its recurrent cell frozen",
+}
 VALIDATION = "validation"  # the score entry the checkpoint is selected on
 
 
@@ -51,9 +69,9 @@ def reward_config(settings: ManipulationPPOConfig) -> RewardConfig:
 
 
 class HeadActor:
-    """Deterministic mean actions of the PPO head over the frozen encoder and connectome."""
+    """Deterministic mean actions of the PPO head over the policy's frozen part."""
 
-    def __init__(self, policy: BrainPolicy, head: MotorHead, num_envs: int) -> None:
+    def __init__(self, policy: Controller, head: MotorHead, num_envs: int) -> None:
         self.brain = rollout_for(policy, num_envs)
         self.head = head
 
@@ -166,7 +184,7 @@ class ManipulationTask:
         return [*tests, validation, *skills]
 
     def score(
-        self, policy: BrainPolicy, head: MotorHead, seeds: list[int]
+        self, policy: Controller, head: MotorHead, seeds: list[int]
     ) -> dict[str, dict[str, Any]]:
         """Per split from true starts (the headline), validation, and per skill from resets."""
         logs = self.bench.run(self.plans(len(seeds)), lambda n: HeadActor(policy, head, n))
@@ -206,7 +224,7 @@ def base_config(run_root: Path) -> ManipulationImitationConfig:
 
 
 def demonstration_features(
-    policy: BrainPolicy,
+    policy: Controller,
     base_run: Path,
     max_steps: int,
     seed: int,
@@ -298,9 +316,9 @@ def run_manipulation_ppo(
     base_run = Path(config.base_run)
     imitation = base_config(base_run)
     _, loaded = load_manipulation_policy(base_run, config.base_kind, config.base_seed, pack_root)
-    if not isinstance(loaded, BrainPolicy):
-        raise ValueError("PPO fine-tuning is defined for brain policies (connectome, shuffled)")
-    policy = loaded
+    if not isinstance(loaded, BrainPolicy | MLPPolicy | GRUPolicy):
+        raise ValueError(f"no PPO fine-tuning is defined for {type(loaded).__name__}")
+    policy: Controller = loaded
     output.mkdir(parents=True)
     save_json(output / "config.json", config.model_dump())
     if config.init_checkpoint is not None:
@@ -322,7 +340,7 @@ def run_manipulation_ppo(
         bank=bank,
         validation_bank=validation_bank,
     )
-    head = MotorHead(policy.decoder, config.log_std, ACTION_DIM)
+    head = MotorHead(motor_decoder(policy), config.log_std, ACTION_DIM)
     eval_seeds = list(range(config.eval_episodes_per_template))
     before = task.score(policy, head, eval_seeds)
     print(
@@ -335,7 +353,7 @@ def run_manipulation_ppo(
         "benchmark": "articulated multi-step manipulation (flyarm.manipulation)",
         "base": before,
         "trainable_parameters": trainable_count(head),
-        "claim": "PPO tunes the imitation checkpoint's motor decoder; encoder and connectome frozen"
+        "claim": CLAIMS[config.base_kind]
         if config.encoder_lr == 0
         else "PPO tunes the imitation checkpoint's decoder and encoder; connectome frozen",
         "base_run": config.base_run,

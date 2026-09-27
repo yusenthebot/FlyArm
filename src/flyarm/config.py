@@ -701,7 +701,9 @@ class ManipulationPPOConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
     base_run: str = "runs/whole-brain-manipulation-001"
-    base_kind: Literal["connectome", "shuffled"] = "connectome"
+    # The matched MLP and GRU controls get the same stage: PPO tunes their last linear layer
+    # (the analogue of the connectome's decoder) with everything before it frozen.
+    base_kind: Literal["connectome", "shuffled", "mlp", "gru"] = "connectome"
     base_seed: int = Field(default=0, ge=0, le=999)
     num_envs: int = Field(default=128, ge=1, le=4096)
     rollout_steps: int = Field(default=64, ge=8, le=1024)
@@ -786,6 +788,8 @@ class ManipulationPPOConfig(BaseModel):
             raise ValueError("the curriculum stages' iterations must add up to iterations")
         if self.bc_weight > 0 and self.encoder_lr > 0:
             raise ValueError("bc_weight needs a frozen encoder (encoder_lr 0)")
+        if self.base_kind in ("mlp", "gru") and self.encoder_lr > 0:
+            raise ValueError("the controls' PPO tunes only their last linear layer (encoder_lr 0)")
         # flyarm.manipulation.sim.MAX_LEVEL_REWARD: every level term is a penalty, so stalling
         # is worth at most 0 / (1 - gamma) = 0 at any gamma. Recomputed here so that validating a
         # config never imports MuJoCo; tests check the literal against the environment's.
