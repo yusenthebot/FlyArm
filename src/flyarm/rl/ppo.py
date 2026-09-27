@@ -27,7 +27,7 @@ from mlx.utils import tree_flatten
 
 from flyarm.config import KitchenPPOConfig, ManipulationPPOConfig, PPOConfig, TaskVariantConfig
 from flyarm.rl.batched_pick_place import ACTION_DIM, OBS_DIM, BatchedPickPlace, TaskVariant
-from flyarm.whole_brain.policy import BrainPolicy, DirectPolicy
+from flyarm.whole_brain.policy import BrainPolicy, DirectPolicy, GRUPolicy, MLPPolicy
 
 TRAIN_SEED = 1_000_000  # environment seeds for PPO rollouts, disjoint from every B1a split
 PPOSettings = PPOConfig | KitchenPPOConfig | ManipulationPPOConfig
@@ -138,13 +138,73 @@ class DirectRollout:
         pass
 
 
-Controller = BrainPolicy | DirectPolicy
+class MLPRollout:
+    """The matched MLP control's features: its frozen hidden layers (the last ReLU layer's
+    output), no memory. PPO tunes its last linear layer, the analogue of the connectome's
+    decoder."""
+
+    def __init__(self, policy: MLPPolicy, num_envs: int) -> None:
+        self.policy = policy
+        self.state = policy.initial_state(num_envs)
+        self.feature_dim = int(policy.hidden)
+
+    def features(self, obs: np.ndarray) -> mx.array:
+        x = self.policy.normalize(mx.array(np.asarray(obs, dtype=np.float32)))
+        for layer in self.policy.layers[:-1]:
+            x = nn.relu(layer(x))
+        mx.eval(x)
+        return x
+
+    def reset(self, done: np.ndarray) -> None:
+        pass
 
 
-def rollout_for(policy: Controller, num_envs: int) -> BrainRollout | DirectRollout:
+class GRURollout:
+    """The matched GRU control's features: its frozen recurrent cell's hidden state, carried
+    across steps and zeroed at episode ends like the connectome's. PPO tunes the readout."""
+
+    def __init__(self, policy: GRUPolicy, num_envs: int) -> None:
+        self.policy = policy
+        self.state = policy.initial_state(num_envs)
+        self.feature_dim = int(policy.hidden)
+
+    def features(self, obs: np.ndarray) -> mx.array:
+        x = self.policy.normalize(mx.array(np.asarray(obs, dtype=np.float32)))
+        self.state = self.policy.cell(x[:, None, :], hidden=self.state)[:, -1]
+        mx.eval(self.state)
+        return self.state
+
+    def reset(self, done: np.ndarray) -> None:
+        if done.any():
+            self.state = self.state * mx.array((~done).astype(np.float32))[:, None]
+
+
+Controller = BrainPolicy | DirectPolicy | MLPPolicy | GRUPolicy
+Rollout = BrainRollout | DirectRollout | MLPRollout | GRURollout
+
+
+def rollout_for(policy: Controller, num_envs: int) -> Rollout:
+    """The frozen part of ``policy`` for a batch of environments, returning motor features."""
     if isinstance(policy, DirectPolicy):
         return DirectRollout(policy, num_envs)
+    if isinstance(policy, MLPPolicy):
+        return MLPRollout(policy, num_envs)
+    if isinstance(policy, GRUPolicy):
+        return GRURollout(policy, num_envs)
     return BrainRollout(policy, num_envs)
+
+
+def motor_decoder(policy: Controller) -> nn.Linear:
+    """The linear map PPO tunes: the brain's decoder, the MLP's last layer, the GRU's readout.
+
+    Each feeds a tanh into the action, so the head's mean is the policy's own output; the
+    module is shared, so the tuned weights are saved with the policy.
+    """
+    if isinstance(policy, MLPPolicy):
+        return cast(nn.Linear, policy.layers[-1])
+    if isinstance(policy, GRUPolicy):
+        return policy.readout
+    return policy.decoder
 
 
 class RunningNorm:
@@ -205,7 +265,7 @@ class TaskAdapter(Protocol):
     def make_env(self, num_envs: int, first_seed: int) -> Any: ...
 
     def score(
-        self, policy: BrainPolicy, head: MotorHead, seeds: list[int]
+        self, policy: Controller, head: MotorHead, seeds: list[int]
     ) -> dict[str, dict[str, Any]]: ...
 
     def extra(self, result: Any, done: np.ndarray) -> int: ...
@@ -366,7 +426,7 @@ def train_ppo(
     output.mkdir(parents=True, exist_ok=True)
     mx.random.seed(settings.seed)
     generator = np.random.default_rng(settings.seed)
-    head = MotorHead(policy.decoder, settings.log_std, task.action_dim)
+    head = MotorHead(motor_decoder(policy), settings.log_std, task.action_dim)
     critic = Critic(task.privileged_dim + 1)
     head_optimizer = optim.Adam(learning_rate=settings.decoder_lr)
     critic_optimizer = optim.Adam(learning_rate=settings.critic_lr)
@@ -690,7 +750,7 @@ def run_ppo(config: PPOConfig, pack_root: Path, model_path: Path, output: Path) 
         scratch_policy(config, pack_root, model_path, obs_dim) if config.from_scratch else loaded
     )
     task_adapter = PickPlaceTask(model_path, config)
-    head = MotorHead(policy.decoder, config.log_std, task_adapter.action_dim)
+    head = MotorHead(motor_decoder(policy), config.log_std, task_adapter.action_dim)
     before = task_adapter.score(policy, head, eval_seeds)
     print(
         "base checkpoint: "
