@@ -544,6 +544,10 @@ def default_manipulation_eval_splits() -> list[ManipulationSplitName]:
     return ["iid_test", "unseen_objects", "unseen_furniture", "unseen_composition"]
 
 
+def default_manipulation_policies() -> list[ManipulationPolicyKind]:
+    return ["connectome"]
+
+
 class ManipulationImitationConfig(BaseModel):
     """Imitation (behavior cloning then DAgger) on the articulated manipulation benchmark.
 
@@ -642,7 +646,7 @@ class ManipulationImitationConfig(BaseModel):
     velocities: bool = False
     seeds: list[int] = Field(default_factory=lambda: [0], min_length=1, max_length=10)
     policies: list[ManipulationPolicyKind] = Field(
-        default_factory=lambda: ["connectome"], min_length=1
+        default_factory=default_manipulation_policies, min_length=1
     )
     max_seconds: int = Field(default=43200, ge=60, le=259200)
 

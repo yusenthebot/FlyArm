@@ -133,6 +133,7 @@ def test_robot_payload_exports_the_compiled_panda_geometry(env: PandaPickPlaceEn
 
 
 def _teacher_trace(teacher_resync: bool, seed: int) -> list[np.ndarray]:
+    assert MODEL is not None
     env = PandaPickPlaceEnv(Path(MODEL), teacher_resync=teacher_resync)
     obs, _ = env.reset(seed=seed)
     trace = [obs]
@@ -154,6 +155,7 @@ def test_stage_resync_leaves_the_teacher_demonstrations_unchanged() -> None:
 
 def test_stage_resync_keeps_holding_a_cube_the_learner_lifted() -> None:
     """A learner that grasps and lifts on its own must not be told to open the gripper."""
+    assert MODEL is not None
     reference = PandaPickPlaceEnv(Path(MODEL))
     reference.reset(seed=60000)
     actions = []

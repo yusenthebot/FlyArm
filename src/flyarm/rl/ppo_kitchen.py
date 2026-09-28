@@ -177,7 +177,7 @@ class KitchenTask:
         )
 
     def score(
-        self, policy: BrainPolicy, head: MotorHead, seeds: list[int]
+        self, policy: Controller, head: MotorHead, seeds: list[int]
     ) -> dict[str, dict[str, Any]]:
         return {
             name: evaluate_kitchen(policy, head, seeds, self.settings, kitchen_variant(variant))

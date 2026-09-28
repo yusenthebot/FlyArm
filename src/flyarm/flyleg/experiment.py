@@ -147,27 +147,34 @@ def make_policy(
     fly_budget: int,
 ) -> SequencePolicy:
     """Untrained controller of one kind; the same constructor serves training and replay."""
-    dims = {
-        "obs_dim": kitchen.FEATURE_DIM,
-        "action_dim": kitchen.ACTION_DIM,
-        "chunk": config.action_chunk,
-    }
+    obs_dim, action_dim, chunk = kitchen.FEATURE_DIM, kitchen.ACTION_DIM, config.action_chunk
     if kind == "mlp":
-        return MLPPolicy(**dims, seed=seed)
+        return MLPPolicy(obs_dim=obs_dim, action_dim=action_dim, chunk=chunk, seed=seed)
     if kind == "gru":
         output_dim = kitchen.ACTION_DIM * config.action_chunk
         hidden = gru_hidden_for_budget(kitchen.FEATURE_DIM, output_dim, fly_budget)
-        return GRUPolicy(**dims, hidden=hidden, seed=seed)
+        return GRUPolicy(
+            obs_dim=obs_dim, action_dim=action_dim, chunk=chunk, hidden=hidden, seed=seed
+        )
     if kind == "act":
         slices = [
             (kitchen.PROPRIOCEPTION.start, kitchen.PROPRIOCEPTION.stop),
             (kitchen.EXTEROCEPTION.start, kitchen.EXTEROCEPTION.stop),
         ]
-        return ACTPolicy(**dims, token_slices=slices, seed=seed)
+        return ACTPolicy(
+            obs_dim=obs_dim, action_dim=action_dim, chunk=chunk, token_slices=slices, seed=seed
+        )
     if dynamics is None:
         raise ValueError(f"{kind} needs connectome dynamics")
     return BrainPolicy(
-        kind, dynamics, neural_steps=config.neural_steps, seed=seed, channels=channels, **dims
+        kind,
+        dynamics,
+        obs_dim=obs_dim,
+        action_dim=action_dim,
+        chunk=chunk,
+        neural_steps=config.neural_steps,
+        seed=seed,
+        channels=channels,
     )
 
 

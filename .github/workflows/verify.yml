@@ -15,7 +15,7 @@ jobs:
       - run: uv run ruff check src tests
       - run: uv run ruff format --check src tests
       - run: uv run mypy src tests
-      - run: uv run bandit -r src -q
+      - run: uv run bandit -c pyproject.toml -r src -q
       - name: Fetch pinned robot assets only
         run: uv run python -c 'from pathlib import Path; from flyarm.assets import fetch_arm; fetch_arm(Path("assets/menagerie"))'
       - run: uv run pytest -q

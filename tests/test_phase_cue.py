@@ -18,6 +18,12 @@ needs_env = pytest.mark.skipif(
 )
 
 
+def _model_path() -> Path:
+    if MODEL is None:
+        pytest.skip("set FLYARM_MODEL to the Panda scene.xml")
+    return Path(MODEL)
+
+
 def phase_slice() -> slice:
     names = [name for name, _ in ms.CUE_FIELDS]
     start = ms.CUE_START + sum(size for _, size in ms.CUE_FIELDS[: names.index("motor_phase")])
@@ -37,7 +43,7 @@ def test_the_phase_cue_is_one_hot_when_on_and_zero_in_the_control() -> None:
     seen = {}
     for on in (True, False):
         env = rollout.make_env(
-            Path(MODEL), episodes, asset_root=OBJECTS, velocities=False, phase_cue=on
+            _model_path(), episodes, asset_root=OBJECTS, velocities=False, phase_cue=on
         )
         obs = env.reset(seeds=np.array(episodes.seeds), templates=list(episodes.templates))
         teacher = ManipulationTeacher(env)
@@ -63,5 +69,5 @@ def test_the_observable_phase_follows_the_teacher_on_its_own_path() -> None:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
     from phase_cue_agreement import measure
 
-    row = measure(Path(MODEL), "train", 1, rollout.VALIDATION_OFFSET)
+    row = measure(_model_path(), "train", 1, rollout.VALIDATION_OFFSET)
     assert row["agreement"] > 0.93

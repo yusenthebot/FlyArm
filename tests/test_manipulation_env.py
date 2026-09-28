@@ -20,11 +20,17 @@ pytestmark = pytest.mark.skipif(
 HOLD = np.array([0.0, 0.0, 0.0, 0.0, 1.0])  # stay still with the hand open
 
 
+def _model_path() -> Path:
+    if MODEL is None:
+        pytest.skip("set FLYARM_MODEL to the Panda scene.xml")
+    return Path(MODEL)
+
+
 @pytest.fixture(scope="module")
 def env():
     from flyarm.manipulation.env import PandaManipulationEnv
 
-    environment = PandaManipulationEnv(Path(MODEL), split="train", asset_root=OBJECTS)
+    environment = PandaManipulationEnv(_model_path(), split="train", asset_root=OBJECTS)
     yield environment
     environment.close()
 
@@ -156,7 +162,7 @@ def test_cue_names_the_current_subgoal_and_the_no_cue_control_is_blank(env) -> N
     obs, *_ = env.step(HOLD)
     assert obs[cue["skill"]].argmax() + 1 == tk.PLACE
     assert obs[cue["receptacle"]].argmax() == tk.SHELF
-    blank = PandaManipulationEnv(Path(MODEL), split="train", asset_root=OBJECTS, cue=False)
+    blank = PandaManipulationEnv(_model_path(), split="train", asset_root=OBJECTS, cue=False)
     obs, _ = blank.reset(seed=15, options={"template": "shelve"})
     assert not obs[slice(cue["skill"].start, None)].any()
     blank.close()
@@ -167,7 +173,7 @@ def test_batched_env_matches_the_single_env_step_for_step() -> None:
     from flyarm.manipulation.teacher import ManipulationTeacher
 
     plan, steps = [(21, "put_away"), (22, "shelve")], 160
-    single = PandaManipulationEnv(Path(MODEL), split="train", asset_root=OBJECTS)
+    single = PandaManipulationEnv(_model_path(), split="train", asset_root=OBJECTS)
     recorded, observed = [], []
     for seed, template in plan:
         obs, _ = single.reset(seed=seed, options={"template": template})
@@ -179,14 +185,14 @@ def test_batched_env_matches_the_single_env_step_for_step() -> None:
             observations.append(single.step(actions[-1])[0])
         recorded.append(actions)
         observed.append(observations)
-    actions, expected = np.array(recorded), np.array(observed)
-    batched = BatchedManipulation(Path(MODEL), len(plan), split="train", asset_root=OBJECTS)
+    action_array, expected = np.array(recorded), np.array(observed)
+    batched = BatchedManipulation(_model_path(), len(plan), split="train", asset_root=OBJECTS)
     obs = batched.reset(
         seeds=np.array([seed for seed, _ in plan]), templates=[name for _, name in plan]
     )
     worst = float(np.abs(obs - expected[:, 0]).max())
     for step in range(steps):
-        result = batched.step(actions[:, step], auto_reset=False)
+        result = batched.step(action_array[:, step], auto_reset=False)
         worst = max(worst, float(np.abs(result.obs - expected[:, step + 1]).max()))
     assert worst < 1e-6, worst
     assert np.abs(batched.joints()).max() > 0.02  # the replay moved a drawer or the lid
@@ -203,7 +209,7 @@ def test_resized_furniture_stays_inside_the_compiled_bounding_boxes() -> None:
     from flyarm.grasp.objects import split_objects
     from flyarm.manipulation.scene import build_manipulation_model
 
-    model = build_manipulation_model(Path(MODEL), split_objects("train")[:2], OBJECTS)
+    model = build_manipulation_model(_model_path(), split_objects("train")[:2], OBJECTS)
     fields = fu.FurnitureFields(model)
     names = {bid: name for name, bid in fields.body_ids.items()}
     generator = np.random.default_rng(0)
@@ -243,7 +249,7 @@ def test_teacher_completes_drawer_tasks() -> None:
     from flyarm.manipulation.teacher import ManipulationTeacher
 
     names = ["put_away"] * 3 + ["retrieve"] * 3
-    env = BatchedManipulation(Path(MODEL), len(names), split="train", asset_root=OBJECTS)
+    env = BatchedManipulation(_model_path(), len(names), split="train", asset_root=OBJECTS)
     teacher = ManipulationTeacher(env)
     env.reset(seeds=np.arange(len(names)) + 500, templates=names)
     teacher.reset()

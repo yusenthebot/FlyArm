@@ -25,10 +25,10 @@ def test_curriculum_config_checks_its_budget_and_stages() -> None:
         {"name": "single", "iterations": 2, "true_start_share": 0.2},
         {"name": "full", "iterations": 3, "max_subgoals": 8, "true_start_share": 1.0},
     ]
-    config = ManipulationPPOConfig(iterations=5, curriculum=stages)
+    config = ManipulationPPOConfig.model_validate({"iterations": 5, "curriculum": stages})
     assert [stage.name for stage in config.curriculum] == ["single", "full"]
     with pytest.raises(ValidationError, match="add up"):
-        ManipulationPPOConfig(iterations=6, curriculum=stages)
+        ManipulationPPOConfig.model_validate({"iterations": 6, "curriculum": stages})
     with pytest.raises(ValidationError):
         CurriculumStage(name="x", iterations=1, true_start_share=0.0)  # true starts in every stage
     with pytest.raises(ValidationError, match="at least"):
@@ -68,6 +68,7 @@ def test_a_subgoal_reset_restores_the_state_exactly(recorded) -> None:
     episodes, trace = recorded
     start = next(t for t, (_, _, leading, _) in enumerate(trace) if leading == 2)
     obs, state, leading, _ = trace[start]
+    assert MODEL is not None
     env = BatchedManipulation(Path(MODEL), 1, asset_root=OBJECTS)
     restored = env.reset_to_subgoal(
         np.array([0]), np.array(episodes.seeds), ["tidy"], state, np.array([leading]), np.array([8])
@@ -88,6 +89,7 @@ def test_preset_subgoals_are_done_unpaid_and_the_cue_names_subgoal_k(recorded) -
     episodes, trace = recorded
     start = next(t for t, (_, _, leading, _) in enumerate(trace) if leading == 2)
     _, state, _, _ = trace[start]
+    assert MODEL is not None
     env = BatchedManipulation(Path(MODEL), 1, asset_root=OBJECTS)
     # Start from the state at subgoal 2 but declare 3 done: the reset index decides, not the scene.
     obs = env.reset_to_subgoal(
@@ -109,6 +111,7 @@ def test_a_single_subgoal_episode_ends_when_that_subgoal_is_done(recorded) -> No
     episodes, trace = recorded
     start = next(t for t, (_, _, leading, _) in enumerate(trace) if leading == 1)
     _, state, leading, _ = trace[start]
+    assert MODEL is not None
     env = BatchedManipulation(Path(MODEL), 1, asset_root=OBJECTS)
     env.reset_to_subgoal(
         np.array([0]), np.array(episodes.seeds), ["tidy"], state, np.array([leading]), np.array([1])
@@ -125,6 +128,7 @@ def test_a_single_subgoal_episode_ends_when_that_subgoal_is_done(recorded) -> No
 def test_the_bank_and_the_curriculum_environment() -> None:
     from flyarm.manipulation import curriculum as cu
 
+    assert MODEL is not None
     episodes = cu.bank_plan(1, cu.BANK_OFFSET)
     env = rollout.make_env(Path(MODEL), episodes, asset_root=OBJECTS)
     bank = cu.record_bank(env, episodes)
@@ -152,14 +156,20 @@ def test_the_bank_and_the_curriculum_environment() -> None:
     assert np.all(training.preset == 0) and np.all(training.goal_count == training.sub_count)
     training.set_stage(2)
     training.reset()
-    reset_rows = training.horizons < tk.horizon(training.sub_count)
+    # tk.horizon takes a single int; this compares against every environment's own subgoal
+    # count at once, so it applies the same formula directly instead of vectorizing the call.
+    reset_rows = training.horizons < tk.HORIZON_BASE + tk.HORIZON_PER_SUBGOAL * training.sub_count
     budget = training.goal_count - training.preset
     remaining = training.sub_count - training.preset
     assert reset_rows.any()
     assert np.all(
         (budget[reset_rows] >= np.minimum(2, remaining[reset_rows])) & (budget[reset_rows] <= 3)
     )
-    assert np.all(training.horizons[reset_rows] == tk.horizon(budget[reset_rows]))
+    # Same as above: apply tk.horizon's formula directly to compare across every reset row.
+    assert np.all(
+        training.horizons[reset_rows]
+        == tk.HORIZON_BASE + tk.HORIZON_PER_SUBGOAL * budget[reset_rows]
+    )
     plans = cu.skill_plans(bank, 2)
     assert {p.label for p in plans} == {f"skill:{name}" for name in tk.SKILLS[1:]}
     logs = rollout.run_episodes(

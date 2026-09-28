@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import Any, cast
 
 import numpy as np
 import pytest
@@ -47,6 +48,7 @@ def test_running_norm_tracks_scale_with_a_floor() -> None:
     with pytest.raises(RuntimeError):
         norm(np.zeros((1, 2)))
     norm.update(np.array([[1.0, 5.0], [3.0, 5.0]]))
+    assert norm.mean is not None and norm.scale is not None
     assert np.allclose(norm.mean, [2.0, 5.0]) and np.allclose(norm.scale, [1.0, 1e-3])
 
 
@@ -74,6 +76,7 @@ def test_ppo_changes_only_the_motor_decoder(tmp_path) -> None:
         eval_episodes=2,
         horizon=20,
     )
+    assert MODEL is not None
     task = PickPlaceTask(Path(MODEL), config)
     run = train_ppo(policy, task, tmp_path / "ppo", config, [60000, 60001], [50000])
     assert len(run["curves"]) == 2 and run["curves"][1]["policy_trained"]
@@ -183,7 +186,8 @@ def test_mlp_control_reads_the_normalized_observation_and_checkpoints(tmp_path) 
     policy.save(tmp_path / "mlp.safetensors")
     restored = DirectPolicy(obs_dim=5, action_dim=3, hidden=16, seed=7)
     restored.load(tmp_path / "mlp.safetensors")
-    assert np.allclose(np.asarray(restored.step(mx.array(obs, dtype=mx.float32), None)[0]), mean)
+    state = restored.initial_state(4)
+    assert np.allclose(np.asarray(restored.step(mx.array(obs, dtype=mx.float32), state)[0]), mean)
     with pytest.raises(ValueError, match="mlp"):
         PPOConfig(controller="mlp")
     with pytest.raises(ValueError, match="mlp"):
@@ -212,7 +216,8 @@ def test_encoder_pass_trains_a_nonlinear_encoder_too() -> None:
         encoder_hidden=(16, 16),
     )
     head, optimizer = MotorHead(policy.decoder, -1.0), optim.Adam(learning_rate=1e-2)
-    before = {k: np.asarray(v).copy() for k, v in tree_flatten(policy.encoder.parameters())}
+    leaves = cast(list[tuple[str, Any]], tree_flatten(policy.encoder.parameters()))
+    before = {k: np.asarray(v).copy() for k, v in leaves}
     loss = encoder_pass(
         policy,
         head,
@@ -256,19 +261,24 @@ def test_encoder_pass_fits_demonstrations_through_one_frozen_step() -> None:
         states=rollout.state,
         state_actions=mx.zeros((16, 2)),
     )
+    # DemonstrationSet's obs/states/state_actions are optional in general, but this set builds
+    # them all, so they stay plain arrays from here on.
+    demo_obs, demo_states = demo.obs, demo.states
+    assert demo_obs is not None and demo_states is not None
     # A reachable target: what another encoder makes the same decoder do from the same states.
     teacher = BrainPolicy("connectome", dynamics, obs_dim=4, action_dim=2, seed=7, encoder="mlp")
     teacher.decoder = policy.decoder
     teacher.readout_offset, teacher.readout_scale = policy.readout_offset, policy.readout_scale
-    current = teacher.encode(teacher.normalize(demo.obs))
-    _, pooled = dynamics.advance(demo.states, current, teacher.neural_steps)
-    demo.state_actions = head.mean(teacher.motor_features(pooled, demo.obs))
+    current = teacher.encode(teacher.normalize(demo_obs))
+    _, pooled = dynamics.advance(demo_states, current, teacher.neural_steps)
+    state_actions = head.mean(teacher.motor_features(pooled, demo_obs))
+    demo.state_actions = state_actions
 
     def error() -> float:
-        current = policy.encode(policy.normalize(demo.obs))
-        _, pooled = dynamics.advance(demo.states, current, policy.neural_steps)
-        mean = head.mean(policy.motor_features(pooled, demo.obs))
-        return float(((mean - demo.state_actions) ** 2).sum(-1).mean())
+        current = policy.encode(policy.normalize(demo_obs))
+        _, pooled = dynamics.advance(demo_states, current, policy.neural_steps)
+        mean = head.mean(policy.motor_features(pooled, demo_obs))
+        return float(((mean - state_actions) ** 2).sum(-1).mean())
 
     before = error()
     optimizer = optim.Adam(learning_rate=1e-4)

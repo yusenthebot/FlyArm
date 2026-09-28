@@ -26,7 +26,7 @@ import hashlib
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -40,7 +40,7 @@ VALIDATION_BANK_OFFSET = 500_000  # the per-skill evaluation bank
 
 
 def episode_key(episode: tk.Episode) -> str:
-    return hashlib.sha1(repr(episode).encode()).hexdigest()[:16]
+    return hashlib.sha1(repr(episode).encode(), usedforsecurity=False).hexdigest()[:16]
 
 
 @dataclass
@@ -80,7 +80,9 @@ class SubgoalBank:
             "keys": self.keys.astype(str),
             **{f"state_{name}": value for name, value in self.states.items()},
         }
-        np.savez_compressed(path, **arrays)
+        # numpy's stub types savez_compressed's **kwds against its own allow_pickle: bool
+        # keyword too, so a dict[str, ndarray] never satisfies it without this.
+        np.savez_compressed(path, **cast(dict[str, Any], arrays))
 
     @classmethod
     def load(cls, path: Path) -> SubgoalBank:

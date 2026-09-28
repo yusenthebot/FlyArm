@@ -46,6 +46,11 @@ testpaths = ["tests"]
 # Some macOS/iCloud hosts hide editable-install .pth files; keep tests independent of them.
 pythonpath = ["src"]
 
+[tool.bandit]
+# assert is used for type narrowing of values that are set by construction; CI runs pytest
+# without -O, so the checks are never stripped.
+skips = ["B101"]
+
 [tool.mypy]
 ignore_missing_imports = true
 check_untyped_defs = true

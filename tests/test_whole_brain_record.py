@@ -4,6 +4,7 @@ import json
 import os
 import platform
 from pathlib import Path
+from typing import Any, cast
 
 import imageio.v2 as imageio
 import numpy as np
@@ -72,7 +73,8 @@ def test_phase_selector_saves_every_phase_and_restores_the_best(tmp_path: Path) 
     )
     task = Task(config, Path(str(MODEL)))
     policy = BrainPolicy("connectome", RateDynamics(pack, interface), obs_dim=37, action_dim=4)
-    first = {key: np.asarray(value) for key, value in tree_flatten(policy.parameters())}
+    leaves = cast(list[tuple[str, Any]], tree_flatten(policy.parameters()))
+    first = {key: np.asarray(value) for key, value in leaves}
     try:
         selector = _PhaseSelector(policy, task, config, tmp_path)
         phases = [{"phase": "behavior_cloning"}]

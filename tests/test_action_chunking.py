@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from typing import Any
 
 import numpy as np
 import pytest
@@ -21,6 +22,7 @@ from flyarm.whole_brain.policy import (  # noqa: E402
     GRUPolicy,
     MLPPolicy,
     MlxController,
+    SequencePolicy,
     gru_hidden_for_budget,
 )
 from flyarm.whole_brain.training import (  # noqa: E402
@@ -54,10 +56,10 @@ class _Scripted:
     def __init__(self) -> None:
         self.calls = 0
 
-    def initial_state(self, batch: int) -> mx.array:
+    def initial_state(self, batch: int) -> Any:
         return mx.zeros((batch, 1))
 
-    def step(self, obs: mx.array, state: mx.array) -> tuple[mx.array, mx.array]:
+    def step(self, obs: Any, state: Any) -> tuple[Any, Any]:
         self.calls += 1
         plan = mx.array([[10.0 * self.calls + row for row in range(self.chunk)]])
         return plan, state + 1
@@ -94,7 +96,7 @@ def test_every_policy_emits_a_flattened_chunk() -> None:
     brain = BrainPolicy("connectome", dynamics, obs_dim=4, action_dim=2, chunk=5)
     assert brain.decoder.weight.shape == (10, dynamics.output_count)
     assert brain.with_dynamics("edges_off", dynamics).chunk == 5
-    policies = [
+    policies: list[SequencePolicy] = [
         brain,
         GRUPolicy(obs_dim=4, action_dim=2, hidden=8, chunk=5),
         MLPPolicy(obs_dim=4, action_dim=2, hidden=8, chunk=5),
@@ -174,7 +176,8 @@ def test_closed_loop_selector_keeps_the_best_scored_checkpoint() -> None:
     snapshots: list[np.ndarray] = []
     scores = [0.0, 3.0, 1.0, 3.0, 2.0, 0.5]  # epochs 2 and 4 tie; validation loss decides
 
-    def selector(candidate: MLPPolicy) -> float:
+    def selector(candidate: SequencePolicy) -> float:
+        assert isinstance(candidate, MLPPolicy)  # this test only ever hands it the MLP above
         snapshots.append(np.asarray(candidate.layers[0].weight))
         return scores[len(snapshots) - 1]
 
@@ -196,6 +199,11 @@ def test_closed_loop_selector_keeps_the_best_scored_checkpoint() -> None:
     assert summary["best_epoch"] == winner + 1
     assert np.array_equal(np.asarray(policy.layers[0].weight), snapshots[winner])
     sparse: list[float] = []
+
+    def sparse_selector(_: SequencePolicy) -> float:
+        sparse.append(1.0)
+        return 1.0
+
     train_sequence_policy(
         MLPPolicy(obs_dim=2, action_dim=2, hidden=16, chunk=2),
         data,
@@ -204,7 +212,7 @@ def test_closed_loop_selector_keeps_the_best_scored_checkpoint() -> None:
         mask,
         budget,
         0,
-        selector=lambda _: sparse.append(1.0) or 1.0,
+        selector=sparse_selector,
         select_every=4,
     )
     assert len(sparse) == 2  # epoch 4 and the final epoch

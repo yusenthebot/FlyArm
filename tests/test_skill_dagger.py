@@ -161,6 +161,7 @@ def test_labels_are_the_teacher_s_on_the_learner_s_states(bank) -> None:
     from flyarm.manipulation.imitation import Workbench
     from flyarm.manipulation.teacher import ManipulationTeacher
 
+    assert MODEL is not None
     picks = np.flatnonzero(bank.skill == tk.OPEN_DRAWER)[:2]
     episodes = rollout.EpisodePlan(
         "train",
@@ -194,6 +195,7 @@ def test_two_rounds_resume_after_a_crash_and_aggregate(bank, tmp_path) -> None:
     from flyarm.manipulation.sim import OBS_DIM
     from flyarm.whole_brain.policy import MLPPolicy
 
+    assert MODEL is not None
     config = SkillDaggerConfig(
         model=ManipulationImitationConfig(policies=["mlp"], seeds=[0], window_batch=8, burn_in=4),
         stages=[
@@ -298,6 +300,7 @@ def test_control_features_append_control_scale_offsets_inside_the_policy() -> No
 def test_a_teacher_that_finds_the_hand_down_at_the_handle_keeps_descending() -> None:
     from flyarm.manipulation.teacher import APPROACH, CLOSE, DESCEND, ManipulationTeacher
 
+    assert MODEL is not None
     episodes = rollout.plan("train", 1, 400_000, templates=["put_away"])
     env = rollout.make_env(Path(MODEL), episodes, asset_root=OBJECTS, velocities=False)
     env.reset(seeds=np.array(episodes.seeds), templates=list(episodes.templates))
@@ -322,6 +325,7 @@ def test_a_teacher_that_finds_the_hand_down_at_the_handle_keeps_descending() -> 
 def test_the_teacher_moves_a_hand_that_is_millimetres_off_and_closes_from_geometry() -> None:
     from flyarm.manipulation import teacher as mt
 
+    assert MODEL is not None
     episodes = rollout.plan("train", 1, 400_000, templates=["put_away"])
     env = rollout.make_env(Path(MODEL), episodes, asset_root=OBJECTS, velocities=False)
     env.reset(seeds=np.array(episodes.seeds), templates=list(episodes.templates))
@@ -354,6 +358,7 @@ def test_the_teacher_moves_a_hand_that_is_millimetres_off_and_closes_from_geomet
 def test_a_fresh_teacher_closes_on_an_object_the_open_hand_is_already_at() -> None:
     from flyarm.manipulation.teacher import APPROACH, CLOSE, DESCEND, ManipulationTeacher
 
+    assert MODEL is not None
     episodes = rollout.plan("train", 1, 400_000, templates=["tower"])  # picks from the table
     env = rollout.make_env(Path(MODEL), episodes, asset_root=OBJECTS, velocities=False)
     env.reset(seeds=np.array(episodes.seeds), templates=list(episodes.templates))
@@ -381,6 +386,7 @@ def test_the_pads_close_on_an_object_from_a_little_below_the_grasp_point() -> No
     from flyarm.grasp import task as arm_task
     from flyarm.manipulation import teacher as mt
 
+    assert MODEL is not None
     episodes = rollout.plan("train", 1, 400_000, templates=["tower"])
     env = rollout.make_env(Path(MODEL), episodes, asset_root=OBJECTS, velocities=False)
     env.reset(seeds=np.array(episodes.seeds), templates=list(episodes.templates))

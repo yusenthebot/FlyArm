@@ -286,8 +286,8 @@ def layout(config: FurnitureConfig) -> Layout:
     # The grip sticks out forward from the lid's front edge, so once the lid stands open the
     # grip points up above its top edge and the hand holding it is above the lid, not behind it.
     reach = config.lid_handle_offset
-    grip = np.array([cab_d + reach, 0.0, LID_THICKNESS / 2])
-    handles["lid"] = grip
+    lid_grip = np.array([cab_d + reach, 0.0, LID_THICKNESS / 2])
+    handles["lid"] = lid_grip
     for side, sign in (("left", 1.0), ("right", -1.0)):
         geoms[f"lid_post_{side}"] = GeomLayout(
             (cab_d + reach / 2, sign * LID_BAR_LENGTH / 2, LID_THICKNESS / 2),
@@ -301,7 +301,7 @@ def layout(config: FurnitureConfig) -> Layout:
     )
     # The grip swivels about the hinge's direction, like a bar on bearings, so the fingers keep
     # hold of it while the lid turns under the hand.
-    bodies["lid_handle"] = (grip, yaw_quat(0.0))
+    bodies["lid_handle"] = (lid_grip, yaw_quat(0.0))
     geoms["lid_handle_bar"] = GeomLayout(
         (0.0, 0.0, 0.0), (BAR_RADIUS, LID_BAR_LENGTH / 2 + STEM_RADIUS, 0.0), lid_bar
     )

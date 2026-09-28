@@ -213,6 +213,7 @@ def test_training_on_host_side_batches_matches_a_single_batch_run() -> None:
 def test_smoothness_charges_the_change_of_command_and_defaults_to_nothing() -> None:
     from flyarm.manipulation.env import BatchedManipulation
 
+    assert MODEL is not None
     first = np.array([[0.4, 0.0, 0.0, 0.0, 1.0]])
     second = np.array([[-0.4, 0.2, 0.0, 0.0, 1.0]])
 
@@ -233,6 +234,7 @@ def test_smoothness_charges_the_change_of_command_and_defaults_to_nothing() -> N
 def test_teacher_episodes_are_recorded_with_labels_masks_and_skills() -> None:
     from flyarm.manipulation.env import BatchedManipulation
 
+    assert MODEL is not None
     episodes = rollout.plan("train", 1, rollout.VALIDATION_OFFSET, templates=["put_away"])
     env = BatchedManipulation(Path(MODEL), len(episodes), asset_root=OBJECTS)
     (log,) = rollout.run_episodes([env], [episodes], None, record=True)
@@ -262,6 +264,7 @@ def test_the_ppo_adapter_scores_splits_and_validation_and_reads_episode_horizons
     from flyarm.rl.ppo import _horizons
     from flyarm.rl.ppo_manipulation import ManipulationTask
 
+    assert MODEL is not None
     config = ManipulationPPOConfig(eval_splits=["unseen_composition"], smoothness_weight=0.5)
     task = ManipulationTask(config, Path(MODEL), OBJECTS)
     names = [episodes.split for episodes in task.plans(2)]
@@ -281,6 +284,7 @@ def test_the_ppo_adapter_scores_splits_and_validation_and_reads_episode_horizons
 def test_an_action_array_passed_to_step_is_not_changed_by_a_later_reset() -> None:
     from flyarm.manipulation.env import BatchedManipulation
 
+    assert MODEL is not None
     env = BatchedManipulation(Path(MODEL), 1, asset_root=OBJECTS)
     env.reset(seeds=np.array([1]))
     action = np.array([[0.1, 0.2, 0.3, 0.0, 1.0]])
@@ -300,6 +304,7 @@ def test_the_redundant_contact_pairs_are_excluded() -> None:
     from flyarm.manipulation.env import PandaManipulationEnv
     from flyarm.manipulation.scene import EXCLUDED_PAIRS
 
+    assert MODEL is not None
     env = PandaManipulationEnv(Path(MODEL), asset_root=OBJECTS)
     model, data = env.model, env.data
     env.reset(seed=3, options={"template": "shelve"})
@@ -367,6 +372,7 @@ def test_the_arm_holds_still_under_a_zero_action() -> None:
     """Gravity compensation: a zero action no longer walks the hand down (it sank 1.8 mm a step)."""
     from flyarm.manipulation.env import PandaManipulationEnv
 
+    assert MODEL is not None
     env = PandaManipulationEnv(Path(MODEL), asset_root=OBJECTS)
     env.reset(seed=0, options={"template": "put_away"})
     hold = np.array([0.0, 0.0, 0.0, 0.0, 1.0])
@@ -383,6 +389,7 @@ def test_the_velocity_switch_blinds_the_policy_but_not_the_critic() -> None:
     from flyarm.manipulation.env import BatchedManipulation
     from flyarm.manipulation.sim import ROBOT_DIM, SLOT_DIM
 
+    assert MODEL is not None
     env = BatchedManipulation(Path(MODEL), 1, asset_root=OBJECTS, velocities=False)
     env.reset(seeds=np.array([2]), templates=["put_away"])
     for _ in range(10):
@@ -402,6 +409,7 @@ def test_the_cue_names_the_turn_the_teacher_makes() -> None:
     from flyarm.manipulation.sim import cue_slices
     from flyarm.manipulation.teacher import ManipulationTeacher
 
+    assert MODEL is not None
     episodes = rollout.plan("train", 1, rollout.VALIDATION_OFFSET)
     env = BatchedManipulation(Path(MODEL), len(episodes), asset_root=OBJECTS)
     obs = env.reset(seeds=np.array(episodes.seeds), templates=list(episodes.templates))

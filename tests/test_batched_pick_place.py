@@ -13,10 +13,16 @@ pytestmark = pytest.mark.skipif(
 )
 
 
+def _model_path() -> Path:
+    if MODEL is None:
+        pytest.skip("set FLYARM_MODEL to Panda scene.xml")
+    return Path(MODEL)
+
+
 def _teacher_episode(seed: int, steps: int) -> tuple[list[np.ndarray], list[np.ndarray], list]:
     from flyarm.pick_place_env import PandaPickPlaceEnv
 
-    env = PandaPickPlaceEnv(Path(MODEL))
+    env = PandaPickPlaceEnv(_model_path())
     obs, _ = env.reset(seed=seed)
     observations, actions, infos = [obs], [], []
     for _ in range(steps):
@@ -35,7 +41,7 @@ def test_batched_env_reproduces_the_single_env_under_the_teacher() -> None:
 
     seeds = [60000, 60001]
     episodes = [_teacher_episode(seed, 400) for seed in seeds]
-    batched = BatchedPickPlace(Path(MODEL), len(seeds))
+    batched = BatchedPickPlace(_model_path(), len(seeds))
     first = batched.reset(seeds=np.array(seeds))
     for row, (observations, _, _) in enumerate(episodes):
         assert np.allclose(first[row], observations[0], atol=1e-6)
@@ -56,7 +62,7 @@ def test_batched_env_reproduces_the_single_env_under_the_teacher() -> None:
 def test_hinge_jacobian_matches_mj_jacsite() -> None:
     from flyarm.rl.batched_pick_place import BatchedPickPlace
 
-    batched = BatchedPickPlace(Path(MODEL), 1)
+    batched = BatchedPickPlace(_model_path(), 1)
     batched.reset(seeds=np.array([3]))
     model = batched.model
     data = mujoco.MjData(model)
@@ -73,7 +79,7 @@ def test_hinge_jacobian_matches_mj_jacsite() -> None:
 def test_auto_reset_draws_fresh_seeds_and_clears_episode_flags() -> None:
     from flyarm.rl.batched_pick_place import BatchedPickPlace
 
-    batched = BatchedPickPlace(Path(MODEL), 3, horizon=20, first_seed=100)
+    batched = BatchedPickPlace(_model_path(), 3, horizon=20, first_seed=100)
     batched.reset()
     assert batched.episode_seed.tolist() == [100, 101, 102]
     for _ in range(20):
@@ -86,7 +92,7 @@ def test_auto_reset_draws_fresh_seeds_and_clears_episode_flags() -> None:
 def test_memory_variant_blanks_the_goal_for_the_controller_only() -> None:
     from flyarm.rl.batched_pick_place import GOAL_FIELDS, BatchedPickPlace, TaskVariant
 
-    env = BatchedPickPlace(Path(MODEL), 2, variant=TaskVariant(goal_visible_steps=2))
+    env = BatchedPickPlace(_model_path(), 2, variant=TaskVariant(goal_visible_steps=2))
     first = env.reset(seeds=np.array([5, 6]))
     assert np.abs(first[:, GOAL_FIELDS]).sum() > 0  # visible at the start
     for _ in range(2):
@@ -102,18 +108,18 @@ def test_physics_variant_is_seeded_bounded_and_leaves_the_nominal_task_alone() -
     from flyarm.rl.batched_pick_place import BASE_FRICTION, BatchedPickPlace, TaskVariant
 
     variant = TaskVariant(mass_scale=(2.0, 8.0), friction_scale=(0.2, 0.5))
-    env = BatchedPickPlace(Path(MODEL), 3, variant=variant)
+    env = BatchedPickPlace(_model_path(), 3, variant=variant)
     env.reset(seeds=np.array([7, 8, 9]))
     cube, geom = env._cube_body, env._cube_geom
     assert np.all((env.mass_scale >= 2.0) & (env.mass_scale <= 8.0))
     assert np.allclose(env.body_mass[:, cube], 0.025 * env.mass_scale)
     assert np.allclose(env.geom_friction[:, geom, 0], BASE_FRICTION * env.friction_scale)
     assert np.allclose(env.geom_friction[:, env._pads[0], 0], BASE_FRICTION * env.friction_scale)
-    again = BatchedPickPlace(Path(MODEL), 3, variant=variant)
+    again = BatchedPickPlace(_model_path(), 3, variant=variant)
     again.reset(seeds=np.array([7, 8, 9]))
     assert np.array_equal(again.mass_scale, env.mass_scale)
     # Randomization uses its own stream: the cube and goal start where the nominal task does.
-    nominal = BatchedPickPlace(Path(MODEL), 3)
+    nominal = BatchedPickPlace(_model_path(), 3)
     nominal.reset(seeds=np.array([7, 8, 9]))
     assert np.allclose(nominal.goal, env.goal) and np.allclose(nominal.cube(), env.cube())
 

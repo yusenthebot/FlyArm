@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from typing import Any, cast
 
 import numpy as np
 import pytest
@@ -231,9 +232,9 @@ def test_standardized_readout_removes_the_common_mode_and_old_checkpoints_load(
         current = policy.encode(policy.normalize(mx.array(obs[:, step])))
         state, pooled = dynamics.advance(state, current, policy.neural_steps)
         features.append(np.asarray(policy.readout(pooled)))
-    features = np.concatenate(features)
+    feature_array = np.concatenate(features)
     active = np.asarray(policy.readout_scale) < 1e11
-    assert np.allclose(features.mean(0)[active], 0.0, atol=1e-3)
+    assert np.allclose(feature_array.mean(0)[active], 0.0, atol=1e-3)
     # A checkpoint written before readout_offset existed loads with a zero offset.
     old = BrainPolicy("connectome", dynamics, obs_dim=4, action_dim=2, seed=1)
     weights = dict(tree_flatten(old.parameters()))
@@ -259,9 +260,9 @@ def test_unit_norm_readout_has_unit_expected_squared_norm(pack) -> None:
         current = policy.encode(policy.normalize(mx.array(obs[:, step])))
         state, pooled = dynamics.advance(state, current, policy.neural_steps)
         features.append(np.asarray(policy.readout(pooled), dtype=np.float64))
-    features = np.concatenate(features)
-    assert np.allclose(features.mean(0), 0.0, atol=1e-3)
-    assert np.isclose((features**2).sum(1).mean(), 1.0, rtol=1e-2)
+    feature_array = np.concatenate(features)
+    assert np.allclose(feature_array.mean(0), 0.0, atol=1e-3)
+    assert np.isclose((feature_array**2).sum(1).mean(), 1.0, rtol=1e-2)
 
 
 def test_the_linear_encoder_is_unchanged_and_the_mlp_encoder_trains(pack, tmp_path) -> None:
@@ -280,8 +281,10 @@ def test_the_linear_encoder_is_unchanged_and_the_mlp_encoder_trains(pack, tmp_pa
     reference = nn.Linear(4, dynamics.input_count)
     assert isinstance(default.encoder, nn.Linear)
     np.testing.assert_array_equal(np.asarray(default.encoder.weight), np.asarray(reference.weight))
-    names = [name for name, _ in tree_flatten(default.parameters())]
-    assert names == [name for name, _ in tree_flatten(explicit.parameters())]
+    default_leaves = cast(list[tuple[str, Any]], tree_flatten(default.parameters()))
+    explicit_leaves = cast(list[tuple[str, Any]], tree_flatten(explicit.parameters()))
+    names = [name for name, _ in default_leaves]
+    assert names == [name for name, _ in explicit_leaves]
 
     policy = BrainPolicy(
         "connectome",

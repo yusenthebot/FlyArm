@@ -21,8 +21,12 @@ def _obs(steps: int, n: int, dim: int) -> np.ndarray:
 
 @pytest.mark.parametrize("kind", ["mlp", "gru"])
 def test_the_controls_head_reproduces_the_policy_and_tunes_only_its_last_layer(kind) -> None:
-    dims = {"obs_dim": 7, "action_dim": 3, "hidden": 16, "seed": 1}
-    policy = MLPPolicy(**dims) if kind == "mlp" else GRUPolicy(**dims)
+    obs_dim, action_dim, hidden, seed = 7, 3, 16, 1
+    policy = (
+        MLPPolicy(obs_dim=obs_dim, action_dim=action_dim, hidden=hidden, seed=seed)
+        if kind == "mlp"
+        else GRUPolicy(obs_dim=obs_dim, action_dim=action_dim, hidden=hidden, seed=seed)
+    )
     rollout = rollout_for(policy, 4)
     assert isinstance(rollout, MLPRollout if kind == "mlp" else GRURollout)
     head = MotorHead(motor_decoder(policy), -1.0, 3)

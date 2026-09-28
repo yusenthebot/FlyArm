@@ -31,7 +31,7 @@ from __future__ import annotations
 import json
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -178,7 +178,7 @@ def padded(part: dict[str, np.ndarray], limit: int) -> dict[str, np.ndarray]:
     rows = np.linspace(0, len(lengths) - 1, min(limit, len(lengths))).round().astype(int)
     rows = np.unique(rows)
     horizon = int(lengths[rows].max())
-    out = {
+    out: dict[str, np.ndarray] = {
         "obs": np.zeros((len(rows), horizon, part["obs"].shape[1]), np.float32),
         "actions": np.zeros((len(rows), horizon, part["actions"].shape[1]), np.float32),
         "mask": np.zeros((len(rows), horizon), np.float32),
@@ -423,7 +423,9 @@ def train_rounds(
         )
         directory = run / f"round-{index:02d}"
         directory.mkdir(exist_ok=True)
-        np.savez_compressed(directory / "data.npz", **part)
+        # numpy's stub types savez_compressed's **kwds against its own allow_pickle: bool
+        # keyword too, so a dict[str, ndarray] never satisfies it without this.
+        np.savez_compressed(directory / "data.npz", **cast(dict[str, Any], part))
         if index == 0:
             _start(policy, part, run.parent)
         parts.append(part)
@@ -558,7 +560,8 @@ def _start(policy: SequencePolicy, part: dict[str, np.ndarray], output: Path) ->
         policy.calibrate_readout(sample["obs"], sample["mask"], unit_norm=True)
     demonstrations = output / "train.npz"
     if not demonstrations.is_file():  # the teacher's round-0 episodes, for curriculum PPO's DAPG
-        np.savez_compressed(demonstrations, **padded(part, len(part["lengths"])))
+        data = cast(dict[str, Any], padded(part, len(part["lengths"])))
+        np.savez_compressed(demonstrations, **data)
 
 
 __all__ = [

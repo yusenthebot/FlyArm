@@ -263,7 +263,7 @@ class BrainPolicy(_Normalized):
         self.channels = tuple(channels) if channels is not None else None
         mx.random.seed(seed)
         if encoder == "mlp":
-            self.encoder = SensoryEncoder(
+            self.encoder: SensoryEncoder | nn.Linear = SensoryEncoder(
                 self.input_dim, dynamics.input_count, self.encoder_hidden, encoder_activation
             )
         elif self.channels is None:
@@ -278,7 +278,7 @@ class BrainPolicy(_Normalized):
         if any(not 0 <= start < stop <= obs_dim for start, stop in self.readout_gates):
             raise ValueError("readout gates must be slices of the observation")
         if self.readout_gates:
-            self.decoder = GatedDecoder(
+            self.decoder: GatedDecoder | nn.Linear = GatedDecoder(
                 dynamics.output_count, self.output_dim, gate_width(self.readout_gates)
             )
         else:

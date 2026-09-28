@@ -28,9 +28,10 @@ from __future__ import annotations
 import json
 import platform
 import time
+from collections.abc import Sequence
 from importlib.metadata import version
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import mlx.core as mx
 import numpy as np
@@ -142,7 +143,7 @@ def build_policy(
     )
 
 
-def readout_gates(fields: list[str]) -> list[tuple[int, int]]:
+def readout_gates(fields: Sequence[str]) -> list[tuple[int, int]]:
     """Observation slices of the cue fields that select the readout, in the listed order."""
     slices = cue_slices()
     return [(slices[name].start, slices[name].stop) for name in fields]
@@ -219,7 +220,9 @@ def _weights(config: ManipulationImitationConfig, data: dict[str, np.ndarray]) -
 
 
 def _save_data(path: Path, data: dict[str, np.ndarray]) -> None:
-    np.savez_compressed(path, **data)
+    # numpy's stub types savez_compressed's **kwds against its own allow_pickle: bool keyword
+    # too, so a dict[str, ndarray] never satisfies it without this.
+    np.savez_compressed(path, **cast(dict[str, Any], data))
 
 
 def load_data(path: Path) -> dict[str, np.ndarray]:

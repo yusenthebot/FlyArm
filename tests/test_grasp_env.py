@@ -19,6 +19,12 @@ needs_assets = pytest.mark.skipif(
 NAMES = ("classic_blue_mug", "hammer", "crayon_box", "school_bus")
 
 
+def _model_path() -> Path:
+    if MODEL is None:
+        pytest.skip("set FLYARM_MODEL to the Panda scene.xml")
+    return Path(MODEL)
+
+
 def _objects() -> list:
     from flyarm.grasp.objects import load_manifest
 
@@ -123,7 +129,7 @@ def test_batched_env_matches_the_single_env_step_for_step() -> None:
     objects, seeds, steps = _objects(), [123, 456, 789, 1011], 140
     # A fixed action sequence per episode: the teacher's actions, recorded once in the single
     # environment, then replayed open loop in the batched one (one object per environment).
-    single = PandaGraspEnv(Path(MODEL), objects=objects, asset_root=OBJECTS)
+    single = PandaGraspEnv(_model_path(), objects=objects, asset_root=OBJECTS)
     teacher = GraspTeacher(single.sim)
     recorded, trajectories = [], []
     for row, seed in enumerate(seeds):
@@ -135,13 +141,13 @@ def test_batched_env_matches_the_single_env_step_for_step() -> None:
             observations.append(single.step(actions[-1])[0])
         recorded.append(actions)
         trajectories.append(observations)
-    actions, expected = np.array(recorded), np.array(trajectories)
+    action_array, expected = np.array(recorded), np.array(trajectories)
 
-    batched = BatchedGrasp(Path(MODEL), len(seeds), objects=objects, asset_root=OBJECTS)
+    batched = BatchedGrasp(_model_path(), len(seeds), objects=objects, asset_root=OBJECTS)
     obs = batched.reset(seeds=np.array(seeds), objects=np.arange(len(seeds)))
     worst = float(np.abs(obs - expected[:, 0]).max())
     for step in range(steps):
-        result = batched.step(actions[:, step], auto_reset=False)
+        result = batched.step(action_array[:, step], auto_reset=False)
         worst = max(worst, float(np.abs(result.obs - expected[:, step + 1]).max()))
     assert worst < 1e-6, worst
     assert batched.ever_grasped.all()  # the replay exercised contact, not just free motion
@@ -151,7 +157,7 @@ def test_batched_env_matches_the_single_env_step_for_step() -> None:
 def test_hinge_jacobian_matches_mj_jacsite() -> None:
     from flyarm.grasp.env import PandaGraspEnv
 
-    env = PandaGraspEnv(Path(MODEL), objects=_objects()[:1], asset_root=OBJECTS)
+    env = PandaGraspEnv(_model_path(), objects=_objects()[:1], asset_root=OBJECTS)
     generator = np.random.default_rng(3)
     env.reset(seed=5)
     for _ in range(12):
@@ -168,7 +174,7 @@ def test_one_batch_holds_different_objects_and_parks_the_rest() -> None:
     from flyarm.grasp.env import BatchedGrasp
 
     objects = _objects()
-    env = BatchedGrasp(Path(MODEL), 4, objects=objects, asset_root=OBJECTS)
+    env = BatchedGrasp(_model_path(), 4, objects=objects, asset_root=OBJECTS)
     env.reset(seeds=np.arange(4), objects=np.array([3, 2, 1, 0]))
     assert env.object_index.tolist() == [3, 2, 1, 0]
     parked_before = env.qpos.copy()
@@ -197,8 +203,8 @@ def test_reset_pose_depends_on_the_seed_not_on_the_object_set() -> None:
     from flyarm.grasp.env import BatchedGrasp
 
     objects = _objects()
-    many = BatchedGrasp(Path(MODEL), 2, objects=objects, asset_root=OBJECTS)
-    one = BatchedGrasp(Path(MODEL), 2, objects=objects[1:2], asset_root=OBJECTS)
+    many = BatchedGrasp(_model_path(), 2, objects=objects, asset_root=OBJECTS)
+    one = BatchedGrasp(_model_path(), 2, objects=objects[1:2], asset_root=OBJECTS)
     many.reset(seeds=np.array([5, 6]), objects=np.array([1, 1]))
     one.reset(seeds=np.array([5, 6]))
     assert np.allclose(many.object_pos(), one.object_pos())
@@ -210,7 +216,7 @@ def test_observation_layout_and_descriptor() -> None:
     from flyarm.grasp.env import BatchedGrasp
 
     objects = _objects()
-    env = BatchedGrasp(Path(MODEL), 4, objects=objects, asset_root=OBJECTS)
+    env = BatchedGrasp(_model_path(), 4, objects=objects, asset_root=OBJECTS)
     obs = env.reset(seeds=np.arange(4), objects=np.arange(4))
     privileged = env.observation(privileged=True)
     assert obs.shape == (4, task.OBS_DIM) and privileged.shape == (4, task.PRIVILEGED_DIM)
@@ -228,7 +234,7 @@ def test_teacher_grasps_lifts_and_holds_objects_of_several_families() -> None:
 
     objects = _objects()
     episodes = 4
-    env = BatchedGrasp(Path(MODEL), len(objects) * episodes, objects=objects, asset_root=OBJECTS)
+    env = BatchedGrasp(_model_path(), len(objects) * episodes, objects=objects, asset_root=OBJECTS)
     teacher = GraspTeacher(env)
     index = np.repeat(np.arange(len(objects)), episodes)
     env.reset(seeds=np.arange(len(index)) + 777, objects=index)

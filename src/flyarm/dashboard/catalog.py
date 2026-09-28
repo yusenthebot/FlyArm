@@ -8,7 +8,7 @@ per experiment family, learning curves, evaluations, the log tail and rollout me
 from __future__ import annotations
 
 import json
-import subprocess
+import subprocess  # nosec B404
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -31,7 +31,8 @@ class Root:
 def discover_roots(repo: Path) -> list[Root]:
     """The runs/ directory of every worktree of ``repo``, labelled by branch."""
     try:
-        listing = subprocess.run(
+        # A fixed git argument list, no shell and no user input (bandit B603, B607).
+        listing = subprocess.run(  # nosec B603 B607
             ["git", "-C", str(repo), "worktree", "list", "--porcelain"],
             capture_output=True,
             text=True,

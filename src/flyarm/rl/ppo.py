@@ -33,7 +33,6 @@ from flyarm.rl.batched_pick_place import ACTION_DIM, OBS_DIM, BatchedPickPlace, 
 from flyarm.whole_brain.policy import (
     BrainPolicy,
     DirectPolicy,
-    GatedDecoder,
     GRUPolicy,
     MLPPolicy,
     gate_width,
@@ -46,9 +45,7 @@ PPOSettings = PPOConfig | KitchenPPOConfig | ManipulationPPOConfig
 class MotorHead(nn.Module):
     """The trainable part: the decoder over motor-neuron activity plus exploration scale."""
 
-    def __init__(
-        self, decoder: nn.Linear | GatedDecoder, log_std: float, action_dim: int | None = None
-    ) -> None:
+    def __init__(self, decoder: nn.Module, log_std: float, action_dim: int | None = None) -> None:
         super().__init__()
         self.decoder = decoder
         self.action_dim = int(decoder.weight.shape[-2]) if action_dim is None else action_dim
@@ -209,7 +206,7 @@ def rollout_for(policy: Controller, num_envs: int) -> Rollout:
     return BrainRollout(policy, num_envs)
 
 
-def motor_decoder(policy: Controller) -> nn.Linear | GatedDecoder:
+def motor_decoder(policy: Controller) -> nn.Module:
     """The linear map PPO tunes: the brain's decoder, the MLP's last layer, the GRU's readout.
 
     Each feeds a tanh into the action, so the head's mean is the policy's own output; the
@@ -353,7 +350,7 @@ class PickPlaceTask:
         )
 
     def score(
-        self, policy: BrainPolicy, head: MotorHead, seeds: list[int]
+        self, policy: Controller, head: MotorHead, seeds: list[int]
     ) -> dict[str, dict[str, Any]]:
         return {
             name: evaluate(
@@ -417,8 +414,7 @@ def encoder_pass(
         raise ValueError("Encoder training expects the single-encoder B1a interface")
     demo = None
     if bc_weight > 0 and demonstrations is not None and demonstrations.states is not None:
-        missing = demonstrations.obs is None or demonstrations.state_actions is None
-        if missing or generator is None:
+        if demonstrations.obs is None or demonstrations.state_actions is None or generator is None:
             raise ValueError("the encoder's DAPG term needs observations, actions and a generator")
         demo = (demonstrations.states, demonstrations.obs, demonstrations.state_actions)
     imitate = demo is not None
@@ -586,7 +582,8 @@ def train_ppo(
             reward_buf[t], done_buf[t] = result.reward, done
             finished += int(done.sum())
             successes += int(result.terminated.sum())
-            extras += task.extra(result, done)
+            # TaskAdapter.extra, not Django's QuerySet.extra (bandit B610).
+            extras += task.extra(result, done)  # nosec B610
             if getattr(task, "batch_peak_key", None):
                 peak = max(peak, task.batch_peak(result, done))
             brain.reset(done)
