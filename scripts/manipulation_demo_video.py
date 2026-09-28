@@ -13,7 +13,8 @@ environment of the evaluation rebuilds the same episodes, but contact-rich episo
 differently between the two simulators, so seeds are not preselected there. A template with
 no success (or no failure) among the candidates shows a card saying so. The two episodes of a
 template play side by side (success left, failure right), one template after the other,
-every ``--stride``-th control step.
+every ``--stride``-th control step. ``--successes-only`` makes a highlight reel instead: the
+first successful episode of every template, full width, templates without one left out.
 """
 
 from __future__ import annotations
@@ -37,7 +38,13 @@ SIZE = (304, 400)
 
 
 def render_episode(
-    env: PandaManipulationEnv, policy, seed: int, template: str, title: str, stride: int
+    env: PandaManipulationEnv,
+    policy,
+    seed: int,
+    template: str,
+    title: str,
+    stride: int,
+    size: tuple[int, int] = SIZE,
 ) -> tuple[list[np.ndarray], bool]:
     obs, info = env.reset(seed=seed, options={"template": template})
     controller = MlxController(policy)
@@ -66,8 +73,8 @@ def render_episode(
     return frames + [final] * 10, bool(info["is_success"])
 
 
-def card(title: str, text: str) -> list[np.ndarray]:
-    return [annotate(np.full((*SIZE, 3), 40, np.uint8), title, text)] * 20
+def card(title: str, text: str, size: tuple[int, int] = SIZE) -> list[np.ndarray]:
+    return [annotate(np.full((*size, 3), 40, np.uint8), title, text)] * 20
 
 
 def main() -> None:
@@ -78,6 +85,9 @@ def main() -> None:
     parser.add_argument("--candidates", type=int, default=8)
     parser.add_argument("--stride", type=int, default=3)
     parser.add_argument("--fps", type=int, default=20)
+    parser.add_argument("--successes-only", action="store_true", help="a highlight reel")
+    parser.add_argument("--height", type=int, default=SIZE[0])
+    parser.add_argument("--width", type=int, default=SIZE[1])
     parser.add_argument("--pack", type=Path, default=Path("data/whole_brain/malecns-v1.0-c3"))
     parser.add_argument(
         "--model", type=Path, default=Path("assets/menagerie/franka_emika_panda/scene.xml")
@@ -96,8 +106,9 @@ def main() -> None:
         cue=config.cue,
         velocities=config.velocities,
         phase_cue=config.phase_cue,
-        render_size=SIZE,
+        render_size=(args.height, args.width),
     )
+    size = (args.height, args.width)
     frames: list[np.ndarray] = []
     shown: dict[str, dict[str, int | None]] = {}
     plan = rollout.plan(args.split, args.candidates, FINAL_OFFSET)
@@ -109,16 +120,26 @@ def main() -> None:
                 "failure": None,
             }
             for seed in seeds:  # render candidates until one of each outcome is found
-                clip, success = render_episode(env, policy, seed, template, title, args.stride)
+                clip, success = render_episode(
+                    env, policy, seed, template, title, args.stride, size
+                )
                 key = "success" if success else "failure"
                 if found[key] is None:
                     found[key] = (int(seed), clip)
+                if args.successes_only and found["success"] is not None:
+                    break
                 if all(value is not None for value in found.values()):
                     break
+            shown[template] = {k: (None if v is None else v[0]) for k, v in found.items()}
+            print(f"{template}: {shown[template]}", flush=True)
+            if args.successes_only:
+                if found["success"] is not None:
+                    frames.extend(found["success"][1])
+                continue
             pair = [
                 found[key][1]
                 if found[key] is not None
-                else card(f"{title} · {template}", f"no {key} in {len(seeds)} episodes")
+                else card(f"{title} · {template}", f"no {key} in {len(seeds)} episodes", size)
                 for key in ("success", "failure")
             ]
             length = max(len(clip) for clip in pair)
@@ -126,8 +147,6 @@ def main() -> None:
                 frames.append(
                     np.concatenate([clip[min(index, len(clip) - 1)] for clip in pair], axis=1)
                 )
-            shown[template] = {k: (None if v is None else v[0]) for k, v in found.items()}
-            print(f"{template}: {shown[template]}", flush=True)
     finally:
         env.close()
     write_video(args.output, frames, args.fps)
