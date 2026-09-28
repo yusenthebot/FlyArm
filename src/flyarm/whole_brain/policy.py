@@ -175,36 +175,42 @@ def gate_vector(obs: mx.array, gates: Sequence[Gate]) -> mx.array:
     return vector
 
 
+# Gain on the programs' corrections: Adam moves every weight that gets a gradient by about the
+# learning rate, and a program seen in a few steps of a batch gets a noisy one; a full-rate
+# per-program decoder fit worse than the single one and jumped at every round start (E60).
+PROGRAM_GAIN = 0.1
+
+
 class GatedDecoder(nn.Module):
-    """One linear readout per motor program, selected by an observable cue.
+    """A shared linear readout plus a correction per motor program, selected by an observable
+    cue.
 
     Its input is the readout features with the gate vector appended (``gates`` columns), so
     it drops in wherever a linear decoder takes features; within a program the action is a
     linear function of the frozen connectome's output activity, as with the single decoder.
+    ``weight`` and ``bias`` are the shared map (a single decoder's checkpoint loads into them)
+    and the corrections start at zero, so gating starts exactly where that decoder was.
     """
 
-    def __init__(self, inputs: int, outputs: int, gates: int) -> None:
+    def __init__(self, inputs: int, outputs: int, gates: int, gain: float = PROGRAM_GAIN) -> None:
         super().__init__()
-        if gates < 1:
-            raise ValueError("a gated decoder needs at least one program")
+        if gates < 1 or gain <= 0:
+            raise ValueError("a gated decoder needs at least one program and a positive gain")
         self.inputs = inputs
         self.gates = gates
+        self.gain = gain
         scale = 1.0 / np.sqrt(inputs)
-        self.weight = mx.random.uniform(-scale, scale, (gates, outputs, inputs))
-        self.bias = mx.zeros((gates, outputs))
+        self.weight = mx.random.uniform(-scale, scale, (outputs, inputs))
+        self.bias = mx.zeros((outputs,))
+        self.program_weight = mx.zeros((gates, outputs, inputs))
+        self.program_bias = mx.zeros((gates, outputs))
 
     def __call__(self, x: mx.array) -> mx.array:
         features, gate = x[:, : self.inputs], x[:, self.inputs :]
-        every = features @ self.weight.reshape(-1, self.inputs).T  # [batch, gates * outputs]
-        every = every.reshape(x.shape[0], self.gates, -1) + self.bias
-        return (gate[:, :, None] * every).sum(axis=1)
-
-    def tile(self, weight: mx.array, bias: mx.array) -> None:
-        """Every program starts as the same single linear decoder."""
-        if weight.shape != self.weight.shape[1:] or bias.shape != self.bias.shape[1:]:
-            raise ValueError("the single decoder does not match the programs' shape")
-        self.weight = mx.repeat(weight[None], self.gates, axis=0)
-        self.bias = mx.repeat(bias[None], self.gates, axis=0)
+        shared = features @ self.weight.T + self.bias
+        every = features @ self.program_weight.reshape(-1, self.inputs).T
+        every = every.reshape(x.shape[0], self.gates, -1) + self.program_bias
+        return shared + self.gain * (gate[:, :, None] * every).sum(axis=1)
 
 
 class BrainPolicy(_Normalized):
@@ -384,14 +390,13 @@ class BrainPolicy(_Normalized):
         return mx.tanh(self.decoder(self.motor_features(pooled, obs))), state
 
     def load(self, path: Path) -> None:
-        """Load a checkpoint; one written with a single linear decoder loads into every
-        program of a gated one, so gated training starts exactly where that policy was."""
+        """Load a checkpoint; one written with a single linear decoder loads into a gated
+        one's shared map with zero corrections, so gated training starts where it was."""
         weights = cast(dict[str, mx.array], mx.load(str(path)))
-        single = weights.get("decoder.weight")
-        if self.readout_gates and single is not None and single.ndim == 2:
+        if self.readout_gates and "decoder.program_weight" not in weights:
             decoder = cast(GatedDecoder, self.decoder)
-            decoder.tile(single, weights["decoder.bias"])
-            weights["decoder.weight"], weights["decoder.bias"] = decoder.weight, decoder.bias
+            weights["decoder.program_weight"] = mx.zeros_like(decoder.program_weight)
+            weights["decoder.program_bias"] = mx.zeros_like(decoder.program_bias)
         self.load_state(weights)
 
     def with_dynamics(self, kind: str, dynamics: RateDynamics) -> BrainPolicy:

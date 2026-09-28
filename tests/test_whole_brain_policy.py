@@ -382,8 +382,8 @@ def test_gated_readout_loads_a_single_decoder_exactly_and_switches_by_cue(pack, 
     gated = BrainPolicy(
         "connectome", dynamics, obs_dim=5, action_dim=2, seed=1, readout_gates=[(3, 5)]
     )
-    assert gated.decoder.weight.shape == (3, 2, dynamics.output_count)
-    gated.load(path)  # every program starts as the single decoder
+    assert gated.decoder.program_weight.shape == (3, 2, dynamics.output_count)
+    gated.load(path)  # the shared map is the single decoder, the corrections are zero
     rng = np.random.default_rng(0)
     obs = mx.array(_cue_obs(rng, np.array([0, 1, 2, 0])))
     before, _ = single.step(obs, single.initial_state(4))
@@ -392,7 +392,9 @@ def test_gated_readout_loads_a_single_decoder_exactly_and_switches_by_cue(pack, 
 
     # Changing the program of the none cue changes only the rows that select it.
     decoder = gated.decoder
-    decoder.bias = mx.concatenate([decoder.bias[:2], decoder.bias[2:] + 1.0])
+    decoder.program_bias = mx.concatenate(
+        [decoder.program_bias[:2], decoder.program_bias[2:] + 5.0]
+    )
     changed, _ = gated.step(obs, gated.initial_state(4))
     moved = np.abs(np.asarray(changed) - np.asarray(after)).max(axis=1) > 1e-4
     assert moved.tolist() == [False, False, True, False]
