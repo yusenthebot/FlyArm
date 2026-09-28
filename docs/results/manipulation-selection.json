@@ -156,5 +156,56 @@
    0.6508
   ],
   "subgoal_fraction": 0.7432
+ },
+ "enc100": {
+  "source": "ppo",
+  "run": "runs/ppo-manipulation-encoder-002",
+  "iteration": 100,
+  "base_run": "runs/skill-dagger-connectome-002",
+  "kind": "connectome",
+  "seed": 0,
+  "checkpoint": "runs/ppo-manipulation-encoder-002/policy-0100.safetensors",
+  "episodes": 112,
+  "successes": 80,
+  "success_rate": 0.7143,
+  "wilson_95": [
+   0.6246,
+   0.7898
+  ],
+  "subgoal_fraction": 0.8263
+ },
+ "enc150": {
+  "source": "ppo",
+  "run": "runs/ppo-manipulation-encoder-002",
+  "iteration": 150,
+  "base_run": "runs/skill-dagger-connectome-002",
+  "kind": "connectome",
+  "seed": 0,
+  "checkpoint": "runs/ppo-manipulation-encoder-002/policy-0150.safetensors",
+  "episodes": 112,
+  "successes": 83,
+  "success_rate": 0.7411,
+  "wilson_95": [
+   0.6529,
+   0.8132
+  ],
+  "subgoal_fraction": 0.8412
+ },
+ "enc200": {
+  "source": "ppo",
+  "run": "runs/ppo-manipulation-encoder-002",
+  "iteration": 200,
+  "base_run": "runs/skill-dagger-connectome-002",
+  "kind": "connectome",
+  "seed": 0,
+  "checkpoint": "runs/ppo-manipulation-encoder-002/policy-0200.safetensors",
+  "episodes": 112,
+  "successes": 75,
+  "success_rate": 0.6696,
+  "wilson_95": [
+   0.5782,
+   0.7499
+  ],
+  "subgoal_fraction": 0.8061
  }
 }

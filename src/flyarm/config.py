@@ -740,6 +740,9 @@ class ManipulationPPOConfig(BaseModel):
     bc_refresh_every: int = Field(default=10, ge=1, le=10_000)
     bc_encoder_samples: int = Field(default=1024, ge=32, le=8192)
     bc_encoder_minibatch: int = Field(default=128, ge=8, le=8192)
+    # The encoder's update as PPO's clipped surrogate on the rollout's log-probabilities; False
+    # keeps the plain advantage-weighted update of runs/ppo-manipulation-encoder-002.
+    encoder_clip: bool = False
     critic_lr: float = Field(default=1e-3, gt=0, le=0.1)
     value_coef: float = Field(default=0.5, ge=0)
     entropy_coef: float = Field(default=0.0, ge=0)

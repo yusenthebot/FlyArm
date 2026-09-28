@@ -398,8 +398,15 @@ def encoder_pass(
     bc_weight: float = 0.0,
     bc_minibatch: int = 128,
     generator: np.random.Generator | None = None,
+    old_log_prob: np.ndarray | None = None,
+    clip: float = 0.0,
 ) -> float:
     """One on-policy REINFORCE-with-baseline pass over the rollout for the encoder.
+
+    With ``old_log_prob`` (the rollout's log-probabilities) and ``clip``, the per-step loss is
+    PPO's clipped surrogate instead, so the encoder, like the decoder, cannot move the policy
+    far from the one that collected the rollout: unclipped, its advantage-weighted updates grew
+    until the policy collapsed twice in one run (research log E61).
 
     Gradients through the recurrent connectome are truncated to the current control step: the
     incoming state is a constant, so only that step's 3 neural updates are differentiated and
@@ -418,6 +425,7 @@ def encoder_pass(
             raise ValueError("the encoder's DAPG term needs observations, actions and a generator")
         demo = (demonstrations.states, demonstrations.obs, demonstrations.state_actions)
     imitate = demo is not None
+    clipped = clip > 0 and old_log_prob is not None
 
     def mean_action(encoder: nn.Module, state: mx.array, obs: mx.array) -> tuple[mx.array, ...]:
         current = encoder(policy.normalize(obs))
@@ -433,10 +441,16 @@ def encoder_pass(
         demo_state: mx.array,
         demo_obs: mx.array,
         demo_action: mx.array,
+        old: mx.array,
     ) -> tuple[mx.array, mx.array]:
         mean, state = mean_action(encoder, state, obs)
         log_prob = gaussian_log_prob(action, mean, head.log_std)
-        loss = -(weight * log_prob).mean()
+        if clipped:
+            ratio = mx.exp(log_prob - old)
+            bounded = mx.clip(ratio, 1 - clip, 1 + clip)
+            loss = -mx.minimum(ratio * weight, bounded * weight).mean()
+        else:
+            loss = -(weight * log_prob).mean()
         if imitate:
             demo_mean, _ = mean_action(encoder, demo_state, demo_obs)
             loss = loss + bc_weight * ((demo_mean - demo_action) ** 2).sum(-1).mean()
@@ -462,6 +476,7 @@ def encoder_pass(
             demo_state,
             demo_obs,
             demo_action,
+            mx.array(old_log_prob[step]) if old_log_prob is not None else empty,
         )
         grads, _ = optim.clip_grad_norm(grads, max_grad_norm)
         optimizer.update(policy.encoder, grads)
@@ -636,6 +651,8 @@ def train_ppo(
                 bc_weight,
                 getattr(settings, "bc_encoder_minibatch", 128),
                 generator,
+                logp_buf if getattr(settings, "encoder_clip", False) else None,
+                settings.clip,
             )
             refresh_every = getattr(settings, "bc_refresh_every", 10)
             if demonstrations is not None and demonstrations.refresh is not None:

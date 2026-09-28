@@ -300,3 +300,56 @@ def test_encoder_pass_fits_demonstrations_through_one_frozen_step() -> None:
     )
     assert error() < 0.5 * before
     assert pack.fingerprint() == dynamics.pack_fingerprint  # the graph is not a parameter
+
+
+def test_clipped_encoder_pass_stays_near_the_rollout_policy() -> None:
+    """With the clipped surrogate, many updates on one rollout stop moving the action
+    log-probability soon after the clip range; the plain advantage-weighted update keeps going."""
+    import mlx.optimizers as optim
+
+    from flyarm.rl.ppo import MotorHead, encoder_pass
+    from flyarm.whole_brain.backend_mlx import RateDynamics
+    from flyarm.whole_brain.policy import BrainPolicy
+
+    pack = ConnectomePack.from_graph(random_graph(n=40, edges=300))
+    dynamics = RateDynamics(pack, interface_for(pack))
+    rng = np.random.default_rng(0)
+    calibration = rng.standard_normal((8, 12, 4)).astype(np.float32)
+    obs = rng.standard_normal((1, 16, 4)).astype(np.float32)
+    actions = np.full((1, 16, 2), 0.5, np.float32)
+    advantages = np.ones((1, 16), np.float32)
+
+    def shift(clip: float) -> float:
+        policy = BrainPolicy("connectome", dynamics, obs_dim=4, action_dim=2, seed=1, encoder="mlp")
+        policy.calibrate_readout(calibration, np.ones((8, 12), np.float32), unit_norm=True)
+        head = MotorHead(policy.decoder, -1.0, 2)
+
+        def log_prob() -> np.ndarray:
+            current = policy.encode(policy.normalize(mx.array(obs[0])))
+            _, pooled = dynamics.advance(policy.initial_state(16), current, policy.neural_steps)
+            mean = head.mean(policy.motor_features(pooled, mx.array(obs[0])))
+            return np.asarray(gaussian_log_prob(mx.array(actions[0]), mean, head.log_std))
+
+        before = log_prob()
+        optimizer = optim.SGD(learning_rate=0.05)
+        for _ in range(60):
+            encoder_pass(
+                policy,
+                head,
+                optimizer,
+                obs,
+                actions,
+                advantages,
+                np.zeros((1, 16), np.float32),
+                policy.initial_state(16),
+                1.0,
+                old_log_prob=before[None],
+                clip=clip,
+            )
+        return float(np.mean(log_prob() - before))
+
+    # Plain gradient steps, so that only the objective differs (Adam's momentum keeps moving
+    # for a while after the clipped gradient vanishes); the mean shift exceeds log(1.2) because
+    # samples still inside the range keep moving the shared encoder.
+    clipped, plain = shift(0.2), shift(0.0)
+    assert clipped < 0.5 and plain > 2 * clipped
