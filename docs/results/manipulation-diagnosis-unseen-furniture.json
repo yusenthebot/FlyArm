@@ -1,0 +1,32 @@
+{
+ "r08-capsule": {
+  "source": "file",
+  "run": "runs/skill-dagger-connectome-002",
+  "kind": "connectome",
+  "seed": 0,
+  "checkpoint": "runs/skill-dagger-connectome-002/connectome-0/round-08/policy.safetensors",
+  "episodes": 56,
+  "successes": 15,
+  "success_rate": 0.2679,
+  "wilson_95": [
+   0.1696,
+   0.3959
+  ],
+  "subgoal_fraction": 0.5006
+ },
+ "g11-capsule": {
+  "source": "file",
+  "run": "runs/skill-dagger-connectome-005",
+  "kind": "connectome",
+  "seed": 0,
+  "checkpoint": "runs/skill-dagger-connectome-005/connectome-0/round-11/policy.safetensors",
+  "episodes": 56,
+  "successes": 5,
+  "success_rate": 0.0893,
+  "wilson_95": [
+   0.0387,
+   0.1926
+  ],
+  "subgoal_fraction": 0.3272
+ }
+}

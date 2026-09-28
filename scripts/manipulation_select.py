@@ -21,6 +21,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--policy", action="append", required=True, help="LABEL=SPEC")
     parser.add_argument("--per-template", type=int, default=16)
+    parser.add_argument(
+        "--split",
+        default="train",
+        help="train (validation seeds) or a test split on its in-run evaluation seeds",
+    )
     parser.add_argument("--pack", type=Path, default=Path("data/whole_brain/malecns-v1.0-c3"))
     parser.add_argument(
         "--model", type=Path, default=Path("assets/menagerie/franka_emika_panda/scene.xml")
@@ -37,7 +42,8 @@ def main() -> None:
         bench = Workbench(
             args.model, args.asset_root, config.cue, config.velocities, config.phase_cue
         )
-        plan = rollout.plan("train", args.per_template, rollout.VALIDATION_OFFSET)
+        offset = rollout.VALIDATION_OFFSET if args.split == "train" else 0
+        plan = rollout.plan(args.split, args.per_template, offset)
         (log,) = bench.run([plan], lambda n, p=policy: PolicyActor(p, n))
         summary = rollout.summarize(log)
         low, high = wilson(summary["successes"], summary["episodes"])
