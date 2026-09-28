@@ -23,6 +23,7 @@ body bounds then contain every smaller configuration and the broad phase stays e
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass, fields, replace
 from typing import Any
 
@@ -341,9 +342,13 @@ _CYLINDER_ALONG = {
 
 
 def _geom_kind(name: str) -> tuple[Any, str, tuple[float, float, float, float]]:
+    # Rods (handle bars, posts, stems) are capsules: MuJoCo 3.13's convex collider segfaulted
+    # in EPA on a finger pad pressed 8 mm into a cylinder bar, at the same state at 35 and at
+    # 50 iterations (research log E60), while capsule against box has an analytic collider.
+    # rod_size() keeps a rod's end-to-end length, so only its end faces become round.
     box, cylinder, sphere = (
         mujoco.mjtGeom.mjGEOM_BOX,
-        mujoco.mjtGeom.mjGEOM_CYLINDER,
+        mujoco.mjtGeom.mjGEOM_CAPSULE,
         mujoco.mjtGeom.mjGEOM_SPHERE,
     )
     if name.startswith("drawer_"):
@@ -369,6 +374,14 @@ def _geom_kind(name: str) -> tuple[Any, str, tuple[float, float, float, float]]:
     if name.startswith("bin_"):
         return box, "z", BIN_PLASTIC
     return box, "z", REGION_COLOUR
+
+
+def rod_size(name: str, size: Sequence[float]) -> list[float]:
+    """The MuJoCo size of a planned geom: a rod's half-length loses its end caps' radius."""
+    if _geom_kind(name)[0] != mujoco.mjtGeom.mjGEOM_CAPSULE:
+        return list(size)
+    radius, half = float(size[0]), float(size[1])
+    return [radius, max(half - radius, 0.1 * half), *map(float, size[2:])]
 
 
 def _geom_body(name: str) -> str:
@@ -448,7 +461,7 @@ def add_furniture(spec: mujoco.MjSpec, compile_config: FurnitureConfig) -> None:
         made[_geom_body(name)].add_geom(
             name=name,
             type=kind,
-            size=list(geom.size),
+            size=rod_size(name, geom.size),
             pos=list(geom.pos),
             quat=list(_CYLINDER_ALONG[axis]),
             rgba=list(rgba),
@@ -490,7 +503,7 @@ class FurnitureFields:
         for name, geom in plan.geoms.items():
             gid = self.geom_ids[name]
             fields_["geom_pos"][row, gid] = geom.pos
-            fields_["geom_size"][row, gid] = geom.size
+            fields_["geom_size"][row, gid] = rod_size(name, geom.size)
             contype, conaffinity = self.solid[name] if geom.enabled else (0, 0)
             fields_["geom_contype"][row, gid] = contype
             fields_["geom_conaffinity"][row, gid] = conaffinity

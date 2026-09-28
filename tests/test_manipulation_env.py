@@ -214,13 +214,14 @@ def test_resized_furniture_stays_inside_the_compiled_bounding_boxes() -> None:
             gid = fields.geom_ids[name]
             if not geom.enabled or not model.geom_contype[gid]:
                 continue
-            radius, half = geom.size[0], geom.size[1]
+            radius = geom.size[0]
+            rod = fu.rod_size(name, geom.size)[1]
             kind = mujoco.mjtGeom(int(model.geom_type[gid]))
             local, sphere = {
                 mujoco.mjtGeom.mjGEOM_BOX: (np.array(geom.size), np.linalg.norm(geom.size)),
-                mujoco.mjtGeom.mjGEOM_CYLINDER: (
-                    np.array([radius, radius, half]),
-                    math.hypot(radius, half),
+                mujoco.mjtGeom.mjGEOM_CAPSULE: (
+                    np.array([radius, radius, rod + radius]),
+                    rod + radius,
                 ),
                 mujoco.mjtGeom.mjGEOM_SPHERE: (np.array([radius] * 3), radius),
             }[kind]
