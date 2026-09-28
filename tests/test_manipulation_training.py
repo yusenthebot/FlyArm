@@ -64,8 +64,10 @@ def test_ppo_config_recomputes_the_stalling_floor_for_its_gamma() -> None:
     assert reward.subgoal_bonus > 0.0  # the floor is 0 at any gamma: every level term costs
     with pytest.raises(ValidationError, match="shaping"):
         ManipulationPPOConfig(subgoal_bonus=5.0, shaping=10.0)
-    with pytest.raises(ValidationError, match="frozen encoder"):
-        ManipulationPPOConfig(encoder_lr=1e-4, bc_weight=1.0)
+    # A trained encoder keeps the DAPG term (research log E61); its minibatch fits its samples.
+    ManipulationPPOConfig(encoder_lr=1e-4, bc_weight=1.0)
+    with pytest.raises(ValidationError, match="bc_encoder_minibatch"):
+        ManipulationPPOConfig(encoder_lr=1e-4, bc_encoder_samples=64, bc_encoder_minibatch=128)
     with pytest.raises(ValidationError):
         ManipulationPPOConfig(seed=10)  # PPO seeds would reach the held-out seed blocks
     with pytest.raises(ValidationError):

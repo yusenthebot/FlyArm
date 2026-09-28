@@ -1,10 +1,11 @@
 """PPO fine-tuning of the motor interface of a trained connectome controller (MLX).
 
-The controller stays the FlyArm policy: frozen linear encoder, frozen complete connectome,
-linear decoder. PPO trains only the decoder (motor neurons -> action mean) and a per-action
-exploration scale, so no gradient passes through the brain and the connectome is never
-changed. The critic reads privileged simulator state and exists only during training; the
-exploration noise is training-only too, and evaluation runs the deterministic mean action.
+The controller stays the FlyArm policy: encoder, frozen complete connectome, linear decoder.
+PPO trains the decoder (motor neurons -> action mean) and a per-action exploration scale, and
+with ``encoder_lr`` also the encoder, whose gradient passes through one control step of the
+brain; the connectome itself is never changed. The critic reads privileged simulator state and
+exists only during training; the exploration noise is training-only too, and evaluation runs
+the deterministic mean action.
 
 The trainer itself is task-agnostic: a ``TaskAdapter`` supplies the batched environment, the
 observation and action dimensions and the benchmark's own evaluation, so the same loop runs
@@ -16,6 +17,8 @@ from __future__ import annotations
 
 import json
 import time
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol, cast
 
@@ -369,6 +372,21 @@ class PickPlaceTask:
         return f"{name} place {scored['successes']}/{episodes} lift {scored['lifts']}"
 
 
+@dataclass
+class DemonstrationSet:
+    """The DAPG data: connectome features and teacher actions for the decoder's term and, when
+    the encoder is trained, observations with the connectome state before each of them (a
+    column of ``states``) for the encoder's term. ``refresh`` replays the demonstrations
+    through the current encoder and returns the new set."""
+
+    features: mx.array
+    actions: mx.array
+    obs: mx.array | None = None
+    states: mx.array | None = None
+    state_actions: mx.array | None = None
+    refresh: Callable[[], DemonstrationSet] | None = None
+
+
 def encoder_pass(
     policy: BrainPolicy,
     head: MotorHead,
@@ -379,6 +397,10 @@ def encoder_pass(
     done: np.ndarray,
     state: mx.array,
     max_grad_norm: float,
+    demonstrations: DemonstrationSet | None = None,
+    bc_weight: float = 0.0,
+    bc_minibatch: int = 128,
+    generator: np.random.Generator | None = None,
 ) -> float:
     """One on-policy REINFORCE-with-baseline pass over the rollout for the encoder.
 
@@ -386,28 +408,64 @@ def encoder_pass(
     incoming state is a constant, so only that step's 3 neural updates are differentiated and
     just one step's graph is alive at a time. The rollout's observations replay the same states
     (the dynamics are deterministic), so nothing extra has to be stored during the rollout.
+
+    With ``bc_weight`` and demonstration states, every update also adds the DAPG term for the
+    encoder: the squared error to the teacher's action on a minibatch of demonstration steps,
+    differentiated through the same single step from the stored state before each of them.
     """
     if policy.channels is not None:
         raise ValueError("Encoder training expects the single-encoder B1a interface")
+    demo = None
+    if bc_weight > 0 and demonstrations is not None and demonstrations.states is not None:
+        missing = demonstrations.obs is None or demonstrations.state_actions is None
+        if missing or generator is None:
+            raise ValueError("the encoder's DAPG term needs observations, actions and a generator")
+        demo = (demonstrations.states, demonstrations.obs, demonstrations.state_actions)
+    imitate = demo is not None
 
-    def loss_fn(
-        encoder: nn.Module, state: mx.array, obs: mx.array, action: mx.array, weight: mx.array
-    ) -> tuple[mx.array, mx.array]:
+    def mean_action(encoder: nn.Module, state: mx.array, obs: mx.array) -> tuple[mx.array, ...]:
         current = encoder(policy.normalize(obs))
         state, pooled = policy.dynamics.advance(state, current, policy.neural_steps)
-        features = policy.motor_features(pooled, obs)
-        log_prob = gaussian_log_prob(action, head.mean(features), head.log_std)
-        return -(weight * log_prob).mean(), state
+        return head.mean(policy.motor_features(pooled, obs)), state
+
+    def loss_fn(
+        encoder: nn.Module,
+        state: mx.array,
+        obs: mx.array,
+        action: mx.array,
+        weight: mx.array,
+        demo_state: mx.array,
+        demo_obs: mx.array,
+        demo_action: mx.array,
+    ) -> tuple[mx.array, mx.array]:
+        mean, state = mean_action(encoder, state, obs)
+        log_prob = gaussian_log_prob(action, mean, head.log_std)
+        loss = -(weight * log_prob).mean()
+        if imitate:
+            demo_mean, _ = mean_action(encoder, demo_state, demo_obs)
+            loss = loss + bc_weight * ((demo_mean - demo_action) ** 2).sum(-1).mean()
+        return loss, state
 
     gradient_fn = nn.value_and_grad(policy.encoder, loss_fn)
     total = 0.0
+    empty = mx.zeros((1, 1))
     for step in range(len(observations)):
+        demo_state = demo_obs = demo_action = empty
+        if demo is not None and generator is not None:
+            states, demo_observations, demo_actions = demo
+            count = states.shape[1]
+            picks = mx.array(generator.integers(0, count, min(bc_minibatch, count)))
+            demo_state, demo_obs = states[:, picks], demo_observations[picks]
+            demo_action = demo_actions[picks]
         (loss, state), grads = gradient_fn(
             policy.encoder,
             mx.stop_gradient(state),
             mx.array(observations[step]),
             mx.array(actions[step]),
             mx.array(advantages[step]),
+            demo_state,
+            demo_obs,
+            demo_action,
         )
         grads, _ = optim.clip_grad_norm(grads, max_grad_norm)
         optimizer.update(policy.encoder, grads)
@@ -424,7 +482,7 @@ def train_ppo(
     settings: PPOSettings,
     eval_seeds: list[int],
     select_seeds: list[int] | None = None,
-    demonstrations: tuple[mx.array, mx.array] | None = None,
+    demonstrations: tuple[mx.array, mx.array] | DemonstrationSet | None = None,
 ) -> dict[str, Any]:
     """Fine-tune ``policy``'s decoder in place with PPO; returns curves and evaluations.
 
@@ -434,8 +492,12 @@ def train_ppo(
 
     ``demonstrations`` (features, actions) turn on the DAPG term: every gradient step also
     fits the policy mean to a random minibatch of demonstrated actions, weighted by
-    ``settings.bc_weight * settings.bc_decay ** iteration``.
+    ``settings.bc_weight * settings.bc_decay ** iteration``. A DemonstrationSet with a
+    ``refresh`` is replayed through the trained encoder every ``bc_refresh_every`` iterations,
+    and its stored states give the encoder its own DAPG term (encoder_pass).
     """
+    if isinstance(demonstrations, tuple):
+        demonstrations = DemonstrationSet(*demonstrations)
     output.mkdir(parents=True, exist_ok=True)
     mx.random.seed(settings.seed)
     generator = np.random.default_rng(settings.seed)
@@ -557,6 +619,11 @@ def train_ppo(
         }
         train_policy = iteration >= settings.critic_warmup
         encoder_loss = None
+        bc_weight = (
+            getattr(settings, "bc_weight", 0.0) * getattr(settings, "bc_decay", 1.0) ** iteration
+            if demonstrations is not None
+            else 0.0
+        )
         if settings.encoder_lr > 0 and train_policy and isinstance(policy, BrainPolicy):
             encoder_loss = encoder_pass(
                 policy,
@@ -568,13 +635,16 @@ def train_ppo(
                 done_buf,
                 rollout_state,
                 settings.max_grad_norm,
+                demonstrations,
+                bc_weight,
+                getattr(settings, "bc_encoder_minibatch", 128),
+                generator,
             )
+            refresh_every = getattr(settings, "bc_refresh_every", 10)
+            if demonstrations is not None and demonstrations.refresh is not None:
+                if (iteration + 1) % refresh_every == 0:
+                    demonstrations = demonstrations.refresh()
         stats: list[tuple[float, float, float, float]] = []
-        bc_weight = (
-            getattr(settings, "bc_weight", 0.0) * getattr(settings, "bc_decay", 1.0) ** iteration
-            if demonstrations is not None
-            else 0.0
-        )
         for _ in range(settings.epochs):
             order = generator.permutation(samples)
             for start in range(0, samples, settings.minibatch):
@@ -582,10 +652,13 @@ def train_ppo(
                 if bc_weight > 0 and demonstrations is not None:
                     picks = mx.array(
                         generator.integers(
-                            0, demonstrations[0].shape[0], getattr(settings, "bc_minibatch", 1024)
+                            0,
+                            demonstrations.features.shape[0],
+                            getattr(settings, "bc_minibatch", 1024),
                         )
                     )
-                    demo_feats, demo_actions = demonstrations[0][picks], demonstrations[1][picks]
+                    demo_feats = demonstrations.features[picks]
+                    demo_actions = demonstrations.actions[picks]
                 else:
                     demo_feats = demo_actions = mx.zeros((1, 1))
                 (_, (policy_loss, value_loss, ratio, bc_loss)), grads = grad_fn(

@@ -14,13 +14,14 @@ E53). What is specific here:
   validation episodes, all in lockstep; the checkpoint is selected on validation only, by
   success rate with the mean fraction of subgoals done breaking ties;
 - the DAPG demonstrations are the imitation run's own teacher demonstrations (train.npz),
-  replayed once through the frozen encoder and connectome from a zero state, as in imitation.
+  replayed through the encoder and connectome from a zero state, as in imitation: once when
+  the encoder is frozen, and every ``bc_refresh_every`` iterations when PPO trains it.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import mlx.core as mx
 import numpy as np
@@ -32,7 +33,9 @@ from flyarm.manipulation.env import DEFAULT_ASSET_ROOT, BatchedManipulation
 from flyarm.manipulation.imitation import Workbench, load_data, load_manipulation_policy
 from flyarm.manipulation.sim import OBS_DIM, PRIVILEGED_DIM, RewardConfig
 from flyarm.rl.ppo import (
+    BrainRollout,
     Controller,
+    DemonstrationSet,
     MotorHead,
     motor_decoder,
     rollout_for,
@@ -230,13 +233,16 @@ def demonstration_features(
     max_steps: int,
     seed: int,
     batch: int = 32,
-) -> tuple[mx.array, mx.array]:
+    encoder_samples: int = 0,
+) -> DemonstrationSet:
     """Connectome features and teacher actions of the imitation run's demonstrations.
 
     At most ``max_steps`` valid steps are kept, drawn without replacement with the run's
     skill-balanced weights so every skill stays represented; each episode is replayed through
-    the frozen encoder and connectome from a zero state, as in imitation, and only the drawn
-    steps' features are kept. The encoder must stay frozen during PPO for them to stay exact.
+    the encoder and connectome from a zero state, as in imitation, and only the drawn steps'
+    features are kept. With ``encoder_samples`` (a trained encoder), that many of the drawn
+    steps also keep their observation and the connectome state before them, and the set can
+    ``refresh`` itself: the same steps replayed through the encoder as it is then.
     """
     config = base_config(base_run)
     data = load_data(base_run / "train.npz")
@@ -250,19 +256,41 @@ def demonstration_features(
     )
     keep = np.zeros(data["mask"].shape, dtype=bool)
     keep[valid[picked, 0], valid[picked, 1]] = True
+    stored = np.zeros(data["mask"].shape, dtype=bool)
+    if encoder_samples:
+        subset = picked[generator.choice(count, size=min(encoder_samples, count), replace=False)]
+        stored[valid[subset, 0], valid[subset, 1]] = True
     lengths = (data["mask"] > 0).sum(1)
-    features, actions = [], []
-    for start in range(0, len(data["obs"]), batch):
-        rows = slice(start, start + batch)
-        horizon = int(lengths[rows].max())
-        brain = rollout_for(policy, len(data["obs"][rows]))
-        for t in range(horizon):
-            chosen = keep[rows, t]
-            step = np.asarray(brain.features(data["obs"][rows, t]))
-            if chosen.any():
-                features.append(step[chosen])
-                actions.append(data["actions"][rows, t][chosen])
-    return mx.array(np.concatenate(features)), mx.array(np.concatenate(actions))
+
+    def replay() -> DemonstrationSet:
+        features, actions, obs, states, state_actions = [], [], [], [], []
+        for start in range(0, len(data["obs"]), batch):
+            rows = slice(start, start + batch)
+            horizon = int(lengths[rows].max())
+            brain = rollout_for(policy, len(data["obs"][rows]))
+            for t in range(horizon):
+                chosen, kept = keep[rows, t], stored[rows, t]
+                if kept.any():
+                    before = cast(BrainRollout, brain).state
+                    states.append(before[:, mx.array(np.flatnonzero(kept))])
+                    obs.append(data["obs"][rows, t][kept])
+                    state_actions.append(data["actions"][rows, t][kept])
+                step = np.asarray(brain.features(data["obs"][rows, t]))
+                if chosen.any():
+                    features.append(step[chosen])
+                    actions.append(data["actions"][rows, t][chosen])
+        result = DemonstrationSet(
+            mx.array(np.concatenate(features)), mx.array(np.concatenate(actions))
+        )
+        if states:
+            result.states = mx.concatenate(states, axis=1)
+            result.obs = mx.array(np.concatenate(obs))
+            result.state_actions = mx.array(np.concatenate(state_actions))
+            result.refresh = replay
+            mx.eval(result.states)
+        return result
+
+    return replay()
 
 
 def record_banks(
@@ -371,9 +399,19 @@ def run_manipulation_ppo(
     save_json(output / "results.json", results)
     demonstrations = None
     if config.bc_weight > 0:
-        demonstrations = demonstration_features(policy, base_run, config.bc_max_steps, config.seed)
-        results["demonstration_steps"] = int(demonstrations[0].shape[0])
-        print(f"DAPG term on {demonstrations[0].shape[0]} demonstration steps", flush=True)
+        demonstrations = demonstration_features(
+            policy,
+            base_run,
+            config.bc_max_steps,
+            config.seed,
+            batch=128 if config.encoder_lr > 0 else 32,  # replayed again at every refresh
+            encoder_samples=config.bc_encoder_samples if config.encoder_lr > 0 else 0,
+        )
+        steps = int(demonstrations.features.shape[0])
+        stored = 0 if demonstrations.states is None else int(demonstrations.states.shape[1])
+        results["demonstration_steps"] = steps
+        results["demonstration_states"] = stored
+        print(f"DAPG term on {steps} demonstration steps ({stored} with states)", flush=True)
     try:
         run = train_ppo(policy, task, output, config, eval_seeds, None, demonstrations)
     except (Exception, KeyboardInterrupt) as error:

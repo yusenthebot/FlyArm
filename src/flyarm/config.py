@@ -727,8 +727,15 @@ class ManipulationPPOConfig(BaseModel):
     lam: float = Field(default=0.95, ge=0, le=1)
     clip: float = Field(default=0.2, gt=0, le=1)
     decoder_lr: float = Field(default=3e-4, gt=0, le=0.1)
-    # 0 keeps the encoder frozen, which the DAPG term needs (its features are computed once).
+    # 0 keeps the encoder frozen. Above 0 the encoder is trained by REINFORCE through one control
+    # step of the frozen connectome, and the DAPG term covers it too: every bc_refresh_every
+    # iterations the demonstrations are replayed through the current encoder, and
+    # bc_encoder_samples of their steps keep the connectome state before them, so the encoder's
+    # demonstration error is differentiated through the same single step (research log E61).
     encoder_lr: float = Field(default=0.0, ge=0, le=0.1)
+    bc_refresh_every: int = Field(default=10, ge=1, le=10_000)
+    bc_encoder_samples: int = Field(default=1024, ge=32, le=8192)
+    bc_encoder_minibatch: int = Field(default=128, ge=8, le=8192)
     critic_lr: float = Field(default=1e-3, gt=0, le=0.1)
     value_coef: float = Field(default=0.5, ge=0)
     entropy_coef: float = Field(default=0.0, ge=0)
@@ -800,8 +807,8 @@ class ManipulationPPOConfig(BaseModel):
             and sum(stage.iterations for stage in self.curriculum) != self.iterations
         ):
             raise ValueError("the curriculum stages' iterations must add up to iterations")
-        if self.bc_weight > 0 and self.encoder_lr > 0:
-            raise ValueError("bc_weight needs a frozen encoder (encoder_lr 0)")
+        if self.bc_encoder_minibatch > self.bc_encoder_samples:
+            raise ValueError("bc_encoder_minibatch cannot exceed bc_encoder_samples")
         if self.base_kind in ("mlp", "gru") and self.encoder_lr > 0:
             raise ValueError("the controls' PPO tunes only their last linear layer (encoder_lr 0)")
         # flyarm.manipulation.sim.MAX_LEVEL_REWARD: every level term is a penalty, so stalling

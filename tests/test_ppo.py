@@ -227,3 +227,66 @@ def test_encoder_pass_trains_a_nonlinear_encoder_too() -> None:
     after = dict(tree_flatten(policy.encoder.parameters()))
     assert np.isfinite(loss)
     assert all(not np.allclose(np.asarray(after[k]), v) for k, v in before.items())
+
+
+def test_encoder_pass_fits_demonstrations_through_one_frozen_step() -> None:
+    """The encoder's DAPG term alone (zero advantages) lowers the demonstration error."""
+    import mlx.optimizers as optim
+
+    from flyarm.rl.ppo import BrainRollout, DemonstrationSet, MotorHead, encoder_pass
+    from flyarm.whole_brain.backend_mlx import RateDynamics
+    from flyarm.whole_brain.policy import BrainPolicy
+
+    pack = ConnectomePack.from_graph(random_graph(n=40, edges=300))
+    dynamics = RateDynamics(pack, interface_for(pack))
+    policy = BrainPolicy("connectome", dynamics, obs_dim=4, action_dim=2, seed=1, encoder="mlp")
+    rng = np.random.default_rng(0)
+    # Unit-norm readout, as in the manipulation runs, so the outputs' small changes reach the
+    # decoder at unit scale.
+    calibration = rng.standard_normal((8, 12, 4)).astype(np.float32)
+    policy.calibrate_readout(calibration, np.ones((8, 12), np.float32), unit_norm=True)
+    head = MotorHead(policy.decoder, -1.0, 2)
+    obs = rng.standard_normal((16, 4)).astype(np.float32)
+    rollout = BrainRollout(policy, 16)
+    rollout.features(rng.standard_normal((16, 4)).astype(np.float32))  # a non-zero state
+    demo = DemonstrationSet(
+        features=mx.zeros((1, dynamics.output_count)),
+        actions=mx.zeros((1, 2)),
+        obs=mx.array(obs),
+        states=rollout.state,
+        state_actions=mx.zeros((16, 2)),
+    )
+    # A reachable target: what another encoder makes the same decoder do from the same states.
+    teacher = BrainPolicy("connectome", dynamics, obs_dim=4, action_dim=2, seed=7, encoder="mlp")
+    teacher.decoder = policy.decoder
+    teacher.readout_offset, teacher.readout_scale = policy.readout_offset, policy.readout_scale
+    current = teacher.encode(teacher.normalize(demo.obs))
+    _, pooled = dynamics.advance(demo.states, current, teacher.neural_steps)
+    demo.state_actions = head.mean(teacher.motor_features(pooled, demo.obs))
+
+    def error() -> float:
+        current = policy.encode(policy.normalize(demo.obs))
+        _, pooled = dynamics.advance(demo.states, current, policy.neural_steps)
+        mean = head.mean(policy.motor_features(pooled, demo.obs))
+        return float(((mean - demo.state_actions) ** 2).sum(-1).mean())
+
+    before = error()
+    optimizer = optim.Adam(learning_rate=1e-4)
+    steps = 40
+    encoder_pass(
+        policy,
+        head,
+        optimizer,
+        rng.standard_normal((steps, 16, 4)).astype(np.float32),
+        np.zeros((steps, 16, 2), np.float32),
+        np.zeros((steps, 16), np.float32),
+        np.zeros((steps, 16), np.float32),
+        policy.initial_state(16),
+        1.0,
+        demo,
+        1.0,
+        16,
+        rng,
+    )
+    assert error() < 0.5 * before
+    assert pack.fingerprint() == dynamics.pack_fingerprint  # the graph is not a parameter
