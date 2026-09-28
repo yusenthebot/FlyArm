@@ -60,5 +60,39 @@
    0.7337
   ],
   "subgoal_fraction": 0.7905
+ },
+ "t450": {
+  "source": "ppo",
+  "run": "runs/ppo-manipulation-targeted-002",
+  "iteration": 450,
+  "base_run": "runs/skill-dagger-connectome-002",
+  "kind": "connectome",
+  "seed": 0,
+  "checkpoint": "runs/ppo-manipulation-targeted-002/policy-0450.safetensors",
+  "episodes": 112,
+  "successes": 73,
+  "success_rate": 0.6518,
+  "wilson_95": [
+   0.5599,
+   0.7337
+  ],
+  "subgoal_fraction": 0.7967
+ },
+ "t600": {
+  "source": "ppo",
+  "run": "runs/ppo-manipulation-targeted-002",
+  "iteration": 600,
+  "base_run": "runs/skill-dagger-connectome-002",
+  "kind": "connectome",
+  "seed": 0,
+  "checkpoint": "runs/ppo-manipulation-targeted-002/policy-0600.safetensors",
+  "episodes": 112,
+  "successes": 69,
+  "success_rate": 0.6161,
+  "wilson_95": [
+   0.5236,
+   0.7009
+  ],
+  "subgoal_fraction": 0.7915
  }
 }

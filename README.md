@@ -44,7 +44,7 @@ Frozen connectome with a trained nonlinear sensory encoder and a linear readout,
 | unseen composition | 21.9% | 43.8% |
 
 Demo: [one success and one failure per task template, iid split](docs/videos/manipulation-connectome-ppo-iid.mp4) (checkpoint policy-0300; in 4 of 7 templates all four candidate episodes succeeded, so no failure is shown).
-Controls through the same pipeline (imitation only): matched MLP 26.8% iid, matched GRU 66.1% iid; the shuffled connectome is running.
+Controls through the same pipeline (imitation only, one seed): matched MLP 26.8% iid, matched GRU 66.1% iid, degree-preserving shuffle of the connectome 44.6% iid against the measured connectome's 51.8%; further controls wait until the connectome result is final.
 Why earlier attempts failed and what changed: [architecture analysis](docs/ARCHITECTURE_ANALYSIS.md).
 
 ## Earlier results
