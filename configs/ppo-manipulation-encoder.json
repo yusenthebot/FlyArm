@@ -56,7 +56,7 @@
   "bank_episodes_per_template": 20,
   "validation_bank_episodes_per_template": 4,
   "skill_eval_episodes": 4,
-  "bc_refresh_every": 10,
+  "bc_refresh_every": 25,
   "bc_encoder_samples": 1024,
   "bc_encoder_minibatch": 128
 }

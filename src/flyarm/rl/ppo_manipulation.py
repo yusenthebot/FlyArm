@@ -272,7 +272,11 @@ def demonstration_features(
                 chosen, kept = keep[rows, t], stored[rows, t]
                 if kept.any():
                     before = cast(BrainRollout, brain).state
-                    states.append(before[:, mx.array(np.flatnonzero(kept))])
+                    # Evaluated at once: a lazy slice would hold the whole batch's state of that
+                    # step (166,700 x batch) until the end, about 85 MB per stored step.
+                    columns = before[:, mx.array(np.flatnonzero(kept))]
+                    mx.eval(columns)
+                    states.append(columns)
                     obs.append(data["obs"][rows, t][kept])
                     state_actions.append(data["actions"][rows, t][kept])
                 step = np.asarray(brain.features(data["obs"][rows, t]))
@@ -288,6 +292,7 @@ def demonstration_features(
             result.state_actions = mx.array(np.concatenate(state_actions))
             result.refresh = replay
             mx.eval(result.states)
+        mx.clear_cache()  # the replay's per-step states are free now; return them to the system
         return result
 
     return replay()
