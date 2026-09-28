@@ -276,7 +276,7 @@ Result (training L1 after 3,000 Adam steps): front leg (23 proprioceptors and 4,
 Reading: the entry point matters more than the readout width; features that enter through the ascending neurons give the connectome a much better linear readout of the kitchen policy than head sensory neurons do, while widening only the readout makes it worse.
 Test: runs/flyleg-kitchen-v3-body-dev-001 (configs/flyleg-kitchen-v3-body-dev.json: the v3 protocol of E30 with interface whole_body and unit_norm calibration), fly only, seed 0, started 2026-09-22 01:28; its GRU reference is the v3 dev run's GRU on identical data.
 Interim (epoch 25 of 30, validation L1): whole-body fly 0.087, against 0.113 for the front-leg fly and 0.082 for the GRU of the v3 dev run on identical data; training L1 0.075 against 0.097 and 0.060.
-Overnight goal and rules: docs/OVERNIGHT_GOAL.md.
+Overnight goal and rules: docs/archive/OVERNIGHT_GOAL.md.
 Result (complete 03:00, 20 test episodes, clean / 0.1 / 0.2 / 0.3 rad): whole-body fly 0.0 / 6.2 / 7.5 / 7.5 (239,296 trained parameters; best validation L1 0.091), lesions edges off 25.0 (the constant action again opens the microwave in every clean episode), direct only 0, state reset 0.
 Reading: negative closed loop; the whole-body interface fits the demonstrations much better (0.091 against 0.156 for the selected front-leg checkpoint and 0.080 for the GRU) but does not act better, so on the kitchen the imitation loss is not what limits the fly, compounding errors are.
 
