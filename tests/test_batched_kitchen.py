@@ -224,6 +224,7 @@ def test_the_scripted_teacher_completes_the_four_tasks_in_the_batched_env() -> N
     assert report["mean_episode_reward"] > 4 * env.completion_bonus
 
 
+@pytest.mark.skipif(not _dataset_available(), reason="Minari kitchen-complete-v2 not downloaded")
 def test_the_reference_term_raises_the_stalling_floor_and_the_check_fires() -> None:
     """The tracking term joins the per-step budget, so the E34 invariant moves with it."""
     from flyarm.rl.batched_kitchen import TRACKING_SIGMA
@@ -321,6 +322,7 @@ def test_the_reference_is_states_only_and_the_tracker_beats_a_random_policy_on_i
     assert tracked > 0.9 and random < 0.1 and tracked > 10 * random
 
 
+@pytest.mark.skipif(not _dataset_available(), reason="Minari kitchen-complete-v2 not downloaded")
 def test_the_potential_form_leaves_the_stalling_floor_untouched() -> None:
     """Potential-based shaping telescopes, so it adds nothing to a sustained trajectory (E41)."""
     env = BatchedKitchen(1, tracking_weight=0.5, completion_bonus=200.0)
@@ -333,6 +335,7 @@ def test_the_potential_form_leaves_the_stalling_floor_untouched() -> None:
     assert BatchedKitchen(1, tracking_weight=5.0).max_step_reward == pytest.approx(MAX_STEP_REWARD)
 
 
+@pytest.mark.skipif(not _dataset_available(), reason="Minari kitchen-complete-v2 not downloaded")
 def test_the_potential_term_telescopes_over_an_episode_whatever_path_is_taken() -> None:
     """The default form sums undiscounted to phi(s_T) - phi(s_0), so only the endpoints matter."""
     length = 40
@@ -347,6 +350,7 @@ def test_the_potential_term_telescopes_over_an_episode_whatever_path_is_taken() 
         assert paid == pytest.approx(float(env.potential()[0]) - start, abs=1e-9)
 
 
+@pytest.mark.skipif(not _dataset_available(), reason="Minari kitchen-complete-v2 not downloaded")
 def test_the_discounted_potential_form_telescopes_only_under_the_discount() -> None:
     """Kept for the record: its undiscounted residual is what made it the wrong choice (E41)."""
     gamma, length = 0.99, 40
@@ -373,6 +377,7 @@ def test_the_discounted_potential_form_telescopes_only_under_the_discount() -> N
     assert plain > end - start
 
 
+@pytest.mark.skipif(not _dataset_available(), reason="Minari kitchen-complete-v2 not downloaded")
 def test_standing_still_pays_zero_and_closing_the_distance_pays_the_metres_closed() -> None:
     env = BatchedKitchen(3, tracking_weight=1.0, approach_slope=1.0)
     env.reset(seeds=np.array([0, 1, 2]))
@@ -652,6 +657,7 @@ def test_a_stricter_completion_threshold_withholds_the_bonus_until_close() -> No
         BatchedKitchen(1, completion_threshold=0.1)
 
 
+@pytest.mark.skipif(not _dataset_available(), reason="Minari kitchen-complete-v2 not downloaded")
 def test_demonstration_resets_load_demo_states_and_their_finished_tasks() -> None:
     from flyarm.rl.batched_kitchen import KitchenVariant, demonstration_states
 
