@@ -6,7 +6,10 @@ A frozen, complete fruit-fly central nervous system (MaleCNS v1.0: 166,700 neuro
 Only a linear map into sensory neurons and a linear map out of motor neurons are trained.
 It runs in real time on a Mac (MLX, 4 ms per control step).
 
-**Video: [the frozen fly connectome controls the arm through drawers, a lidded cabinet, shelves, a bin and stacking](docs/videos/fly-brain-highlights.mp4)** (one successful test episode of each of the seven task templates, 2 minutes).
+**Videos: the frozen fly connectome controls the arm**
+- [Drawers, a lidded cabinet, shelves, a bin and stacking](docs/videos/fly-brain-highlights.mp4): one successful test episode of each of the seven task templates (2 minutes).
+- [Objects never seen in training](docs/videos/fly-brain-unseen-objects.mp4): the same seven templates with held-out scanned objects (2 minutes).
+- [Task orders never seen in training, 5 to 8 subgoals](docs/videos/fly-brain-unseen-composition.mp4): three of the four held-out compositions, including the 8-subgoal full cleanup (82 seconds).
 
 ![Kitchen live view: the complete CNS, the Franka as the fly's left front leg, and the motor plan decoded from its motor neurons](docs/images/ui-kitchen.png)
 
@@ -45,7 +48,7 @@ Frozen connectome with a trained nonlinear sensory encoder and a linear readout,
 | unseen furniture | 28.6% | 39.3% |
 | unseen composition | 21.9% | 43.8% |
 
-Highlights: [one successful test episode per task template](docs/videos/fly-brain-highlights.mp4) (checkpoint policy-0300).
+Highlights: [one successful test episode per task template](docs/videos/fly-brain-highlights.mp4) (checkpoint policy-0300), [unseen objects](docs/videos/fly-brain-unseen-objects.mp4) and [unseen task orders](docs/videos/fly-brain-unseen-composition.mp4) (PPO with the encoder trained too, iteration 150 of runs/ppo-manipulation-encoder-002; research log E61).
 Demo: [one success and one failure per task template, iid split](docs/videos/manipulation-connectome-ppo-iid.mp4) (checkpoint policy-0300; in 4 of 7 templates all four candidate episodes succeeded, so no failure is shown).
 Controls through the same pipeline (imitation only, one seed): matched MLP 26.8% iid, matched GRU 66.1% iid, degree-preserving shuffle of the connectome 44.6% iid against the measured connectome's 51.8%; further controls wait until the connectome result is final.
 Why earlier attempts failed and what changed: [architecture analysis](docs/ARCHITECTURE_ANALYSIS.md).
