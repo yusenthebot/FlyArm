@@ -1,0 +1,830 @@
+{
+ "protocol": {
+  "episodes_per_template": 32,
+  "seed_offset": 500,
+  "splits": [
+   "iid_test",
+   "unseen_objects",
+   "unseen_furniture",
+   "unseen_composition"
+  ],
+  "interval": "Wilson score, 95%",
+  "note": "seeds disjoint from every selection episode; deterministic policies"
+ },
+ "policies": {
+  "ppo-encoder": {
+   "source": "ppo",
+   "run": "runs/ppo-manipulation-encoder-003",
+   "iteration": 150,
+   "base_run": "runs/skill-dagger-connectome-002",
+   "kind": "connectome",
+   "seed": 0,
+   "checkpoint": "runs/ppo-manipulation-encoder-003/policy-0150.safetensors",
+   "trainable_parameters": 627385,
+   "observation": {
+    "cue": true,
+    "phase_cue": true,
+    "velocities": false
+   },
+   "splits": {
+    "iid_test": {
+     "episodes": 224,
+     "successes": 156,
+     "success_rate": 0.6964,
+     "wilson_95": [
+      0.6333,
+      0.7529
+     ],
+     "subgoal_fraction": 0.7890093537414966,
+     "mean_subgoals": 3.2455357142857144,
+     "mean_steps_to_success": 926.9487179487179,
+     "stray_contact_fraction": 0.02837840801062877,
+     "mean_abs_action": 0.41239962129356156,
+     "saturated_fraction": 0.30493088920547357,
+     "mean_abs_action_change": 0.0324953115461651,
+     "disturbance": 0.001223450530512328,
+     "per_template": {
+      "put_away": {
+       "episodes": 32,
+       "success_rate": 1.0,
+       "subgoal_fraction": 1.0,
+       "mean_subgoals": 3.0,
+       "subgoals": 3
+      },
+      "retrieve": {
+       "episodes": 32,
+       "success_rate": 0.75,
+       "subgoal_fraction": 0.859375,
+       "mean_subgoals": 3.4375,
+       "subgoals": 4
+      },
+      "shelve": {
+       "episodes": 32,
+       "success_rate": 0.75,
+       "subgoal_fraction": 0.859375,
+       "mean_subgoals": 3.4375,
+       "subgoals": 4
+      },
+      "tower": {
+       "episodes": 32,
+       "success_rate": 0.65625,
+       "subgoal_fraction": 0.65625,
+       "mean_subgoals": 1.96875,
+       "subgoals": 3
+      },
+      "sort": {
+       "episodes": 32,
+       "success_rate": 0.75,
+       "subgoal_fraction": 0.8125,
+       "mean_subgoals": 2.4375,
+       "subgoals": 3
+      },
+      "tidy": {
+       "episodes": 32,
+       "success_rate": 0.8125,
+       "subgoal_fraction": 0.9114583333333333,
+       "mean_subgoals": 5.46875,
+       "subgoals": 6
+      },
+      "unpack": {
+       "episodes": 32,
+       "success_rate": 0.15625,
+       "subgoal_fraction": 0.42410714285714285,
+       "mean_subgoals": 2.96875,
+       "subgoals": 7
+      }
+     },
+     "seconds": 533.0
+    },
+    "unseen_objects": {
+     "episodes": 224,
+     "successes": 168,
+     "success_rate": 0.75,
+     "wilson_95": [
+      0.6894,
+      0.8022
+     ],
+     "subgoal_fraction": 0.8365221088435375,
+     "mean_subgoals": 3.482142857142857,
+     "mean_steps_to_success": 956.1190476190476,
+     "stray_contact_fraction": 0.026511651451427636,
+     "mean_abs_action": 0.4162394285245857,
+     "saturated_fraction": 0.30757661927839247,
+     "mean_abs_action_change": 0.031457936628086006,
+     "disturbance": 0.0012198919944808803,
+     "per_template": {
+      "put_away": {
+       "episodes": 32,
+       "success_rate": 0.96875,
+       "subgoal_fraction": 0.9791666666666666,
+       "mean_subgoals": 2.9375,
+       "subgoals": 3
+      },
+      "retrieve": {
+       "episodes": 32,
+       "success_rate": 0.6875,
+       "subgoal_fraction": 0.8671875,
+       "mean_subgoals": 3.46875,
+       "subgoals": 4
+      },
+      "shelve": {
+       "episodes": 32,
+       "success_rate": 0.84375,
+       "subgoal_fraction": 0.8984375,
+       "mean_subgoals": 3.59375,
+       "subgoals": 4
+      },
+      "tower": {
+       "episodes": 32,
+       "success_rate": 0.78125,
+       "subgoal_fraction": 0.78125,
+       "mean_subgoals": 2.34375,
+       "subgoals": 3
+      },
+      "sort": {
+       "episodes": 32,
+       "success_rate": 0.78125,
+       "subgoal_fraction": 0.84375,
+       "mean_subgoals": 2.53125,
+       "subgoals": 3
+      },
+      "tidy": {
+       "episodes": 32,
+       "success_rate": 0.78125,
+       "subgoal_fraction": 0.9010416666666666,
+       "mean_subgoals": 5.40625,
+       "subgoals": 6
+      },
+      "unpack": {
+       "episodes": 32,
+       "success_rate": 0.40625,
+       "subgoal_fraction": 0.5848214285714285,
+       "mean_subgoals": 4.09375,
+       "subgoals": 7
+      }
+     },
+     "seconds": 445.2
+    },
+    "unseen_furniture": {
+     "episodes": 224,
+     "successes": 82,
+     "success_rate": 0.3661,
+     "wilson_95": [
+      0.3057,
+      0.4309
+     ],
+     "subgoal_fraction": 0.6066645408163265,
+     "mean_subgoals": 2.4285714285714284,
+     "mean_steps_to_success": 746.6951219512196,
+     "stray_contact_fraction": 0.030348613192910334,
+     "mean_abs_action": 0.39520590392441945,
+     "saturated_fraction": 0.2591099697640879,
+     "mean_abs_action_change": 0.04486412030978386,
+     "disturbance": 0.0011243925347699162,
+     "per_template": {
+      "put_away": {
+       "episodes": 32,
+       "success_rate": 0.9375,
+       "subgoal_fraction": 0.96875,
+       "mean_subgoals": 2.90625,
+       "subgoals": 3
+      },
+      "retrieve": {
+       "episodes": 32,
+       "success_rate": 0.53125,
+       "subgoal_fraction": 0.8125,
+       "mean_subgoals": 3.25,
+       "subgoals": 4
+      },
+      "shelve": {
+       "episodes": 32,
+       "success_rate": 0.0,
+       "subgoal_fraction": 0.2734375,
+       "mean_subgoals": 1.09375,
+       "subgoals": 4
+      },
+      "tower": {
+       "episodes": 32,
+       "success_rate": 0.4375,
+       "subgoal_fraction": 0.5833333333333333,
+       "mean_subgoals": 1.75,
+       "subgoals": 3
+      },
+      "sort": {
+       "episodes": 32,
+       "success_rate": 0.59375,
+       "subgoal_fraction": 0.6979166666666666,
+       "mean_subgoals": 2.09375,
+       "subgoals": 3
+      },
+      "tidy": {
+       "episodes": 32,
+       "success_rate": 0.0,
+       "subgoal_fraction": 0.46875,
+       "mean_subgoals": 2.8125,
+       "subgoals": 6
+      },
+      "unpack": {
+       "episodes": 32,
+       "success_rate": 0.0625,
+       "subgoal_fraction": 0.4419642857142857,
+       "mean_subgoals": 3.09375,
+       "subgoals": 7
+      }
+     },
+     "seconds": 409.5
+    },
+    "unseen_composition": {
+     "episodes": 128,
+     "successes": 34,
+     "success_rate": 0.2656,
+     "wilson_95": [
+      0.1968,
+      0.3482
+     ],
+     "subgoal_fraction": 0.5391276041666666,
+     "mean_subgoals": 3.34375,
+     "mean_steps_to_success": 1319.264705882353,
+     "stray_contact_fraction": 0.11123233015820719,
+     "mean_abs_action": 0.44823214368137054,
+     "saturated_fraction": 0.2674472302656441,
+     "mean_abs_action_change": 0.09768265443457179,
+     "disturbance": 0.0007341871870173828,
+     "per_template": {
+      "shelve_then_put_away": {
+       "episodes": 32,
+       "success_rate": 0.25,
+       "subgoal_fraction": 0.5625,
+       "mean_subgoals": 3.375,
+       "subgoals": 6
+      },
+      "retrieve_to_shelf": {
+       "episodes": 32,
+       "success_rate": 0.0,
+       "subgoal_fraction": 0.16666666666666666,
+       "mean_subgoals": 1.0,
+       "subgoals": 6
+      },
+      "tower_then_put_away": {
+       "episodes": 32,
+       "success_rate": 0.6875,
+       "subgoal_fraction": 0.80625,
+       "mean_subgoals": 4.03125,
+       "subgoals": 5
+      },
+      "full_cleanup": {
+       "episodes": 32,
+       "success_rate": 0.125,
+       "subgoal_fraction": 0.62109375,
+       "mean_subgoals": 4.96875,
+       "subgoals": 8
+      }
+     },
+     "seconds": 245.3
+    }
+   }
+  },
+  "ppo-decoder": {
+   "source": "ppo",
+   "run": "runs/ppo-manipulation-skill-dagger-002",
+   "iteration": 300,
+   "base_run": "runs/skill-dagger-connectome-002",
+   "kind": "connectome",
+   "seed": 0,
+   "checkpoint": "runs/ppo-manipulation-skill-dagger-002/policy-0300.safetensors",
+   "trainable_parameters": 627385,
+   "observation": {
+    "cue": true,
+    "phase_cue": true,
+    "velocities": false
+   },
+   "splits": {
+    "iid_test": {
+     "episodes": 224,
+     "successes": 126,
+     "success_rate": 0.5625,
+     "wilson_95": [
+      0.497,
+      0.6259
+     ],
+     "subgoal_fraction": 0.73171768707483,
+     "mean_subgoals": 3.0089285714285716,
+     "mean_steps_to_success": 866.436507936508,
+     "stray_contact_fraction": 0.038613803501936585,
+     "mean_abs_action": 0.4101524638772692,
+     "saturated_fraction": 0.29932186299198266,
+     "mean_abs_action_change": 0.038515536263852686,
+     "disturbance": 0.001161664868747922,
+     "per_template": {
+      "put_away": {
+       "episodes": 32,
+       "success_rate": 0.96875,
+       "subgoal_fraction": 0.9791666666666667,
+       "mean_subgoals": 2.9375,
+       "subgoals": 3
+      },
+      "retrieve": {
+       "episodes": 32,
+       "success_rate": 0.65625,
+       "subgoal_fraction": 0.8125,
+       "mean_subgoals": 3.25,
+       "subgoals": 4
+      },
+      "shelve": {
+       "episodes": 32,
+       "success_rate": 0.375,
+       "subgoal_fraction": 0.5625,
+       "mean_subgoals": 2.25,
+       "subgoals": 4
+      },
+      "tower": {
+       "episodes": 32,
+       "success_rate": 0.6875,
+       "subgoal_fraction": 0.6875,
+       "mean_subgoals": 2.0625,
+       "subgoals": 3
+      },
+      "sort": {
+       "episodes": 32,
+       "success_rate": 0.6875,
+       "subgoal_fraction": 0.8020833333333333,
+       "mean_subgoals": 2.40625,
+       "subgoals": 3
+      },
+      "tidy": {
+       "episodes": 32,
+       "success_rate": 0.46875,
+       "subgoal_fraction": 0.7916666666666666,
+       "mean_subgoals": 4.75,
+       "subgoals": 6
+      },
+      "unpack": {
+       "episodes": 32,
+       "success_rate": 0.09375,
+       "subgoal_fraction": 0.4866071428571428,
+       "mean_subgoals": 3.40625,
+       "subgoals": 7
+      }
+     },
+     "seconds": 315.1
+    },
+    "unseen_objects": {
+     "episodes": 224,
+     "successes": 119,
+     "success_rate": 0.5312,
+     "wilson_95": [
+      0.4659,
+      0.5955
+     ],
+     "subgoal_fraction": 0.7186437074829932,
+     "mean_subgoals": 2.9598214285714284,
+     "mean_steps_to_success": 879.7142857142857,
+     "stray_contact_fraction": 0.03334959878958793,
+     "mean_abs_action": 0.4004788651433603,
+     "saturated_fraction": 0.2902127689903683,
+     "mean_abs_action_change": 0.03928149314107127,
+     "disturbance": 0.0012625601604564945,
+     "per_template": {
+      "put_away": {
+       "episodes": 32,
+       "success_rate": 0.9375,
+       "subgoal_fraction": 0.9583333333333333,
+       "mean_subgoals": 2.875,
+       "subgoals": 3
+      },
+      "retrieve": {
+       "episodes": 32,
+       "success_rate": 0.625,
+       "subgoal_fraction": 0.8203125,
+       "mean_subgoals": 3.28125,
+       "subgoals": 4
+      },
+      "shelve": {
+       "episodes": 32,
+       "success_rate": 0.5625,
+       "subgoal_fraction": 0.6953125,
+       "mean_subgoals": 2.78125,
+       "subgoals": 4
+      },
+      "tower": {
+       "episodes": 32,
+       "success_rate": 0.46875,
+       "subgoal_fraction": 0.53125,
+       "mean_subgoals": 1.59375,
+       "subgoals": 3
+      },
+      "sort": {
+       "episodes": 32,
+       "success_rate": 0.65625,
+       "subgoal_fraction": 0.8125,
+       "mean_subgoals": 2.4375,
+       "subgoals": 3
+      },
+      "tidy": {
+       "episodes": 32,
+       "success_rate": 0.3125,
+       "subgoal_fraction": 0.7395833333333333,
+       "mean_subgoals": 4.4375,
+       "subgoals": 6
+      },
+      "unpack": {
+       "episodes": 32,
+       "success_rate": 0.15625,
+       "subgoal_fraction": 0.4732142857142857,
+       "mean_subgoals": 3.3125,
+       "subgoals": 7
+      }
+     },
+     "seconds": 525.2
+    },
+    "unseen_furniture": {
+     "episodes": 224,
+     "successes": 72,
+     "success_rate": 0.3214,
+     "wilson_95": [
+      0.2637,
+      0.3852
+     ],
+     "subgoal_fraction": 0.5530399659863946,
+     "mean_subgoals": 2.2455357142857144,
+     "mean_steps_to_success": 745.9166666666666,
+     "stray_contact_fraction": 0.03373957972984135,
+     "mean_abs_action": 0.39001565356112483,
+     "saturated_fraction": 0.25933203306810243,
+     "mean_abs_action_change": 0.05186211100409271,
+     "disturbance": 0.00112440159898624,
+     "per_template": {
+      "put_away": {
+       "episodes": 32,
+       "success_rate": 0.96875,
+       "subgoal_fraction": 0.9791666666666667,
+       "mean_subgoals": 2.9375,
+       "subgoals": 3
+      },
+      "retrieve": {
+       "episodes": 32,
+       "success_rate": 0.46875,
+       "subgoal_fraction": 0.7890625,
+       "mean_subgoals": 3.15625,
+       "subgoals": 4
+      },
+      "shelve": {
+       "episodes": 32,
+       "success_rate": 0.03125,
+       "subgoal_fraction": 0.2734375,
+       "mean_subgoals": 1.09375,
+       "subgoals": 4
+      },
+      "tower": {
+       "episodes": 32,
+       "success_rate": 0.3125,
+       "subgoal_fraction": 0.41666666666666663,
+       "mean_subgoals": 1.25,
+       "subgoals": 3
+      },
+      "sort": {
+       "episodes": 32,
+       "success_rate": 0.375,
+       "subgoal_fraction": 0.5416666666666666,
+       "mean_subgoals": 1.625,
+       "subgoals": 3
+      },
+      "tidy": {
+       "episodes": 32,
+       "success_rate": 0.03125,
+       "subgoal_fraction": 0.4427083333333333,
+       "mean_subgoals": 2.65625,
+       "subgoals": 6
+      },
+      "unpack": {
+       "episodes": 32,
+       "success_rate": 0.0625,
+       "subgoal_fraction": 0.4285714285714285,
+       "mean_subgoals": 3.0,
+       "subgoals": 7
+      }
+     },
+     "seconds": 673.8
+    },
+    "unseen_composition": {
+     "episodes": 128,
+     "successes": 32,
+     "success_rate": 0.25,
+     "wilson_95": [
+      0.183,
+      0.3316
+     ],
+     "subgoal_fraction": 0.4668619791666666,
+     "mean_subgoals": 2.875,
+     "mean_steps_to_success": 1318.9375,
+     "stray_contact_fraction": 0.09268633326125933,
+     "mean_abs_action": 0.43802229248417013,
+     "saturated_fraction": 0.2655016619179395,
+     "mean_abs_action_change": 0.10190760745311964,
+     "disturbance": 0.000734188785076215,
+     "per_template": {
+      "shelve_then_put_away": {
+       "episodes": 32,
+       "success_rate": 0.28125,
+       "subgoal_fraction": 0.53125,
+       "mean_subgoals": 3.1875,
+       "subgoals": 6
+      },
+      "retrieve_to_shelf": {
+       "episodes": 32,
+       "success_rate": 0.0,
+       "subgoal_fraction": 0.16666666666666666,
+       "mean_subgoals": 1.0,
+       "subgoals": 6
+      },
+      "tower_then_put_away": {
+       "episodes": 32,
+       "success_rate": 0.625,
+       "subgoal_fraction": 0.6812499999999999,
+       "mean_subgoals": 3.40625,
+       "subgoals": 5
+      },
+      "full_cleanup": {
+       "episodes": 32,
+       "success_rate": 0.09375,
+       "subgoal_fraction": 0.48828125,
+       "mean_subgoals": 3.90625,
+       "subgoals": 8
+      }
+     },
+     "seconds": 469.5
+    }
+   }
+  },
+  "imitation": {
+   "source": "imitation",
+   "run": "runs/skill-dagger-connectome-002",
+   "kind": "connectome",
+   "seed": 0,
+   "checkpoint": "runs/skill-dagger-connectome-002/connectome-0/policy.safetensors",
+   "trainable_parameters": 627385,
+   "observation": {
+    "cue": true,
+    "phase_cue": true,
+    "velocities": false
+   },
+   "splits": {
+    "iid_test": {
+     "episodes": 224,
+     "successes": 115,
+     "success_rate": 0.5134,
+     "wilson_95": [
+      0.4483,
+      0.5781
+     ],
+     "subgoal_fraction": 0.6866496598639457,
+     "mean_subgoals": 2.8035714285714284,
+     "mean_steps_to_success": 827.895652173913,
+     "stray_contact_fraction": 0.028530165759052095,
+     "mean_abs_action": 0.3982824414302901,
+     "saturated_fraction": 0.29868150049030584,
+     "mean_abs_action_change": 0.03853013953181393,
+     "disturbance": 0.0011611746073110336,
+     "per_template": {
+      "put_away": {
+       "episodes": 32,
+       "success_rate": 0.96875,
+       "subgoal_fraction": 0.9791666666666667,
+       "mean_subgoals": 2.9375,
+       "subgoals": 3
+      },
+      "retrieve": {
+       "episodes": 32,
+       "success_rate": 0.78125,
+       "subgoal_fraction": 0.890625,
+       "mean_subgoals": 3.5625,
+       "subgoals": 4
+      },
+      "shelve": {
+       "episodes": 32,
+       "success_rate": 0.25,
+       "subgoal_fraction": 0.421875,
+       "mean_subgoals": 1.6875,
+       "subgoals": 4
+      },
+      "tower": {
+       "episodes": 32,
+       "success_rate": 0.65625,
+       "subgoal_fraction": 0.65625,
+       "mean_subgoals": 1.96875,
+       "subgoals": 3
+      },
+      "sort": {
+       "episodes": 32,
+       "success_rate": 0.59375,
+       "subgoal_fraction": 0.6979166666666667,
+       "mean_subgoals": 2.09375,
+       "subgoals": 3
+      },
+      "tidy": {
+       "episodes": 32,
+       "success_rate": 0.3125,
+       "subgoal_fraction": 0.75,
+       "mean_subgoals": 4.5,
+       "subgoals": 6
+      },
+      "unpack": {
+       "episodes": 32,
+       "success_rate": 0.03125,
+       "subgoal_fraction": 0.4107142857142857,
+       "mean_subgoals": 2.875,
+       "subgoals": 7
+      }
+     },
+     "seconds": 732.9
+    },
+    "unseen_objects": {
+     "episodes": 224,
+     "successes": 111,
+     "success_rate": 0.4955,
+     "wilson_95": [
+      0.4307,
+      0.5605
+     ],
+     "subgoal_fraction": 0.6927083333333334,
+     "mean_subgoals": 2.8794642857142856,
+     "mean_steps_to_success": 902.1621621621622,
+     "stray_contact_fraction": 0.03009405886423236,
+     "mean_abs_action": 0.385223064420254,
+     "saturated_fraction": 0.28646121413942616,
+     "mean_abs_action_change": 0.03763333368423256,
+     "disturbance": 0.0012108025893663524,
+     "per_template": {
+      "put_away": {
+       "episodes": 32,
+       "success_rate": 0.875,
+       "subgoal_fraction": 0.9479166666666666,
+       "mean_subgoals": 2.84375,
+       "subgoals": 3
+      },
+      "retrieve": {
+       "episodes": 32,
+       "success_rate": 0.5625,
+       "subgoal_fraction": 0.7890625,
+       "mean_subgoals": 3.15625,
+       "subgoals": 4
+      },
+      "shelve": {
+       "episodes": 32,
+       "success_rate": 0.40625,
+       "subgoal_fraction": 0.5546875,
+       "mean_subgoals": 2.21875,
+       "subgoals": 4
+      },
+      "tower": {
+       "episodes": 32,
+       "success_rate": 0.46875,
+       "subgoal_fraction": 0.53125,
+       "mean_subgoals": 1.59375,
+       "subgoals": 3
+      },
+      "sort": {
+       "episodes": 32,
+       "success_rate": 0.71875,
+       "subgoal_fraction": 0.78125,
+       "mean_subgoals": 2.34375,
+       "subgoals": 3
+      },
+      "tidy": {
+       "episodes": 32,
+       "success_rate": 0.28125,
+       "subgoal_fraction": 0.7135416666666666,
+       "mean_subgoals": 4.28125,
+       "subgoals": 6
+      },
+      "unpack": {
+       "episodes": 32,
+       "success_rate": 0.15625,
+       "subgoal_fraction": 0.53125,
+       "mean_subgoals": 3.71875,
+       "subgoals": 7
+      }
+     },
+     "seconds": 385.7
+    },
+    "unseen_furniture": {
+     "episodes": 224,
+     "successes": 61,
+     "success_rate": 0.2723,
+     "wilson_95": [
+      0.2182,
+      0.3341
+     ],
+     "subgoal_fraction": 0.4990965136054421,
+     "mean_subgoals": 2.0,
+     "mean_steps_to_success": 761.8196721311475,
+     "stray_contact_fraction": 0.019917579559411307,
+     "mean_abs_action": 0.372772457214702,
+     "saturated_fraction": 0.2544257529949183,
+     "mean_abs_action_change": 0.05018315078444237,
+     "disturbance": 0.0011410763410429489,
+     "per_template": {
+      "put_away": {
+       "episodes": 32,
+       "success_rate": 0.875,
+       "subgoal_fraction": 0.9166666666666666,
+       "mean_subgoals": 2.75,
+       "subgoals": 3
+      },
+      "retrieve": {
+       "episodes": 32,
+       "success_rate": 0.40625,
+       "subgoal_fraction": 0.7109375,
+       "mean_subgoals": 2.84375,
+       "subgoals": 4
+      },
+      "shelve": {
+       "episodes": 32,
+       "success_rate": 0.09375,
+       "subgoal_fraction": 0.34375,
+       "mean_subgoals": 1.375,
+       "subgoals": 4
+      },
+      "tower": {
+       "episodes": 32,
+       "success_rate": 0.25,
+       "subgoal_fraction": 0.34375,
+       "mean_subgoals": 1.03125,
+       "subgoals": 3
+      },
+      "sort": {
+       "episodes": 32,
+       "success_rate": 0.25,
+       "subgoal_fraction": 0.46875,
+       "mean_subgoals": 1.40625,
+       "subgoals": 3
+      },
+      "tidy": {
+       "episodes": 32,
+       "success_rate": 0.03125,
+       "subgoal_fraction": 0.375,
+       "mean_subgoals": 2.25,
+       "subgoals": 6
+      },
+      "unpack": {
+       "episodes": 32,
+       "success_rate": 0.0,
+       "subgoal_fraction": 0.33482142857142855,
+       "mean_subgoals": 2.34375,
+       "subgoals": 7
+      }
+     },
+     "seconds": 290.7
+    },
+    "unseen_composition": {
+     "episodes": 128,
+     "successes": 24,
+     "success_rate": 0.1875,
+     "wilson_95": [
+      0.1294,
+      0.2638
+     ],
+     "subgoal_fraction": 0.39654947916666666,
+     "mean_subgoals": 2.4296875,
+     "mean_steps_to_success": 1255.25,
+     "stray_contact_fraction": 0.08831086620960815,
+     "mean_abs_action": 0.4249911467223383,
+     "saturated_fraction": 0.27059334314347006,
+     "mean_abs_action_change": 0.10574984116275567,
+     "disturbance": 0.0007341893600139095,
+     "per_template": {
+      "shelve_then_put_away": {
+       "episodes": 32,
+       "success_rate": 0.21875,
+       "subgoal_fraction": 0.4375,
+       "mean_subgoals": 2.625,
+       "subgoals": 6
+      },
+      "retrieve_to_shelf": {
+       "episodes": 32,
+       "success_rate": 0.0,
+       "subgoal_fraction": 0.16666666666666666,
+       "mean_subgoals": 1.0,
+       "subgoals": 6
+      },
+      "tower_then_put_away": {
+       "episodes": 32,
+       "success_rate": 0.53125,
+       "subgoal_fraction": 0.5875,
+       "mean_subgoals": 2.9375,
+       "subgoals": 5
+      },
+      "full_cleanup": {
+       "episodes": 32,
+       "success_rate": 0.0,
+       "subgoal_fraction": 0.39453125,
+       "mean_subgoals": 3.15625,
+       "subgoals": 8
+      }
+     },
+     "seconds": 192.8
+    }
+   }
+  }
+ }
+}

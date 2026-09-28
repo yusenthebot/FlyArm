@@ -1,13 +1,13 @@
 {
  "source": "ppo",
- "run": "runs/ppo-manipulation-skill-dagger-002",
- "iteration": 300,
+ "run": "runs/ppo-manipulation-encoder-003",
+ "iteration": 150,
  "base_run": "runs/skill-dagger-connectome-002",
  "kind": "connectome",
  "seed": 0,
- "checkpoint": "runs/ppo-manipulation-skill-dagger-002/policy-0300.safetensors",
+ "checkpoint": "runs/ppo-manipulation-encoder-003/policy-0150.safetensors",
  "split": "iid_test",
- "candidates": 4,
+ "candidates": 6,
  "episodes": {
   "put_away": {
    "success": 3000500,
@@ -18,8 +18,8 @@
    "failure": null
   },
   "shelve": {
-   "success": 3002501,
-   "failure": 3002500
+   "success": 3002500,
+   "failure": null
   },
   "tower": {
    "success": 3003500,
@@ -34,8 +34,9 @@
    "failure": null
   },
   "unpack": {
-   "success": 3006503,
+   "success": 3006508,
    "failure": 3006500
   }
- }
+ },
+ "note": "unpack rendered separately with 16 candidates (success on seed 3006508) and appended"
 }

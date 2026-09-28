@@ -17,3 +17,7 @@ ui/dist/
 .playwright-cli/
 *.tsbuildinfo
 .DS_Store
+
+# Duplicate copies made by file sync in ~/Documents ("name 2.ext")
+* 2
+* 2.*

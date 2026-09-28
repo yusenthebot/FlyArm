@@ -1,6 +1,24 @@
 [
  {
   "root": "main",
+  "path": "manipulation/final-iid.mp4",
+  "title": "Manipulation: the fly connectome solves every task template",
+  "note": "Frozen complete MaleCNS; trained sensory encoder and linear decoder; skill-level DAgger, then PPO with DAPG that also trains the encoder (clipped). One successful iid test episode per template (unpack in final-iid-unpack.mp4)."
+ },
+ {
+  "root": "main",
+  "path": "manipulation/final-unseen-objects.mp4",
+  "title": "Manipulation: objects never seen in training",
+  "note": "Same checkpoint (runs/ppo-manipulation-encoder-003, iteration 150), unseen-objects split, one successful episode per template."
+ },
+ {
+  "root": "main",
+  "path": "manipulation/final-unseen-composition.mp4",
+  "title": "Manipulation: task orders never seen in training",
+  "note": "Same checkpoint, unseen-composition split (5 to 8 subgoals); retrieve_to_shelf had no success in 10 episodes."
+ },
+ {
+  "root": "main",
   "path": "ppo-kitchen-dapg-ordered-potential-continue-001/videos/four-tasks-perturbed-0.3rad-grid.mp4",
   "title": "Kitchen: the fly connectome completes all four tasks in every episode",
   "note": "Frozen complete MaleCNS with trained linear input and output maps; imitation, then PPO with a demonstration term (DAPG), a bonus paid in the demonstrations' order and potential-based task shaping. Official FrankaKitchen environment, 50 test episodes per condition: 100.0 from the benchmark start, from 0.2 rad and from 0.3 rad perturbed starts (all four tasks in 50 of 50 each). Shown: four episodes from 0.3 rad starts, never trained on."
@@ -10,77 +28,5 @@
   "path": "ppo-kitchen-quality-demoreset-001/videos/before-after-quality.mp4",
   "title": "Kitchen motion quality: before and after",
   "note": "Same 0.2 rad perturbed start, official environment. Left: the four-task controller of E49. Right: after PPO with depth, disturbance, collision, action and smoothness terms, half of each bonus held for the strict 0.1 threshold, and demonstration resets (E50 to E53). Saturated commands 46% to 2%; microwave 0.09 to 0.00, slide cabinet 0.23 to 0.07; the kettle stays at 0.23."
- },
- {
-  "root": "main",
-  "path": "ppo-kitchen-dapg-ordered-potential-001/videos/iteration1000-perturbed-episode0-four-tasks.mp4",
-  "title": "Kitchen: the fly connectome completes all four tasks",
-  "note": "Frozen complete MaleCNS with trained linear input and output maps; imitation, then PPO with a demonstration term (DAPG), a completion bonus paid in the demonstrations' order and potential-based task shaping. Official FrankaKitchen environment, 0.2 rad perturbed start never trained on: 92.5 over 20 test episodes, all four tasks in 17 of 20."
- },
- {
-  "root": "main",
-  "path": "ppo-pick-place-hard-push2-s3-001/videos/heavier_6_10x-before-after.mp4",
-  "title": "Harder physics: cubes 6 to 10x heavier, before and after PPO",
-  "note": "Frozen complete MaleCNS, PPO on the linear output map with randomized mass and friction and the corrected success bonus. On the 24 held-out test episodes of this variant the validation-selected checkpoint places 17 (from 1 before PPO) and lifts all 24; nominal goes 19 to 24 of 24 and goals within 18 cm 12 to 19. Three episodes shown: before, all three end holding the cube; after, two placed."
- },
- {
-  "root": "main",
-  "path": "ppo-pick-place-push2-s3-bonus-001/videos/nominal-before-after.mp4",
-  "title": "Fly brain pick-and-place above 90% after PPO",
-  "note": "Frozen complete MaleCNS, three test episodes the imitation controller failed. Left: imitation only (384 demonstrations, one DAgger round), which lifts but does not place. Right: after PPO on the linear output map alone, all three placed. Over the 48 held-out test episodes the validation-selected controller places 46 (95.8%), against 35 (72.9%) before PPO; seeds 0 and 1 reach 97.9% and 91.7%."
- },
- {
-  "root": "main",
-  "path": "whole-brain-pick-place-push2-s3/connectome-3/rollout.mp4",
-  "title": "Fly brain pick-and-place, imitation only",
-  "note": "Frozen complete MaleCNS, only the linear input and output maps trained: 384 demonstrations, one DAgger round chosen on validation success. 35 of 48 held-out test episodes placed (72.9%). This clip shows the first six test episodes: 3 placed, 3 not. PPO on the output map then reaches 46/48."
- },
- {
-  "root": "dexterous-hand",
-  "path": "hand-dexterous-001/connectome-0/rollout.mp4",
-  "title": "Fly brain spins a cube with a four-finger hand",
-  "note": "LEAP hand, four fly legs as fingers, complete MaleCNS frozen. Seed 0 on 64 test episodes: 62 successes, 2 drops, 38 rad mean rotation (teacher 64, 0, 49.7). With the connectome's edges off: 0 of 64. Controls on the same seed: a degree-preserving shuffle 63 of 64 at 35 rad, a parameter-matched GRU 64 of 64 at 50 rad. The connectome can do it; it is not better."
- },
- {
-  "root": "main",
-  "path": "ppo-pick-place-randomized-001/videos/heavier_6_10x-before-after.mp4",
-  "title": "RL on the fly brain: cubes heavier than any it trained on",
-  "note": "Cube mass 6 to 10x, never seen in training. Left, imitation only: grasps but cannot lift (3 of 3). Right, after PPO tuned only the motor decoder with the connectome frozen: placed 3 of 3. Control: PPO through a shuffled connectome also learns to lift, but places fewer heavy cubes late in training (6 vs 15 of 24 on average); one run each."
- },
- {
-  "root": "main",
-  "path": "ppo-pick-place-001/videos/nominal-before-after.mp4",
-  "title": "RL on the fly brain: the standard pick-and-place task",
-  "note": "Same seeds before and after PPO: 1 placed and 2 only grasped before, 1 placed and 2 lifted after. Over 24 test episodes PPO raised lifting from 18 to 24; placing did not improve reliably."
- },
- {
-  "root": "main",
-  "path": "overnight/videos/pick-place-connectome-seed2.mp4",
-  "title": "Complete MaleCNS picks and places a cube (imitation, seed 2)",
-  "note": "166,700 frozen neurons between 1,846 ascending inputs and 2,022 descending and motor outputs."
- },
- {
-  "root": "main",
-  "path": "overnight/videos/pick-place-shuffled-seed2.mp4",
-  "title": "The same training on a shuffled connectome (seed 2)",
-  "note": "Degree-preserving shuffle of the same CNS, identical data and budget."
- },
- {
-  "root": "main",
-  "path": "milestone/videos/kitchen-chunk/kitchen-complete-comparison-seed0-episode0.mp4",
-  "title": "Kitchen protocol v2: fly CNS, shuffled CNS, MLP, GRU and ACT on one episode",
-  "note": "The Franka as the fly's left front leg; the fly controller opens the microwave."
- },
- {
-  "root": "main",
-  "path": "overnight/videos/proprio/kitchen-complete-lesions-seed2-episode0.mp4",
-  "title": "Kitchen: the fly leg opens the slide cabinet, and every lesion removes it",
-  "note": "Proprioception-only interface, seed 2: intact, leg deafferented, edges off, direct synapses only."
- },
- {
-  "root": "main",
-  "path": "ppo-pick-place-randomized-001/videos/train_distribution-before-after.mp4",
-  "title": "RL on the fly brain: randomized cube mass and grip friction",
-  "note": "Training distribution (mass 1 to 4x, friction 0.15 to 1x). On these three seeds PPO lifts every cube but places none; over 24 test episodes placement doubled (5 to 10)."
  }
 ]

@@ -178,7 +178,7 @@ This protocol's teacher mislabels some lifted states (E23); the clean and final 
 
 - Batched MuJoCo (mjbatch 0.1.1, MuJoCo 3.13.0) with a step-for-step equivalence test against the single environment (tests/test_batched_pick_place.py).
 - Local dashboard of every run, curve, log and rollout (flyarm dashboard, port 8780).
-- Control-network figure (docs/figures/control_network-figure.png), QA-gated.
+- Control-network figure (docs/figures/v1/control_network-figure.png), QA-gated.
 
 ### E22. Readout ablation on the kitchen
 Question: is the fly controller underfitting because it reads only 68 motor neurons?
@@ -805,3 +805,9 @@ Result of runs/ppo-manipulation-encoder-003 (clipped encoder update, encoder_lr 
 On the 112-episode validation set: iteration 150 86/112 (Wilson 95% 0.68 to 0.84, subgoal fraction 0.86), iteration 400 73/112 (0.77).
 Iteration 150 of this run is the reported connectome checkpoint from here on (selected on validation only, as every earlier one); the final evaluation on fresh test episodes (scripts/final_evaluation.py, 32 per template, seeds from FINAL_OFFSET) compares it with the imitation checkpoint and the decoder-only PPO checkpoint in docs/results/manipulation-final.json.
 Repository housekeeping the same day: GitHub keeps only main (the merged feature branches were deleted), superseded docs moved to docs/archive/, the first figures to docs/figures/v1/, and the pipeline figure (docs/figures/pipeline-figure.png) was redrawn task-generic.
+Final evaluation (scripts/final_evaluation.py, 32 fresh episodes per template from FINAL_OFFSET, disjoint from all selection; docs/results/manipulation-final.json), full-task success with Wilson 95% intervals:
+imitation (skill-DAgger round 8): iid 115/224 (51.3%), unseen objects 111/224 (49.6%), unseen furniture 61/224 (27.2%), unseen composition 24/128 (18.8%);
+PPO on the decoder (policy-0300): 126/224 (56.3%), 119/224 (53.1%), 72/224 (32.1%), 32/128 (25.0%);
+PPO on encoder and decoder (runs/ppo-manipulation-encoder-003, iteration 150): 156/224 (69.6%, 0.63 to 0.75), 168/224 (75.0%, 0.69 to 0.80), 82/224 (36.6%, 0.31 to 0.43), 34/128 (26.6%, 0.20 to 0.35).
+Reading: training the encoder with PPO is the largest single gain since the phase cue (iid +13 points, unseen objects +22 over decoder-only PPO); the held-out furniture and compositions gain little. The earlier README figures for policy-0300 (67.9% iid, 75.0% unseen objects) came from 28 in-run test episodes and were optimistic; these replace them.
+The README was rewritten around the current pipeline, results and videos; the three highlight reels were re-rendered with this checkpoint (the iid unpack episode needed 9 candidates) and the old policy-0300 demo was removed.
