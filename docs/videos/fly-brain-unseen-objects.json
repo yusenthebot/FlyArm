@@ -1,0 +1,41 @@
+{
+ "source": "ppo",
+ "run": "runs/ppo-manipulation-encoder-002",
+ "iteration": 150,
+ "base_run": "runs/skill-dagger-connectome-002",
+ "kind": "connectome",
+ "seed": 0,
+ "checkpoint": "runs/ppo-manipulation-encoder-002/policy-0150.safetensors",
+ "split": "unseen_objects",
+ "candidates": 6,
+ "episodes": {
+  "put_away": {
+   "success": 4000500,
+   "failure": null
+  },
+  "retrieve": {
+   "success": 4001505,
+   "failure": 4001500
+  },
+  "shelve": {
+   "success": 4002500,
+   "failure": null
+  },
+  "tower": {
+   "success": 4003500,
+   "failure": null
+  },
+  "sort": {
+   "success": 4004501,
+   "failure": 4004500
+  },
+  "tidy": {
+   "success": 4005500,
+   "failure": null
+  },
+  "unpack": {
+   "success": 4006500,
+   "failure": null
+  }
+ }
+}

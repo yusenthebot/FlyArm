@@ -86,6 +86,7 @@ def main() -> None:
     parser.add_argument("--stride", type=int, default=3)
     parser.add_argument("--fps", type=int, default=20)
     parser.add_argument("--successes-only", action="store_true", help="a highlight reel")
+    parser.add_argument("--templates", nargs="*", default=None, help="a subset of the split's")
     parser.add_argument("--height", type=int, default=SIZE[0])
     parser.add_argument("--width", type=int, default=SIZE[1])
     parser.add_argument("--pack", type=Path, default=Path("data/whole_brain/malecns-v1.0-c3"))
@@ -113,7 +114,7 @@ def main() -> None:
     shown: dict[str, dict[str, int | None]] = {}
     plan = rollout.plan(args.split, args.candidates, FINAL_OFFSET)
     try:
-        for template in env.split.templates:
+        for template in args.templates or env.split.templates:
             seeds = [s for s, t in zip(plan.seeds, plan.templates, strict=True) if t == template]
             found: dict[str, tuple[int, list[np.ndarray]] | None] = {
                 "success": None,
