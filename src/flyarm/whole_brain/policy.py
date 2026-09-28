@@ -110,7 +110,9 @@ class _Normalized(nn.Module):
         self.save_weights(str(path))
 
     def load(self, path: Path) -> None:
-        weights = cast(dict[str, mx.array], mx.load(str(path)))
+        self.load_state(cast(dict[str, mx.array], mx.load(str(path))))
+
+    def load_state(self, weights: dict[str, mx.array]) -> None:
         # Checkpoints written before a buffer existed keep that buffer's neutral default.
         for key in self.frozen_keys:
             if key not in weights and key in self:
@@ -151,6 +153,60 @@ class SensoryEncoder(nn.Module):
         return self.output(x)
 
 
+Gate = tuple[int, int]  # an observation slice holding a one-hot cue (start, stop)
+
+
+def gate_width(gates: Sequence[Gate]) -> int:
+    """Number of motor programs: every combination of the cues, each with a none column."""
+    width = 1
+    for start, stop in gates:
+        width *= stop - start + 1
+    return width
+
+
+def gate_vector(obs: mx.array, gates: Sequence[Gate]) -> mx.array:
+    """One-hot over motor programs from raw observations: the outer product of each cue's
+    one-hot plus a none column (1 - sum), so an all-zero cue selects its own program."""
+    vector = mx.ones((obs.shape[0], 1))
+    for start, stop in gates:
+        cue = obs[:, start:stop]
+        cue = mx.concatenate([cue, 1.0 - cue.sum(axis=1, keepdims=True)], axis=1)
+        vector = (vector[:, :, None] * cue[:, None, :]).reshape(obs.shape[0], -1)
+    return vector
+
+
+class GatedDecoder(nn.Module):
+    """One linear readout per motor program, selected by an observable cue.
+
+    Its input is the readout features with the gate vector appended (``gates`` columns), so
+    it drops in wherever a linear decoder takes features; within a program the action is a
+    linear function of the frozen connectome's output activity, as with the single decoder.
+    """
+
+    def __init__(self, inputs: int, outputs: int, gates: int) -> None:
+        super().__init__()
+        if gates < 1:
+            raise ValueError("a gated decoder needs at least one program")
+        self.inputs = inputs
+        self.gates = gates
+        scale = 1.0 / np.sqrt(inputs)
+        self.weight = mx.random.uniform(-scale, scale, (gates, outputs, inputs))
+        self.bias = mx.zeros((gates, outputs))
+
+    def __call__(self, x: mx.array) -> mx.array:
+        features, gate = x[:, : self.inputs], x[:, self.inputs :]
+        every = features @ self.weight.reshape(-1, self.inputs).T  # [batch, gates * outputs]
+        every = every.reshape(x.shape[0], self.gates, -1) + self.bias
+        return (gate[:, :, None] * every).sum(axis=1)
+
+    def tile(self, weight: mx.array, bias: mx.array) -> None:
+        """Every program starts as the same single linear decoder."""
+        if weight.shape != self.weight.shape[1:] or bias.shape != self.bias.shape[1:]:
+            raise ValueError("the single decoder does not match the programs' shape")
+        self.weight = mx.repeat(weight[None], self.gates, axis=0)
+        self.bias = mx.repeat(bias[None], self.gates, axis=0)
+
+
 class BrainPolicy(_Normalized):
     """obs -> linear encoder(s) -> frozen connectome -> readout scale -> linear decoder -> action.
 
@@ -180,6 +236,7 @@ class BrainPolicy(_Normalized):
         encoder_hidden: Sequence[int] = (256, 256),
         encoder_activation: str = "tanh",
         expansion: Expansion | None = None,
+        readout_gates: Sequence[Gate] = (),
     ) -> None:
         super().__init__(obs_dim, action_dim, chunk, expansion)
         if neural_steps < 1:
@@ -211,7 +268,15 @@ class BrainPolicy(_Normalized):
             if any(not 0 <= start < stop <= obs_dim for start, stop, _ in self.channels):
                 raise ValueError("Channel observation slices must lie inside the observation")
             self.encoders = [nn.Linear(stop - start, size) for start, stop, size in self.channels]
-        self.decoder = nn.Linear(dynamics.output_count, self.output_dim)
+        self.readout_gates = tuple((int(start), int(stop)) for start, stop in readout_gates)
+        if any(not 0 <= start < stop <= obs_dim for start, stop in self.readout_gates):
+            raise ValueError("readout gates must be slices of the observation")
+        if self.readout_gates:
+            self.decoder = GatedDecoder(
+                dynamics.output_count, self.output_dim, gate_width(self.readout_gates)
+            )
+        else:
+            self.decoder = nn.Linear(dynamics.output_count, self.output_dim)
         self.readout_offset = mx.zeros((dynamics.output_count,))
         self.readout_scale = mx.ones((dynamics.output_count,))
         self._freeze_buffers()
@@ -287,6 +352,13 @@ class BrainPolicy(_Normalized):
         """The decoder's input: output activity after the frozen normalization."""
         return (pooled - self.readout_offset) * self.readout_scale
 
+    def motor_features(self, pooled: mx.array, obs: mx.array) -> mx.array:
+        """The decoder's input: the readout, plus the motor-program gate when gated."""
+        features = self.readout(pooled)
+        if not self.readout_gates:
+            return features
+        return mx.concatenate([features, gate_vector(obs, self.readout_gates)], axis=1)
+
     def encode(self, x: mx.array) -> mx.array:
         if self.channels is None:
             return self.encoder(x)
@@ -309,7 +381,18 @@ class BrainPolicy(_Normalized):
     def step(self, obs: mx.array, state: mx.array) -> tuple[mx.array, mx.array]:
         current = self.encode(self.normalize(obs))
         state, pooled = self.dynamics.advance(state, current, self.neural_steps)
-        return mx.tanh(self.decoder(self.readout(pooled))), state
+        return mx.tanh(self.decoder(self.motor_features(pooled, obs))), state
+
+    def load(self, path: Path) -> None:
+        """Load a checkpoint; one written with a single linear decoder loads into every
+        program of a gated one, so gated training starts exactly where that policy was."""
+        weights = cast(dict[str, mx.array], mx.load(str(path)))
+        single = weights.get("decoder.weight")
+        if self.readout_gates and single is not None and single.ndim == 2:
+            decoder = cast(GatedDecoder, self.decoder)
+            decoder.tile(single, weights["decoder.bias"])
+            weights["decoder.weight"], weights["decoder.bias"] = decoder.weight, decoder.bias
+        self.load_state(weights)
 
     def with_dynamics(self, kind: str, dynamics: RateDynamics) -> BrainPolicy:
         """Same learned adapters over another frozen graph (post-training ablations)."""
@@ -334,6 +417,7 @@ class BrainPolicy(_Normalized):
             encoder_hidden=self.encoder_hidden,
             encoder_activation=self.encoder_activation,
             expansion=self.expansion,
+            readout_gates=self.readout_gates,
         )
         clone.update(self.parameters())
         clone._freeze_buffers()

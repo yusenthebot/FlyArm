@@ -630,6 +630,11 @@ class ManipulationImitationConfig(BaseModel):
     # The observable motor phase in the cue (flyarm.manipulation.phases); False zeroes it,
     # the no-phase-cue control (docs/MANIPULATION_ENV.md, "Phase cue").
     phase_cue: bool = False
+    # Cue fields whose one-hot selects the connectome's linear readout (one decoder per
+    # motor program, flyarm.whole_brain.policy.GatedDecoder); empty keeps one decoder. The
+    # teacher is close to linear within a skill and phase and not across them (research log
+    # E60, docs/ARCHITECTURE_ANALYSIS.md); the connectome stays frozen either way.
+    readout_gate: list[Literal["skill", "motor_phase"]] = Field(default_factory=list)
     # Joint and object velocities in the policy's observation. Off by default: a controller
     # cloned from states with velocities learns to keep doing what they say, and a well-fit MLP
     # never left the start pose (the copycat problem, docs/MANIPULATION_ENV.md, "Imitation
@@ -659,6 +664,12 @@ class ManipulationImitationConfig(BaseModel):
                 "the whole-body readout has 2,022 outputs; only 'unit_norm' keeps the decoder "
                 "out of tanh saturation under Adam (research log E26)"
             )
+        if "motor_phase" in self.readout_gate and not self.phase_cue:
+            raise ValueError("a motor-phase readout gate needs phase_cue")
+        if "skill" in self.readout_gate and not self.cue:
+            raise ValueError("a skill readout gate needs the cue")
+        if len(set(self.readout_gate)) != len(self.readout_gate):
+            raise ValueError("readout_gate lists a cue twice")
         return self
 
 

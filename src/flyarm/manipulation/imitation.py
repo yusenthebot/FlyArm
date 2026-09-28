@@ -42,7 +42,7 @@ from flyarm.interfaces import NeuralInterface
 from flyarm.manipulation import rollout
 from flyarm.manipulation.env import DEFAULT_ASSET_ROOT, BatchedManipulation
 from flyarm.manipulation.features import control_expansion
-from flyarm.manipulation.sim import OBS_DIM
+from flyarm.manipulation.sim import OBS_DIM, cue_slices
 from flyarm.manipulation.splits import record_path
 from flyarm.whole_brain.backend_mlx import RateDynamics
 from flyarm.whole_brain.compiler import ConnectomePack
@@ -137,8 +137,15 @@ def build_policy(
         encoder=config.encoder,
         encoder_hidden=config.encoder_hidden,
         encoder_activation=config.encoder_activation,
+        readout_gates=readout_gates(config.readout_gate),
         **dims,
     )
+
+
+def readout_gates(fields: list[str]) -> list[tuple[int, int]]:
+    """Observation slices of the cue fields that select the readout, in the listed order."""
+    slices = cue_slices()
+    return [(slices[name].start, slices[name].stop) for name in fields]
 
 
 def brain_budget(
@@ -550,5 +557,6 @@ __all__ = [
     "build_policy",
     "load_data",
     "load_manipulation_policy",
+    "readout_gates",
     "run_manipulation_imitation",
 ]

@@ -27,7 +27,14 @@ from mlx.utils import tree_flatten
 
 from flyarm.config import KitchenPPOConfig, ManipulationPPOConfig, PPOConfig, TaskVariantConfig
 from flyarm.rl.batched_pick_place import ACTION_DIM, OBS_DIM, BatchedPickPlace, TaskVariant
-from flyarm.whole_brain.policy import BrainPolicy, DirectPolicy, GRUPolicy, MLPPolicy
+from flyarm.whole_brain.policy import (
+    BrainPolicy,
+    DirectPolicy,
+    GatedDecoder,
+    GRUPolicy,
+    MLPPolicy,
+    gate_width,
+)
 
 TRAIN_SEED = 1_000_000  # environment seeds for PPO rollouts, disjoint from every B1a split
 PPOSettings = PPOConfig | KitchenPPOConfig | ManipulationPPOConfig
@@ -36,10 +43,12 @@ PPOSettings = PPOConfig | KitchenPPOConfig | ManipulationPPOConfig
 class MotorHead(nn.Module):
     """The trainable part: the decoder over motor-neuron activity plus exploration scale."""
 
-    def __init__(self, decoder: nn.Linear, log_std: float, action_dim: int | None = None) -> None:
+    def __init__(
+        self, decoder: nn.Linear | GatedDecoder, log_std: float, action_dim: int | None = None
+    ) -> None:
         super().__init__()
         self.decoder = decoder
-        self.action_dim = int(decoder.weight.shape[0]) if action_dim is None else action_dim
+        self.action_dim = int(decoder.weight.shape[-2]) if action_dim is None else action_dim
         self.log_std = mx.full((self.action_dim,), log_std)
 
     def mean(self, features: mx.array) -> mx.array:
@@ -106,13 +115,16 @@ class BrainRollout:
         self.policy = policy
         self.state = policy.initial_state(num_envs)
         self.feature_dim = policy.dynamics.output_count
+        if policy.readout_gates:
+            self.feature_dim += gate_width(policy.readout_gates)
 
     def features(self, obs: np.ndarray) -> mx.array:
-        current = self.policy.encode(self.policy.normalize(mx.array(obs)))
+        observation = mx.array(obs)
+        current = self.policy.encode(self.policy.normalize(observation))
         self.state, pooled = self.policy.dynamics.advance(
             self.state, current, self.policy.neural_steps
         )
-        features = self.policy.readout(pooled)
+        features = self.policy.motor_features(pooled, observation)
         mx.eval(self.state, features)
         return features
 
@@ -194,7 +206,7 @@ def rollout_for(policy: Controller, num_envs: int) -> Rollout:
     return BrainRollout(policy, num_envs)
 
 
-def motor_decoder(policy: Controller) -> nn.Linear:
+def motor_decoder(policy: Controller) -> nn.Linear | GatedDecoder:
     """The linear map PPO tunes: the brain's decoder, the MLP's last layer, the GRU's readout.
 
     Each feeds a tanh into the action, so the head's mean is the policy's own output; the
@@ -383,7 +395,8 @@ def encoder_pass(
     ) -> tuple[mx.array, mx.array]:
         current = encoder(policy.normalize(obs))
         state, pooled = policy.dynamics.advance(state, current, policy.neural_steps)
-        log_prob = gaussian_log_prob(action, head.mean(policy.readout(pooled)), head.log_std)
+        features = policy.motor_features(pooled, obs)
+        log_prob = gaussian_log_prob(action, head.mean(features), head.log_std)
         return -(weight * log_prob).mean(), state
 
     gradient_fn = nn.value_and_grad(policy.encoder, loss_fn)

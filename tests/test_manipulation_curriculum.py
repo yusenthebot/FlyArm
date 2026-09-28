@@ -190,3 +190,20 @@ def test_group_weights_favour_the_listed_groups_and_default_to_skill_balance() -
     assert weights[0] == max(weights) and np.isclose(weights.sum(), 1.0)
     assert np.allclose(weights[1:], weights[1])  # every other group weighs 1
     assert np.allclose(cu.group_weights(bank, {}), cu.skill_weights(bank))
+
+
+def test_readout_gates_point_at_the_cue_fields_and_need_their_cue() -> None:
+    from flyarm.config import ManipulationImitationConfig
+    from flyarm.manipulation import sim as ms
+    from flyarm.manipulation.imitation import readout_gates
+
+    slices = ms.cue_slices()
+    gates = readout_gates(["skill", "motor_phase"])
+    assert gates == [
+        (slices["skill"].start, slices["skill"].stop),
+        (slices["motor_phase"].start, slices["motor_phase"].stop),
+    ]
+    assert gates[1][1] - gates[1][0] == 10
+    with pytest.raises(ValueError, match="phase_cue"):
+        ManipulationImitationConfig(readout_gate=["motor_phase"])
+    ManipulationImitationConfig(readout_gate=["motor_phase"], phase_cue=True)

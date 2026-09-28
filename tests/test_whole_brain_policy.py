@@ -362,3 +362,62 @@ def test_an_input_expansion_feeds_the_encoder_and_survives_clones_and_checkpoint
             channels=[(0, 4, dynamics.input_count)],
             expansion=expansion,
         )
+
+
+def _cue_obs(rng: np.random.Generator, programs: np.ndarray) -> np.ndarray:
+    """Observations of 3 continuous features then a 2-way one-hot cue (all zero for 2)."""
+    obs = np.zeros((len(programs), 5), np.float32)
+    obs[:, :3] = rng.standard_normal((len(programs), 3))
+    for row, program in enumerate(programs):
+        if program < 2:
+            obs[row, 3 + program] = 1.0
+    return obs
+
+
+def test_gated_readout_loads_a_single_decoder_exactly_and_switches_by_cue(pack, tmp_path) -> None:
+    dynamics = RateDynamics(pack, interface_for(pack))
+    single = BrainPolicy("connectome", dynamics, obs_dim=5, action_dim=2, seed=1)
+    path = tmp_path / "single.safetensors"
+    single.save(path)
+    gated = BrainPolicy(
+        "connectome", dynamics, obs_dim=5, action_dim=2, seed=1, readout_gates=[(3, 5)]
+    )
+    assert gated.decoder.weight.shape == (3, 2, dynamics.output_count)
+    gated.load(path)  # every program starts as the single decoder
+    rng = np.random.default_rng(0)
+    obs = mx.array(_cue_obs(rng, np.array([0, 1, 2, 0])))
+    before, _ = single.step(obs, single.initial_state(4))
+    after, _ = gated.step(obs, gated.initial_state(4))
+    assert np.allclose(np.asarray(before), np.asarray(after), atol=1e-6)
+
+    # Changing the program of the none cue changes only the rows that select it.
+    decoder = gated.decoder
+    decoder.bias = mx.concatenate([decoder.bias[:2], decoder.bias[2:] + 1.0])
+    changed, _ = gated.step(obs, gated.initial_state(4))
+    moved = np.abs(np.asarray(changed) - np.asarray(after)).max(axis=1) > 1e-4
+    assert moved.tolist() == [False, False, True, False]
+
+    # A gated checkpoint round-trips, and a clone over the same graph keeps the gates.
+    gated_path = tmp_path / "gated.safetensors"
+    gated.save(gated_path)
+    reloaded = BrainPolicy(
+        "connectome", dynamics, obs_dim=5, action_dim=2, seed=3, readout_gates=[(3, 5)]
+    )
+    reloaded.load(gated_path)
+    again, _ = reloaded.step(obs, reloaded.initial_state(4))
+    assert np.allclose(np.asarray(again), np.asarray(changed), atol=1e-6)
+    assert gated.with_dynamics("connectome", dynamics).readout_gates == ((3, 5),)
+
+
+def test_gate_vector_is_the_product_of_cues_with_none_columns() -> None:
+    from flyarm.whole_brain.policy import gate_vector, gate_width
+
+    obs = np.zeros((3, 5), np.float32)
+    obs[0, [0, 2]] = 1.0  # first cue 0, second cue 0
+    obs[1, [1, 3]] = 1.0  # first cue 1, second cue 1
+    obs[2, 1] = 1.0  # first cue 1, second cue none
+    gates = [(0, 2), (2, 4)]
+    vector = np.asarray(gate_vector(mx.array(obs), gates))
+    assert gate_width(gates) == 9 and vector.shape == (3, 9)
+    assert vector.sum(axis=1).tolist() == [1.0, 1.0, 1.0]
+    assert np.argmax(vector, axis=1).tolist() == [0, 4, 5]
