@@ -8,7 +8,6 @@ import platform
 import time
 from importlib.metadata import version
 from pathlib import Path
-from tempfile import NamedTemporaryFile
 from typing import Any, cast
 
 import imageio.v2 as imageio
@@ -19,15 +18,8 @@ from flyarm.assets import MENAGERIE_SHA, digest_file, verify_arm
 from flyarm.config import ExperimentConfig
 from flyarm.env import PandaReachEnv
 from flyarm.graph import Graph, shuffle_graph
+from flyarm.io import save_json
 from flyarm.models import ActionController, Controller, Policy
-
-
-def save_json(path: Path, value: dict | list) -> None:
-    serialized = json.dumps(value, indent=2, allow_nan=False) + "\n"
-    with NamedTemporaryFile(mode="w", dir=path.parent, suffix=".tmp", delete=False) as file:
-        file.write(serialized)
-        temporary = Path(file.name)
-    temporary.replace(path)
 
 
 def collect(env: PandaReachEnv, seeds: list[int], path: Path) -> dict:

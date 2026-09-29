@@ -830,7 +830,7 @@ def scratch_policy(
 
 def run_ppo(config: PPOConfig, pack_root: Path, model_path: Path, output: Path) -> dict[str, Any]:
     """Load the base checkpoint, score it, fine-tune its decoder with PPO, save everything."""
-    from flyarm.experiment import save_json
+    from flyarm.io import save_json
     from flyarm.whole_brain.experiment import load_trained_policy
 
     if output.exists():

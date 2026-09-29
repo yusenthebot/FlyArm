@@ -343,7 +343,7 @@ def run_manipulation_ppo(
     asset_root: Path = DEFAULT_ASSET_ROOT,
 ) -> dict[str, Any]:
     """Load the imitation checkpoint, score it, train it with PPO and save everything."""
-    from flyarm.experiment import save_json
+    from flyarm.io import save_json
 
     if output.exists():
         raise FileExistsError(f"Run directory already exists; choose a new output: {output}")

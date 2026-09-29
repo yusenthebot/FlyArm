@@ -38,8 +38,8 @@ import numpy as np
 
 from flyarm.assets import digest_file
 from flyarm.config import ManipulationImitationConfig
-from flyarm.experiment import save_json
 from flyarm.interfaces import NeuralInterface
+from flyarm.io import save_json
 from flyarm.manipulation import rollout
 from flyarm.manipulation.env import DEFAULT_ASSET_ROOT, BatchedManipulation
 from flyarm.manipulation.features import control_expansion

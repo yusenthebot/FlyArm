@@ -16,9 +16,9 @@ import torch
 
 from flyarm.assets import MENAGERIE_SHA, digest_file, verify_arm
 from flyarm.config import PickPlaceConfig
-from flyarm.experiment import save_json
 from flyarm.graph import Graph, shuffle_graph
 from flyarm.interfaces import NeuralInterface, canonical_interface
+from flyarm.io import save_json
 from flyarm.models import ActionController
 from flyarm.pick_place_env import PandaPickPlaceEnv, physical_stage
 from flyarm.pick_place_models import PickPlaceController, PickPlacePolicy

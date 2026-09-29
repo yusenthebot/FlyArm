@@ -366,7 +366,7 @@ def demonstration_features(
 
 def run_kitchen_ppo(config: KitchenPPOConfig, pack_root: Path, output: Path) -> dict[str, Any]:
     """Build the starting policy, score it, train it with PPO and save everything."""
-    from flyarm.experiment import save_json
+    from flyarm.io import save_json
 
     if output.exists():
         raise FileExistsError(f"Run directory already exists; choose a new output: {output}")

@@ -23,7 +23,7 @@ def _whole_brain(args: argparse.Namespace) -> None:
         summary = {k: v for k, v in pack.manifest.items() if k != "sources"}
         print(json.dumps({**summary, "fingerprint": pack.fingerprint()}, indent=2))
     elif args.brain_command == "check":
-        from flyarm.experiment import save_json
+        from flyarm.io import save_json
         from flyarm.whole_brain.diagnostics import go_no_go
 
         if args.output.exists():

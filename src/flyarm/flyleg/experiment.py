@@ -36,9 +36,9 @@ from flyarm.assets import digest_file
 from flyarm.benchmarks import kitchen
 from flyarm.benchmarks.kitchen_expert import DemonstrationTracker, noisy_teacher_episodes
 from flyarm.config import FlyLegConfig
-from flyarm.experiment import save_json
 from flyarm.flyleg.interface import front_leg_interface, front_leg_report, leg_channels
 from flyarm.interfaces import NeuralInterface
+from flyarm.io import save_json
 from flyarm.whole_brain.backend_mlx import RateDynamics
 from flyarm.whole_brain.compiler import ConnectomePack
 from flyarm.whole_brain.diagnostics import direct_only_weights

@@ -18,7 +18,7 @@ from typing import Any
 import numpy as np
 
 from flyarm.config import PPOConfig
-from flyarm.experiment import save_json
+from flyarm.io import save_json
 from flyarm.rl.batched_pick_place import ACTION_DIM, OBS_DIM
 from flyarm.rl.record import _episodes
 from flyarm.video import write_video

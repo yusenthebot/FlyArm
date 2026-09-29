@@ -10,9 +10,9 @@ import numpy as np
 
 from flyarm.benchmarks import kitchen
 from flyarm.config import FlyLegConfig
-from flyarm.experiment import save_json
 from flyarm.flyleg.experiment import fly_interface, leg_dynamics, make_policy
 from flyarm.interfaces import NeuralInterface
+from flyarm.io import save_json
 from flyarm.video import annotate, tile, write_video
 from flyarm.whole_brain.backend_mlx import RateDynamics
 from flyarm.whole_brain.compiler import ConnectomePack

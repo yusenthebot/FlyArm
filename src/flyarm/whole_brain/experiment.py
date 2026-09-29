@@ -30,8 +30,8 @@ from flyarm import pick_place_experiment as pick
 from flyarm.assets import MENAGERIE_SHA, digest_file, verify_arm
 from flyarm.config import WholeBrainConfig
 from flyarm.env import PandaReachEnv
-from flyarm.experiment import save_json
 from flyarm.interfaces import NeuralInterface
+from flyarm.io import save_json
 from flyarm.pick_place_env import PandaPickPlaceEnv, physical_stage
 from flyarm.video import annotate
 from flyarm.whole_brain.backend_mlx import RateDynamics
