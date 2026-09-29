@@ -8,10 +8,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
-import pyarrow.feather as feather
 
-from flyarm.assets import SOURCE_SHA256, SOURCES, verify_raw_sources
+from flyarm.assets import SOURCE_SHA256
 
 RECIPE_VERSION = "descending-contact-v1"
 CANONICAL_256 = "7a5018c5481d14307e1efec305f4f448648545e5feda7caf9297dab518f4da5d"
@@ -165,79 +163,3 @@ def shuffle_graph(graph: Graph, seed: int, swaps_per_edge: int = 10) -> Graph:
     )
     result.validate()
     return result
-
-
-def prepare_graph(raw: Path, output: Path, max_nodes: int = 256) -> Graph:
-    """Grow an anatomically seeded subgraph without using any task outcomes."""
-    if not 32 <= max_nodes <= 4096:
-        raise ValueError("MVP subgraph limit must be between 32 and 4096 nodes")
-    manifest = verify_raw_sources(raw)
-    neurons = feather.read_table(raw / SOURCES["annotations"][0]).to_pandas()
-    transmitters = feather.read_table(raw / SOURCES["neurotransmitters"][0]).to_pandas()
-    edges = feather.read_table(raw / SOURCES["weights"][0]).to_pandas()
-    required = {"body_pre", "body_post", "weight"}
-    if not required.issubset(edges.columns):
-        raise ValueError(f"Unexpected weight columns: {list(edges.columns)}")
-    if "body" not in transmitters or "consensus_nt" not in transmitters:
-        raise ValueError(f"Unexpected transmitter columns: {list(transmitters.columns)}")
-    neurons = neurons[neurons.superclass.notna() & (neurons.superclass != "glia")]
-    ids = neurons.bodyId.to_numpy(dtype=np.int64)
-    edges = edges[edges.body_pre.isin(ids) & edges.body_post.isin(ids)]
-    edges = edges[(edges.body_pre != edges.body_post) & (edges.weight >= 3)]
-    edges = edges.groupby(["body_pre", "body_post"], as_index=False, sort=True).weight.sum()
-    seeds = neurons[neurons.type.isin(["DNa02", "DNg13", "DNge104", "DNp01"])].bodyId
-    if seeds.empty:
-        raise ValueError("None of the preregistered descending cell types were found")
-    selected = set(int(x) for x in seeds)
-    while len(selected) < max_nodes:
-        incoming = edges[edges.body_post.isin(selected) & ~edges.body_pre.isin(selected)]
-        outgoing = edges[edges.body_pre.isin(selected) & ~edges.body_post.isin(selected)]
-        candidates = (
-            pd.concat(
-                [
-                    incoming.rename(columns={"body_pre": "candidate"})[["candidate", "weight"]],
-                    outgoing.rename(columns={"body_post": "candidate"})[["candidate", "weight"]],
-                ]
-            )
-            .groupby("candidate", as_index=False)
-            .weight.sum()
-        )
-        candidates = candidates.sort_values(["weight", "candidate"], ascending=[False, True])
-        if candidates.empty:
-            raise ValueError("Seed-connected component too small for requested graph")
-        # Breadth-wise growth, deterministic score ties resolved by original integer ID.
-        selected.update(candidates.candidate.iloc[: max_nodes - len(selected)].astype(int))
-    kept_ids = np.array(sorted(selected), dtype=np.int64)
-    kept = edges[edges.body_pre.isin(selected) & edges.body_post.isin(selected)]
-    pre = np.searchsorted(kept_ids, kept.body_pre.to_numpy(dtype=np.int64))
-    post = np.searchsorted(kept_ids, kept.body_post.to_numpy(dtype=np.int64))
-    nt = transmitters.set_index("body").consensus_nt.reindex(kept_ids)
-    signs = (
-        nt.map({"acetylcholine": 1, "gaba": -1, "glutamate": -1, "GABA": -1})
-        .fillna(0)
-        .to_numpy(dtype=np.float32)
-    )
-    meta = {
-        "schema_version": 1,
-        "recipe_version": RECIPE_VERSION,
-        "dataset": "MaleCNS v1.0",
-        "scope": "measured_subgraph_not_whole_brain",
-        "selection": "descending seeds, strongest adjacent contact sums, ID tie break",
-        "seed_types": ["DNa02", "DNg13", "DNge104", "DNp01"],
-        "min_contacts": 3,
-        "self_loops": "excluded",
-        "nodes": len(kept_ids),
-        "edges": len(pre),
-        "retained_annotated_nodes": len(ids),
-        "eligible_edges": len(edges),
-        "node_fraction": len(kept_ids) / len(ids),
-        "edge_fraction": len(pre) / len(edges),
-        "zero_sign_nodes": int(np.sum(signs == 0)),
-        "nt_counts": nt.fillna("unknown").value_counts().to_dict(),
-        "sign_assumption": "ACh +1; GABA/glutamate -1; other/unknown 0; no receptor modeling",
-        "dynamics": "abstract leaky tanh state; not physiological spikes",
-        "sources": manifest,
-    }
-    graph = Graph(kept_ids, pre, post, kept.weight.to_numpy(dtype=np.float32), signs, meta)
-    graph.save(output)
-    return graph

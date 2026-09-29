@@ -7,7 +7,6 @@ import json
 from pathlib import Path
 
 from flyarm.assets import fetch_arm, fetch_data
-from flyarm.graph import prepare_graph
 
 DEFAULT_PACK = "data/whole_brain/malecns-v1.0-c3"
 DEFAULT_ANNOTATIONS = "data/raw/body-annotations-male-cns-v1.0-minconf-0.5.feather"
@@ -81,10 +80,6 @@ def main() -> None:
     setup = sub.add_parser("fetch", help="Download pinned MaleCNS data (~1.1 GB) and Panda assets")
     setup.add_argument("--data", type=Path, default=Path("data/raw"))
     setup.add_argument("--assets", type=Path, default=Path("assets/menagerie"))
-    prepare = sub.add_parser("prepare", help="Build a deterministic measured subgraph")
-    prepare.add_argument("--raw", type=Path, default=Path("data/raw"))
-    prepare.add_argument("--output", type=Path, default=Path("data/graphs/malecns-256-v1.npz"))
-    prepare.add_argument("--nodes", type=int, default=256)
     brain = sub.add_parser("whole-brain", help="B1a: full MaleCNS rate controller (MLX)")
     brain_sub = brain.add_subparsers(dest="brain_command", required=True)
     compile_pack = brain_sub.add_parser("compile", help="Compile the full connectome CSR pack")
@@ -232,9 +227,6 @@ def main() -> None:
     if args.command == "fetch":
         fetch_data(args.data)
         print(fetch_arm(args.assets))
-    elif args.command == "prepare":
-        graph = prepare_graph(args.raw, args.output, args.nodes)
-        print(json.dumps({k: v for k, v in graph.metadata.items() if k != "sources"}, indent=2))
     elif args.command == "whole-brain":
         _whole_brain(args)
     elif args.command == "dashboard":
