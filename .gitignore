@@ -24,4 +24,6 @@ ui/dist/
 
 # Figure inputs (renders, icons and their licenses) are small and needed to rebuild the figures
 !docs/figures/src/assets/
-!archive/figures/v1/src/assets/
+
+# Superseded code, configs, docs and figures, kept locally only
+archive/

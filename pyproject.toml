@@ -35,7 +35,7 @@ build-backend = "hatchling.build"
 
 [tool.ruff]
 line-length = 100
-# Vendored figure kit (block-diagram-drawer) keeps its upstream style; archive/ is frozen history.
+# Vendored figure kit (block-diagram-drawer) keeps its upstream style; archive/ is local, untracked history.
 extend-exclude = ["docs/figures/src", "archive"]
 
 [tool.ruff.lint]
