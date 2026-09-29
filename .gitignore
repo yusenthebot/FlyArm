@@ -21,3 +21,7 @@ ui/dist/
 # Duplicate copies made by file sync in ~/Documents ("name 2.ext")
 * 2
 * 2.*
+
+# Figure inputs (renders, icons and their licenses) are small and needed to rebuild the figures
+!docs/figures/src/assets/
+!archive/figures/v1/src/assets/
