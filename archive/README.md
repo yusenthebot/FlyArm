@@ -5,6 +5,7 @@ Nothing here is imported, tested or maintained, and paths inside these files ref
 The current code is in src/, the current results in the top-level README and docs/RESEARCH_LOG.md, which records every experiment in order.
 
 - code/: the original 256-neuron-subgraph experiment line (reach and direct pick-place with the restricted interface, its torch policies and the first live UI), retired in September 2026; its source, tests and configs as they were last on main.
+- configs/: configs of superseded experiment lines, flat, with their README notes: whole-brain reach smoke and pick-and-place (v2, push, seeds, shuffles) and their PPO runs, earlier kitchen imitation protocols (complete, mixed, descending, leg, v3 and other dev sweeps), kitchen scratch, warm-start, curriculum, MLP and DAPG variants off the milestone chain, the manipulation diagnostic, and the targeted and gated skill-DAgger and PPO experiments.
 - docs/: planning notes and result pages of superseded setups: the 256-neuron subgraph baseline, the first pick-and-place protocol, the overnight goal of 2026-09-22, the B1a whole-connectome design note and the B2 fly-leg goal.
 - figures/: the first figure set (v1/, with its sources) and old README and live-UI images that no current document uses.
 
@@ -19,3 +20,4 @@ Paths cited in docs/RESEARCH_LOG.md and older commits resolve here.
 | docs/figures/v1/ | archive/figures/v1/ |
 | docs/images/pick-place-rollout.png | archive/figures/pick-place-rollout.png |
 | docs/flyarm-live-ui-light.png, docs/flyarm-live-ui-concept-light.png | archive/figures/ |
+| configs/<name>.json, configs/<name>.README.md not in configs/ | archive/configs/<name>.json, archive/configs/<name>.README.md |
