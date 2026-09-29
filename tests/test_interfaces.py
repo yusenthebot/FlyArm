@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from flyarm.graph import Graph
-from flyarm.interfaces import NeuralInterface, directed_io_stats
+from flyarm.interfaces import NeuralInterface
 
 
 @pytest.fixture
@@ -48,18 +48,6 @@ def test_interface_rejects_graph_fingerprint_mismatch(graph: Graph) -> None:
     changed.validate()
     with pytest.raises(ValueError, match="different graph"):
         interface.resolve_indices(changed)
-
-
-def test_directed_io_stats_reports_reachable_and_unreachable_outputs(graph: Graph) -> None:
-    interface = NeuralInterface.bind(
-        graph, np.array([101], dtype=np.int64), np.array([106, 104], dtype=np.int64)
-    )
-    stats = directed_io_stats(graph, interface)
-    assert stats.input_count == 1
-    assert stats.output_count == 2
-    assert stats.reachable_output_count == 2
-    assert stats.min_hops == 3
-    assert stats.max_hops == 4
 
 
 def test_interface_rejects_overlap(graph: Graph) -> None:

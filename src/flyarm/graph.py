@@ -9,10 +9,7 @@ from pathlib import Path
 
 import numpy as np
 
-from flyarm.assets import SOURCE_SHA256
-
 RECIPE_VERSION = "descending-contact-v1"
-CANONICAL_256 = "7a5018c5481d14307e1efec305f4f448648545e5feda7caf9297dab518f4da5d"
 
 
 @dataclass(frozen=True)
@@ -62,24 +59,6 @@ class Graph:
             digest.update(key.encode())
             digest.update(getattr(self, key).astype(dtype).tobytes())
         return digest.hexdigest()
-
-    def validate_mvp_provenance(self) -> None:
-        """Require the independently pinned graph, not merely self-declared metadata."""
-        self.validate()
-        if (
-            self.metadata.get("schema_version") != 1
-            or self.metadata.get("recipe_version") != RECIPE_VERSION
-        ):
-            raise ValueError("Unsupported graph schema/recipe; regenerate with flyarm prepare")
-        if self.metadata.get("dataset") != "MaleCNS v1.0":
-            raise ValueError("MVP requires MaleCNS v1.0")
-        files = self.metadata.get("sources", {}).get("files", {})
-        if any(files.get(key, {}).get("sha256") != value for key, value in SOURCE_SHA256.items()):
-            raise ValueError("Graph source hashes do not match pinned MaleCNS exports")
-        if len(self.ids) != 256 or self.fingerprint() != CANONICAL_256:
-            raise ValueError(
-                "MVP run requires the pinned 256-node graph; new graphs need a new protocol"
-            )
 
     def save(self, path: Path) -> None:
         self.validate()

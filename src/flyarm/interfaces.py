@@ -9,92 +9,11 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
 import numpy as np
-
-from flyarm.graph import Graph
-
-ASCENDING_FEEDBACK_BODY_IDS = np.array(
-    [
-        10180,
-        10671,
-        10689,
-        10797,
-        13137,
-        13538,
-        13656,
-        14498,
-        14899,
-        15884,
-        16510,
-        16897,
-        17713,
-        18050,
-        22499,
-        25185,
-        27797,
-        56630,
-        58725,
-        60372,
-        66518,
-        519660,
-        522822,
-    ],
-    dtype=np.int64,
-)
-
-DESCENDING_COMMAND_BODY_IDS = np.array(
-    [
-        10001,
-        10010,
-        10091,
-        10106,
-        10141,
-        10192,
-        10223,
-        10283,
-        10360,
-        10417,
-        10580,
-        10732,
-        10967,
-        10971,
-        10975,
-        11074,
-        11133,
-        11158,
-        11233,
-        11424,
-        11466,
-        11610,
-        11625,
-        11687,
-        12175,
-        12218,
-        12223,
-        12628,
-        12781,
-        33335,
-        230783,
-        512006,
-        513052,
-        515029,
-        519228,
-        519624,
-        519896,
-        521190,
-        521197,
-        521377,
-        523769,
-        524412,
-        556329,
-    ],
-    dtype=np.int64,
-)
 
 
 class BindableGraph(Protocol):
@@ -185,15 +104,6 @@ class NeuralInterface:
         interface.resolve_indices(graph)
         return interface
 
-    @classmethod
-    def canonical(cls, graph: Graph) -> NeuralInterface:
-        """Bind the preregistered MaleCNS proxy IDs to one exact graph."""
-        return cls.bind(
-            graph,
-            ASCENDING_FEEDBACK_BODY_IDS,
-            DESCENDING_COMMAND_BODY_IDS,
-        )
-
     def resolve_indices(self, graph: BindableGraph) -> tuple[np.ndarray, np.ndarray]:
         """Resolve body IDs without changing their declared order."""
         self.validate()
@@ -238,79 +148,3 @@ class NeuralInterface:
         if payload.get("interface_fingerprint") != interface.fingerprint:
             raise ValueError("Neural interface content fingerprint mismatch")
         return interface
-
-    def path_statistics(self, graph: Graph) -> dict[str, object]:
-        """Return JSON-safe directed I/O topology statistics."""
-        return directed_io_stats(graph, self).to_dict()
-
-
-@dataclass(frozen=True)
-class DirectedIOStats:
-    """Topology-only reachability summary for a declared interface."""
-
-    input_count: int
-    output_count: int
-    reachable_output_count: int
-    unreachable_output_body_ids: tuple[int, ...]
-    min_hops: int | None
-    mean_hops: float | None
-    max_hops: int | None
-
-    def to_dict(self) -> dict[str, object]:
-        return {
-            "input_count": self.input_count,
-            "output_count": self.output_count,
-            "reachable_output_count": self.reachable_output_count,
-            "unreachable_output_body_ids": list(self.unreachable_output_body_ids),
-            "min_hops": self.min_hops,
-            "mean_hops": self.mean_hops,
-            "max_hops": self.max_hops,
-        }
-
-
-def directed_io_stats(graph: Graph, interface: NeuralInterface) -> DirectedIOStats:
-    """Report paths from any declared feedback input to every command output."""
-    input_indices, output_indices = interface.resolve_indices(graph)
-    neighbors: list[list[int]] = [[] for _ in graph.ids]
-    for source, target in zip(graph.pre, graph.post, strict=True):
-        neighbors[int(source)].append(int(target))
-    distances = np.full(len(graph.ids), -1, dtype=np.int64)
-    queue: deque[int] = deque()
-    for index in input_indices:
-        distances[index] = 0
-        queue.append(int(index))
-    while queue:
-        source = queue.popleft()
-        for target in neighbors[source]:
-            if distances[target] == -1:
-                distances[target] = distances[source] + 1
-                queue.append(target)
-    output_distances = distances[output_indices]
-    reachable = output_distances[output_distances >= 0]
-    missing = tuple(
-        int(body_id)
-        for body_id, distance in zip(interface.output_body_ids, output_distances, strict=True)
-        if distance < 0
-    )
-    return DirectedIOStats(
-        input_count=len(input_indices),
-        output_count=len(output_indices),
-        reachable_output_count=len(reachable),
-        unreachable_output_body_ids=missing,
-        min_hops=int(reachable.min()) if len(reachable) else None,
-        mean_hops=float(reachable.mean()) if len(reachable) else None,
-        max_hops=int(reachable.max()) if len(reachable) else None,
-    )
-
-
-def male_cns_proxy_interface(graph: Graph) -> NeuralInterface:
-    """Bind the preregistered MaleCNS proxy IDs to this exact graph."""
-    return NeuralInterface.canonical(graph)
-
-
-def canonical_interface(graph: Graph) -> NeuralInterface:
-    """Public factory for the preregistered constrained MaleCNS interface."""
-    return NeuralInterface.canonical(graph)
-
-
-default_interface = canonical_interface
