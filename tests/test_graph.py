@@ -2,11 +2,9 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-import torch
 
 from flyarm.assets import SOURCE_SHA256
 from flyarm.graph import RECIPE_VERSION, Graph, shuffle_graph
-from flyarm.models import Policy
 
 
 def graph() -> Graph:
@@ -77,21 +75,6 @@ def test_duplicate_directed_edge_is_rejected() -> None:
     )
     with pytest.raises(ValueError, match="duplicate"):
         duplicate.validate()
-
-
-def test_adjacency_uses_post_by_pre_direction_for_sparse_mm() -> None:
-    directed = Graph(
-        ids=np.array([10, 11, 12], dtype=np.int64),
-        pre=np.array([0, 1], dtype=np.int64),
-        post=np.array([1, 2], dtype=np.int64),
-        contacts=np.array([1.0, 1.0], dtype=np.float32),
-        signs=np.array([1, 1, 1], dtype=np.int8),
-        metadata={},
-    )
-    policy = Policy("connectome", directed)
-    state = torch.tensor([[2.0, 3.0, 5.0]])
-    recurrent = torch.sparse.mm(policy.adjacency, state.T).T
-    assert torch.equal(recurrent, torch.tensor([[0.0, 2.0, 3.0]]))
 
 
 def test_shuffle_preserves_directed_degrees_source_strength_and_seed() -> None:

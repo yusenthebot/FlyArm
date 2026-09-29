@@ -1,9 +1,0 @@
-{
-  "train_episodes": 16,
-  "val_episodes": 4,
-  "test_episodes": 4,
-  "epochs": 2,
-  "seeds": [0],
-  "policies": ["connectome", "shuffled", "mlp", "gru"],
-  "max_seconds": 300
-}
