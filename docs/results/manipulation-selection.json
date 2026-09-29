@@ -241,5 +241,35 @@
    0.7337
   ],
   "subgoal_fraction": 0.7668
+ },
+ "nophase-r07": {
+  "source": "file",
+  "run": "runs/skill-dagger-connectome-nophase-001",
+  "kind": "connectome",
+  "seed": 0,
+  "checkpoint": "runs/skill-dagger-connectome-nophase-001/connectome-0/round-07/policy.safetensors",
+  "episodes": 112,
+  "successes": 56,
+  "success_rate": 0.5,
+  "wilson_95": [
+   0.4089,
+   0.5911
+  ],
+  "subgoal_fraction": 0.6925
+ },
+ "nophase-r08": {
+  "source": "file",
+  "run": "runs/skill-dagger-connectome-nophase-001",
+  "kind": "connectome",
+  "seed": 0,
+  "checkpoint": "runs/skill-dagger-connectome-nophase-001/connectome-0/round-08/policy.safetensors",
+  "episodes": 112,
+  "successes": 67,
+  "success_rate": 0.5982,
+  "wilson_95": [
+   0.5056,
+   0.6843
+  ],
+  "subgoal_fraction": 0.7433
  }
 }
