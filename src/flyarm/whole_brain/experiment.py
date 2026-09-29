@@ -25,8 +25,6 @@ import imageio.v2 as imageio
 import mlx.core as mx
 import numpy as np
 
-from flyarm import experiment as reach
-from flyarm import pick_place_experiment as pick
 from flyarm.assets import MENAGERIE_SHA, digest_file, verify_arm
 from flyarm.config import WholeBrainConfig
 from flyarm.env import PandaReachEnv
@@ -34,6 +32,7 @@ from flyarm.interfaces import NeuralInterface
 from flyarm.io import save_json
 from flyarm.pick_place_env import PandaPickPlaceEnv, physical_stage
 from flyarm.video import annotate
+from flyarm.whole_brain import protocols
 from flyarm.whole_brain.backend_mlx import RateDynamics
 from flyarm.whole_brain.compiler import ConnectomePack
 from flyarm.whole_brain.diagnostics import direct_only_weights
@@ -95,18 +94,18 @@ class Task:
 
     def collect(self, seeds: list[int], path: Path) -> dict[str, np.ndarray]:
         if isinstance(self.env, PandaReachEnv):
-            return reach.collect(self.env, seeds, path)
-        return pick.collect_demonstrations(self.env, seeds, path)
+            return protocols.collect_reach(self.env, seeds, path)
+        return protocols.collect_pick_place(self.env, seeds, path)
 
     def weights(self, data: dict[str, np.ndarray]) -> np.ndarray:
         if self.name == "reach":
             return data["mask"].astype(np.float32)
-        return pick.stage_balanced_weights(data).astype(np.float32)
+        return protocols.stage_balanced_weights(data).astype(np.float32)
 
     def evaluate(self, controller: Any, seeds: list[int], **kwargs: Any) -> dict[str, Any]:
         if isinstance(self.env, PandaReachEnv):
-            return reach.evaluate(self.env, controller, seeds, **kwargs)
-        return pick.evaluate(self.env, controller, seeds, **kwargs)
+            return protocols.evaluate_reach(self.env, controller, seeds, **kwargs)
+        return protocols.evaluate_pick_place(self.env, controller, seeds, **kwargs)
 
     def baseline(self, mode: str, seeds: list[int]) -> dict[str, Any]:
         return self.evaluate(None, seeds, mode=mode)
@@ -333,10 +332,10 @@ def _train(
         seeds = task.seeds("dagger", config.dagger_episodes)
         seeds = [value + iteration * 1000 for value in seeds]
         dagger_sets.append(seeds)
-        queries = pick.collect_dagger_queries(
+        queries = protocols.collect_dagger_queries(
             task.env, MlxController(policy), seeds, run / f"dagger-{iteration + 1}.npz"
         )
-        aggregate = pick.concatenate_data(aggregate, queries)
+        aggregate = protocols.concatenate_data(aggregate, queries)
         phase = f"dagger_{iteration + 1}"
         more, summary = train_sequence_policy(
             policy,
