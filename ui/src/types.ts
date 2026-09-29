@@ -196,7 +196,7 @@ export function decodeActivity(state: RuntimeState): Float32Array {
     const bytes = Uint8Array.from(atob(state.hidden_q), (char) => char.charCodeAt(0));
     const signed = new Int8Array(bytes.buffer);
     const values = new Float32Array(signed.length);
-    // Signed log code (see flyarm.live.encode_activity): codes 1..127 span floor..1.
+    // Signed log code (see flyarm.live_common.encode_activity): codes 1..127 span floor..1.
     const floor = state.hidden_floor ?? 1e-4;
     const decades = -Math.log10(floor);
     for (let index = 0; index < signed.length; index += 1) {

@@ -114,7 +114,7 @@ def test_render_shows_rgb_scene(env: PandaPickPlaceEnv) -> None:
 def test_robot_payload_exports_the_compiled_panda_geometry(env: PandaPickPlaceEnv) -> None:
     import base64
 
-    from flyarm.live import ROBOT_BODIES, build_robot_payload, robot_body_poses
+    from flyarm.live_common import ROBOT_BODIES, build_robot_payload, robot_body_poses
 
     payload = build_robot_payload(env.model)
     meshes = [geom for geom in payload["geoms"] if geom["kind"] == "mesh"]

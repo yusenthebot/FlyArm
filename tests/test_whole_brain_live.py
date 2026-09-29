@@ -13,7 +13,7 @@ mx = pytest.importorskip("mlx.core")
 if not mx.metal.is_available():
     pytest.skip("MLX Metal device unavailable (e.g. CI VM)", allow_module_level=True)
 
-from flyarm.live import decode_activity  # noqa: E402
+from flyarm.live_common import decode_activity  # noqa: E402
 from flyarm.pick_place_env import PandaPickPlaceEnv  # noqa: E402
 from flyarm.whole_brain.backend_mlx import RateDynamics  # noqa: E402
 from flyarm.whole_brain.live import WholeBrainRuntime  # noqa: E402

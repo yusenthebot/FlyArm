@@ -21,7 +21,7 @@ import numpy as np
 import pyarrow.feather as feather
 
 from flyarm.interfaces import NeuralInterface
-from flyarm.live import (
+from flyarm.live_common import (
     CausalMode,
     LiveRuntime,
     ResetRequest,
@@ -333,7 +333,7 @@ def serve_whole_brain(
 ) -> None:
     import uvicorn
 
-    from flyarm.live import _validate_server_scope
+    from flyarm.live_common import _validate_server_scope
 
     ui_dist = _validate_server_scope(ui_dist, host)
     config = json.loads((run_root / "config.json").read_text())

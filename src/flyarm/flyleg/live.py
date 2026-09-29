@@ -23,7 +23,7 @@ import numpy as np
 from flyarm.benchmarks import kitchen
 from flyarm.flyleg.interface import front_leg_interface
 from flyarm.flyleg.record import load_flyleg_policy
-from flyarm.live import (
+from flyarm.live_common import (
     ACTIVITY_FLOOR,
     CausalMode,
     ResetRequest,
@@ -287,7 +287,7 @@ def serve_flyleg(
 ) -> None:
     import uvicorn
 
-    from flyarm.live import _validate_server_scope
+    from flyarm.live_common import _validate_server_scope
 
     ui_dist = _validate_server_scope(ui_dist, host)
     pack = ConnectomePack.load(pack_root)
