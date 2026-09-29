@@ -4,7 +4,8 @@ import numpy as np
 import pytest
 import torch
 
-from flyarm.graph import Graph, shuffle_graph
+from flyarm.assets import SOURCE_SHA256
+from flyarm.graph import RECIPE_VERSION, Graph, shuffle_graph
 from flyarm.models import Policy
 
 
@@ -42,6 +43,27 @@ def test_graph_int64_round_trip(tmp_path) -> None:
     assert np.array_equal(restored.contacts, original.contacts)
     assert np.array_equal(restored.signs, original.signs)
     assert restored.metadata == original.metadata
+
+
+def test_self_declared_provenance_does_not_admit_synthetic_graph() -> None:
+    graph = Graph(
+        ids=np.arange(256, dtype=np.int64),
+        pre=np.array([0]),
+        post=np.array([1]),
+        contacts=np.array([3.0], dtype=np.float32),
+        signs=np.ones(256),
+        metadata={
+            "schema_version": 1,
+            "recipe_version": RECIPE_VERSION,
+            "dataset": "MaleCNS v1.0",
+            "sources": {"files": {key: {"sha256": value} for key, value in SOURCE_SHA256.items()}},
+        },
+    )
+    with pytest.raises(ValueError, match="pinned 256-node graph"):
+        graph.validate_mvp_provenance()
+    original = graph.fingerprint()
+    graph.contacts[0] += 1
+    assert graph.fingerprint() != original
 
 
 def test_duplicate_directed_edge_is_rejected() -> None:

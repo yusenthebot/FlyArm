@@ -6,7 +6,7 @@ import torch
 from graph_fixtures import make_interface as interface_for
 from graph_fixtures import make_random_graph as random_graph
 
-from flyarm.pick_place_models import PickPlacePolicy
+from flyarm.graph import Graph
 from flyarm.whole_brain.compiler import ConnectomePack
 
 mx = pytest.importorskip("mlx.core")
@@ -62,22 +62,36 @@ def test_gradient_through_dynamics_matches_finite_differences() -> None:
     assert np.any(np.abs(gradient) > 1e-6)
 
 
+def torch_rate_steps(
+    graph: Graph, inputs: np.ndarray, state: torch.Tensor, current: torch.Tensor, steps: int
+) -> torch.Tensor:
+    """Independent sparse torch reference: the original 256-neuron subgraph update."""
+    nodes = len(graph.ids)
+    adjacency = torch.sparse_coo_tensor(
+        torch.as_tensor(np.stack((graph.post, graph.pre)), dtype=torch.int64),
+        torch.from_numpy(graph.normalized_weights()),
+        (nodes, nodes),
+        check_invariants=True,
+    ).coalesce()
+    drive = state.new_zeros(state.shape)
+    drive[:, torch.from_numpy(inputs)] = current
+    for _ in range(steps):
+        recurrent = torch.sparse.mm(adjacency, state.T).T
+        state = 0.5 * state + 0.5 * torch.tanh(drive + 0.8 * recurrent)
+    return state
+
+
 def test_rate_dynamics_reproduce_the_torch_subgraph_policy() -> None:
     graph = random_graph()
-    torch_interface = interface_for(graph)
-    policy = PickPlacePolicy(
-        "restricted_connectome", graph, torch_interface, seed=0, obs_dim=7, internal_steps=3
-    )
+    inputs, _ = interface_for(graph).resolve_indices(graph)
     pack = ConnectomePack.from_graph(graph)
     dynamics = RateDynamics(pack, interface_for(pack))
-    obs = torch.randn(3, 7)
-    state_t = policy.initial_state(3)
+    current = torch.randn(3, len(inputs), generator=torch.Generator().manual_seed(0))
+    state_t = torch.zeros(3, len(graph.ids))
     state_m = dynamics.zeros(3)
     for _ in range(5):
-        with torch.no_grad():
-            _, state_t = policy(obs, state_t)
-            current = policy.encoder((obs - policy.obs_mean) / policy.obs_scale).numpy()
-        state_m, _ = dynamics.advance(state_m, mx.array(current), 3)
+        state_t = torch_rate_steps(graph, inputs, state_t, current, 3)
+        state_m, _ = dynamics.advance(state_m, mx.array(current.numpy()), 3)
     np.testing.assert_allclose(np.asarray(state_m).T, state_t.numpy(), atol=2e-6)
 
 
