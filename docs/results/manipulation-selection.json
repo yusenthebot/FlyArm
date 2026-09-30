@@ -271,5 +271,39 @@
    0.6843
   ],
   "subgoal_fraction": 0.7433
+ },
+ "nophase-ppo500": {
+  "source": "ppo",
+  "run": "runs/ppo-manipulation-nophase-001",
+  "iteration": 500,
+  "base_run": "runs/skill-dagger-connectome-nophase-001",
+  "kind": "connectome",
+  "seed": 0,
+  "checkpoint": "runs/ppo-manipulation-nophase-001/policy-0500.safetensors",
+  "episodes": 112,
+  "successes": 89,
+  "success_rate": 0.7946,
+  "wilson_95": [
+   0.7107,
+   0.8591
+  ],
+  "subgoal_fraction": 0.8707
+ },
+ "nophase-ppo150": {
+  "source": "ppo",
+  "run": "runs/ppo-manipulation-nophase-001",
+  "iteration": 150,
+  "base_run": "runs/skill-dagger-connectome-nophase-001",
+  "kind": "connectome",
+  "seed": 0,
+  "checkpoint": "runs/ppo-manipulation-nophase-001/policy-0150.safetensors",
+  "episodes": 112,
+  "successes": 87,
+  "success_rate": 0.7768,
+  "wilson_95": [
+   0.6912,
+   0.844
+  ],
+  "subgoal_fraction": 0.8633
  }
 }
