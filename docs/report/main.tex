@@ -23,7 +23,7 @@
 We use the complete connectome of the adult male \emph{Drosophila} central nervous system (MaleCNS v1.0: 166,700 neurons, 10.5 million connections) as the controller of a simulated Franka arm and never train it.
 Only the interface is trained: a sensory encoder that writes currents into the 1,846 ascending neurons and a linear decoder that reads the 1,314 descending and 708 VNC motor neurons into the action; every signal from observation to action passes through three steps of a rate model on the measured wiring per control step.
 With imitation followed by PPO with a demonstration term, this controller solves all four tasks of D4RL FrankaKitchen in 50 of 50 test episodes of the official environment, including starts it was never trained on.
-On a new articulated multi-step manipulation benchmark (drawers, a lidded cabinet with a shelf, a bin, stacking; tasks of 3 to 8 subgoals over up to 2,600 control steps), skill-level DAgger followed by PPO that also trains the encoder through one step of the frozen connectome reaches 69.6\% full-task success on held-in test episodes and 75.0\% with objects never seen in training, against 51.3\% and 49.6\% for imitation alone.
+On a new articulated multi-step manipulation benchmark (drawers, a lidded cabinet with a shelf, a bin, stacking; tasks of 3 to 8 subgoals over up to 2,600 control steps), skill-level DAgger followed by PPO that also trains the encoder through one step of the frozen connectome reaches 76.3\% full-task success on held-in test episodes and 82.6\% with objects never seen in training, against 63.4\% and 64.7\% for imitation alone, without being told which motor phase of a skill it is in.
 Held-out furniture and task orders remain hard (36.6\% and 26.6\%).
 We describe the method, the benchmark, what did and did not work, and the controls that are still to run: this report shows that a frozen whole-CNS connectome can be trained to control the arm, not that its wiring is what makes this possible.
 \end{abstract}
@@ -55,7 +55,7 @@ Contributions:
 (c) The MaleCNS v1.0 connectome is frozen; each control step runs three steps of $h \leftarrow 0.5h + 0.5\tanh(I + 0.8Wh)$ on all 166,700 neurons.
 The soma map shows measured soma locations (gray), the declared inputs (amber) and outputs (teal).
 (d) The 1,314 descending and 708 VNC motor neurons pass a fixed readout normalization and the trained linear decoder $W_{\mathrm{out}}$ into the action $a_t$.
-(e) MuJoCo executes the action; the renders are a frame of the reported checkpoint on a test episode and the FrankaKitchen scene.
+(e) MuJoCo executes the action; the renders are a frame of a connectome controller on a test episode and the FrankaKitchen scene.
 (f) Only $E_\phi$ and $W_{\mathrm{out}}$ are trained, by imitation and then PPO with DAPG.}
 \label{fig:pipeline}
 \end{figure*}
@@ -85,7 +85,7 @@ The decoder $W_{\mathrm{out}}$ is linear with a $\tanh$.
 On the manipulation benchmark the controller has 0.63 M trainable parameters (0.62 M in the encoder, 10 k in the decoder); the connectome has 10.5 M fixed weights.
 
 \paragraph{Observation and action.}
-On the manipulation benchmark the observation is 230 values of simulator state: the arm (21), four object slots of 22 values (position, offset from the hand, rotation, shape descriptor, grasp flag), the furniture (46) and a memoryless task cue (75) that names the current subgoal's skill, object and receptacle, the relevant offsets, and a 10-way motor phase computed from geometric predicates of the scene (aligned, at height, grasped, above the target).
+On the manipulation benchmark the observation is 230 values of simulator state: the arm (21), four object slots of 22 values (position, offset from the hand, rotation, shape descriptor, grasp flag), the furniture (46) and a memoryless task cue (75) that names the current subgoal's skill, object and receptacle, the relevant offsets, and a 10-way motor phase computed from geometric predicates of the scene (aligned, at height, grasped, above the target); the reported controller receives the motor phase as zeros (Section~\ref{sec:results}).
 Joint and object velocities are zeroed, because controllers cloned from states with velocities learned to keep doing what the velocities say.
 Seventy fixed copies of the hand-relative offsets and heading errors, $\tanh(\delta/\sigma)$ at $\sigma$ of one and four control steps, let the encoder resolve the millimetres that decide between hovering and descending.
 The action is an end-effector step $(\Delta x, \Delta y, \Delta z, \Delta\psi, g)$ in $[-1,1]$, at most 14\,mm and 0.05\,rad per step, executed by damped least-squares inverse kinematics on the Menagerie Panda \citep{menagerie2022} in MuJoCo \citep{todorov2012mujoco} over 25 physics steps of 2\,ms.
@@ -186,27 +186,31 @@ Controller & Start & Score & All four & Strict \\
 \end{table}
 
 \paragraph{Articulated manipulation.}
-Table~\ref{tab:manip} compares the three stages of the recipe on the same fresh test episodes.
-PPO on the decoder alone adds 4 to 6 points to imitation; training the encoder as well adds another 13 points on held-in test episodes and 22 points with unseen objects (episode-level Fisher exact tests against decoder-only PPO: $p = 0.005$ and $p = 2\times10^{-6}$).
-On unseen furniture and unseen compositions the three stages differ little, and the differences are not significant ($p = 0.37$ and $0.89$).
-The final controller completes 79\% of the subgoals of iid episodes and 84\% with unseen objects, with stray robot contact in about 3\% of control steps.
+Table~\ref{tab:manip} compares the stages of the recipe on the same fresh test episodes, with and without the motor-phase cue.
+With the cue, PPO on the decoder alone adds 4 to 6 points to imitation, and training the encoder as well adds another 13 points on held-in test episodes and 22 points with unseen objects (episode-level Fisher exact tests against decoder-only PPO: $p = 0.005$ and $p = 2\times10^{-6}$).
+Without the cue, so that the phase has to come from the rest of the observation and the connectome's recurrent state, the same recipe is at least as good on every split: 76.3\% on held-in test episodes and 82.6\% with unseen objects against 69.6\% and 75.0\% with the cue ($p = 0.14$ and $0.064$), and identical counts on unseen furniture and compositions.
+We therefore report the controller without the phase cue.
+On unseen furniture and unseen compositions all stages differ little.
+The reported controller completes 86\% of the subgoals of iid episodes and 89\% with unseen objects.
 
 \begin{table}[t]
 \centering
 \small
-\caption{Articulated manipulation: full-task success from true starts, 32 fresh episodes per template (224 per split, 128 for four held-out compositions), Wilson 95\% intervals for the final controller. One training seed.}
+\caption{Articulated manipulation: full-task success (\%) from true starts, 32 fresh episodes per template (224 per split, 128 for the four held-out compositions). Reported controller (bold) with Wilson 95\% intervals: iid 70--81, unseen objects 77--87, unseen furniture 31--43, held-out compositions 20--35. One training seed each.}
 \label{tab:manip}
-\setlength{\tabcolsep}{2.5pt}
-\begin{tabular}{@{}lrrr@{}}
+\setlength{\tabcolsep}{3.5pt}
+\begin{tabular}{@{}lrrrr@{}}
 \toprule
-Split & Imitation & PPO (dec.) & PPO (enc., dec.) \\
+Controller & iid & objects & furniture & comp. \\
 \midrule
-iid & 51.3 & 56.3 & \textbf{69.6} (63--75) \\
-unseen objects & 49.6 & 53.1 & \textbf{75.0} (69--80) \\
-unseen furniture & 27.2 & 32.1 & \textbf{36.6} (31--43) \\
-held-out comp. & 18.8 & 25.0 & \textbf{26.6} (20--35) \\
+\multicolumn{5}{@{}l}{\emph{with the motor-phase cue}} \\
+Imitation & 51.3 & 49.6 & 27.2 & 18.8 \\
++ PPO, decoder & 56.3 & 53.1 & 32.1 & 25.0 \\
++ PPO, enc.\ and dec. & 69.6 & 75.0 & 36.6 & 26.6 \\
 \midrule
-subgoals done, iid & 68.7 & 73.2 & 78.9 \\
+\multicolumn{5}{@{}l}{\emph{without the motor-phase cue}} \\
+Imitation & 63.4 & 64.7 & 28.1 & 17.2 \\
++ PPO, enc.\ and dec. & \textbf{76.3} & \textbf{82.6} & \textbf{36.6} & \textbf{26.6} \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -237,7 +241,8 @@ Imitation, selected round & 64/112 \\
 PPO, decoder only & 75/112 \\
 \quad + failure-targeted resets$^\dagger$ & 73/112 \\
 PPO, encoder and decoder, unclipped & 83/112 \\
-PPO, encoder and decoder, clipped (reported) & \textbf{86/112} \\
+PPO, encoder and decoder, clipped & 86/112 \\
+\quad without the phase cue (reported) & \textbf{89/112} \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -257,13 +262,12 @@ So far only their imitation stage exists on the manipulation benchmark, with one
 In an earlier real-contact pick-and-place task the complete connectome lifted 58 of 72 test cubes against 27 for its shuffle and 33 for a matched GRU over three training seeds, and resetting the neural state every step removed lifting entirely, but that task and interface are superseded here.
 
 \paragraph{Limitations.}
-Observations are simulator state, not vision, and on the manipulation benchmark the task cue, including the motor phase, is computed from the task plan and from geometric predicates of the simulator state, so part of the task structure is given to the controller rather than inferred.
-Removing the phase cue, so that the connectome's recurrent state has to carry the phase, is running now.
+Observations are simulator state, not vision, and on the manipulation benchmark the task cue (the current subgoal's skill, object, receptacle and target) comes from the task plan and the simulator state, so the task's order is given to the controller rather than inferred; the motor phase within a skill is not given.
 The rate model is an abstraction on the measured wiring, not a physiological or spiking emulation.
 All results are in simulation, and the manipulation results are one training seed so far.
 
 \paragraph{Next steps.}
-Seeds and controls for the reported controller; the no-phase-cue controller; perception from rendered images through a privileged-teacher-to-student distillation; and transfer to public benchmarks.
+Seeds and controls for the reported controller; a weaker task cue that names only the goal; perception from rendered images through a privileged-teacher-to-student distillation; and transfer to public benchmarks.
 
 \section*{Reproducibility}
 Code, configurations, the research log with every experiment including failed ones, and all result files are in the repository.

@@ -1,13 +1,13 @@
 {
  "source": "ppo",
- "run": "runs/ppo-manipulation-encoder-003",
- "iteration": 150,
- "base_run": "runs/skill-dagger-connectome-002",
+ "run": "runs/ppo-manipulation-nophase-001",
+ "iteration": 500,
+ "base_run": "runs/skill-dagger-connectome-nophase-001",
  "kind": "connectome",
  "seed": 0,
- "checkpoint": "runs/ppo-manipulation-encoder-003/policy-0150.safetensors",
+ "checkpoint": "runs/ppo-manipulation-nophase-001/policy-0500.safetensors",
  "split": "unseen_objects",
- "candidates": 6,
+ "candidates": 8,
  "episodes": {
   "put_away": {
    "success": 4000500,

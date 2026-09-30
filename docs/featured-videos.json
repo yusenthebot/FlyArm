@@ -1,21 +1,21 @@
 [
  {
   "root": "main",
-  "path": "manipulation/final-iid.mp4",
+  "path": "manipulation/final2-iid.mp4",
   "title": "Manipulation: the fly connectome solves every task template",
-  "note": "Frozen complete MaleCNS; trained sensory encoder and linear decoder; skill-level DAgger, then PPO with DAPG that also trains the encoder (clipped). One successful iid test episode per template (unpack in final-iid-unpack.mp4)."
+  "note": "Frozen complete MaleCNS; trained sensory encoder and linear decoder; skill-level DAgger, then PPO with DAPG that also trains the encoder (clipped); no motor-phase cue. One successful iid test episode per template."
  },
  {
   "root": "main",
-  "path": "manipulation/final-unseen-objects.mp4",
+  "path": "manipulation/final2-unseen-objects.mp4",
   "title": "Manipulation: objects never seen in training",
-  "note": "Same checkpoint (runs/ppo-manipulation-encoder-003, iteration 150), unseen-objects split, one successful episode per template."
+  "note": "Same checkpoint (runs/ppo-manipulation-nophase-001, iteration 500), unseen-objects split, one successful episode per template."
  },
  {
   "root": "main",
-  "path": "manipulation/final-unseen-composition.mp4",
+  "path": "manipulation/final2-unseen-composition.mp4",
   "title": "Manipulation: task orders never seen in training",
-  "note": "Same checkpoint, unseen-composition split (5 to 8 subgoals); retrieve_to_shelf had no success in 10 episodes."
+  "note": "Same checkpoint, unseen-composition split (5 to 8 subgoals); full_cleanup and retrieve_to_shelf had no success in 12 episodes."
  },
  {
   "root": "main",
