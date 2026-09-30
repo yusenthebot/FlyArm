@@ -6,7 +6,7 @@ Mode: evolving; the rigor bar below is round one's floor.
 
 Acceptance (report rigor, 2026-09-30):
 - [ ] G1 Seeds: connectome seeds 0, 1 and 2 through the pre-registered protocol, final evaluation 32 episodes per template on every split.
-- [ ] G2 Lesions: test-time silencing of central brain, optic lobes, VNC interneurons, sensory neurons, size-matched random sets, all-but-interface, and state reset; McNemar against intact.
+- [x] G2 Lesions (seed 0 done; repeat on seeds 1 and 2): test-time silencing of central brain, optic lobes, VNC interneurons, sensory neurons, size-matched random sets, all-but-interface, and state reset; McNemar against intact.
 - [ ] G3 Shuffle: degree-preserving shuffle seeds 0, 1 and 2 through the same protocol; connectome against shuffle at seed and episode level.
 - [ ] G4 Report: seed table with mean and range, controls and lesion sections, statistics protocol, hyperparameters and compute, figures regenerated; claims match the evidence.
 

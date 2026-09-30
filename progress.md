@@ -3,7 +3,7 @@
 ## Current state (2026-09-30)
 - Reported controller: runs/ppo-manipulation-nophase-001 iteration 500 (no phase cue), final evaluation iid 76.3%, unseen objects 82.6%, unseen furniture 36.6%, held-out compositions 26.6%; one seed.
 - Protocol for seeds and the shuffle is in docs/RESEARCH_LOG.md, "Report rigor plan 2026-09-30".
-- Lesion intact baseline: 87/112 iid (16 per template, FINAL_OFFSET seeds).
+- Lesions (E63, seed 0): state reset 0/112; VNC interneurons 46 vs random 84/79 (specific); optic lobes 94 vs random 39/1 (dispensable); central brain and sensory like random; all-but-interface 16/112.
 - Path analysis (docs/results/connectome-paths.json): 99% of descending and 84% of motor neurons are one synapse from an input, but 69% and 85% of their incoming weight comes from interior neurons.
 
 ## Commands
@@ -19,7 +19,7 @@
 - pytest without FLYARM_MODEL skips 65 simulator tests; always set FLYARM_MODEL to the Panda scene.xml for the local CI run.
 
 ## Next
-- When lesions finish: E63 entry, a lesion figure and a report section.
+- Repeat lesions on seeds 1 and 2 when their PPO checkpoints are selected.
 - When seeds finish: seed table and statistics; then shuffle comparison.
 
 ## Frontier

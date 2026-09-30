@@ -215,6 +215,23 @@ Imitation & 63.4 & 64.7 & 28.1 & 17.2 \\
 \end{tabular}
 \end{table}
 
+\paragraph{Lesions of the trained controller.}
+To see which parts of the frozen connectome the trained controller uses, we lesion it at test time without retraining (Figure~\ref{fig:lesions}): a group of non-interface neurons is clamped to zero after every neural step, and each anatomical group is compared with two random sets of the same size drawn from all non-interface neurons, on the same 112 iid test episodes (exact McNemar tests).
+Clearing the recurrent state before every control step, while keeping the three neural steps within it, removes every success (0 of 112): the controller depends on the connectome's state carried across control steps.
+The effect of silencing follows the anatomy rather than the number of neurons silenced.
+Silencing the 13,161 VNC interneurons, which relay descending neurons to motor neurons, lowers success from 87 to 46 of 112, while random sets of the same size leave 84 and 79 (paired against each random set, $p = 2\times10^{-9}$ and $10^{-6}$).
+Silencing the 99,167 optic-lobe neurons, which receive no input in this task, leaves 94, while random sets of that size leave 39 and 1.
+The central brain (82 against 75 and 75) and the sensory neurons (78 against 82 and 76) do not differ from their random sets.
+With every non-interface neuron silenced, only the interface neurons and the edges among them remain; 16 of 112 episodes still succeed, which bounds what the direct ascending-to-output edges carry (16\% of the incoming weight of descending neurons and 5\% of motor neurons).
+A partial random lesion of 99,167 neurons does worse than this clean removal, so a lesion can also derail the trained readout rather than only remove capacity; the lesions are of one trained controller.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{lesion-figure.png}
+\caption{Test-time lesions of the reported controller: full-task success on 112 iid test episodes with Wilson 95\% intervals, and exact McNemar $p$ against intact on the same episodes. Purple: an anatomical group silenced (neuron count); grey: random non-interface sets of the same size.}
+\label{fig:lesions}
+\end{figure}
+
 \paragraph{Where it fails.}
 A failure analysis of the decoder-only PPO controller on 16 fresh episodes per template found nearly every failure to be the learner's (the teacher solves the same episodes): of 218 failed episodes, 151 stopped at a placement, most often on the shelf (44) and in the region (29), then at stacking (10) and closing a drawer (8).
 Placing into a drawer is solved (16 of 16 on every split), while \texttt{retrieve\_to\_shelf}, a held-out composition, stops at opening the drawer in 16 of 16 episodes.
@@ -257,7 +274,8 @@ Raising the collision iteration cap only moved the failure; every furniture rod 
 
 \paragraph{Controls.}
 The claim of this report is that a frozen whole-CNS connectome can be trained to control the arm on these tasks.
-Whether its measured wiring matters is a separate claim that needs controls run through the identical pipeline with several seeds: a degree-preserving shuffle of the connectome, parameter-matched GRU and MLP controllers, and lesions.
+Whether its measured wiring matters is a separate claim.
+The lesions above show that the trained controller depends on specific anatomical groups rather than on the number of neurons, but not that the measured wiring trains better than another graph; that needs controls run through the identical pipeline with several seeds: a degree-preserving shuffle of the connectome (running, three seeds) and parameter-matched GRU and MLP controllers.
 So far only their imitation stage exists on the manipulation benchmark, with one seed each: on iid validation the measured connectome reaches 51.8\%, its shuffle 44.6\%, a matched GRU 66.1\% and a matched MLP 26.8\%; the episode-level difference between the measured wiring and its shuffle, pooled over splits, has $p = 0.016$, but seed-level statistics are required before it is a claim, and the GRU, which trains its own recurrence, is ahead.
 In an earlier real-contact pick-and-place task the complete connectome lifted 58 of 72 test cubes against 27 for its shuffle and 33 for a matched GRU over three training seeds, and resetting the neural state every step removed lifting entirely, but that task and interface are superseded here.
 
