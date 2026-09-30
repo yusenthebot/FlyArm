@@ -127,6 +127,9 @@ An unclipped encoder update collapsed the policy twice in one run (validation 41
 \paragraph{Selection and evaluation.}
 Checkpoints are selected only on validation episodes of the train split.
 Final numbers use 32 fresh episodes per task template on every test split, from seed blocks disjoint from every episode used for training or selection, with deterministic actions and Wilson 95\% intervals \citep{wilson1927}.
+For the three training seeds and the shuffled-connectome control the protocol was fixed before any of their results: the imitation checkpoint is the round among 7, 8 and 9, and the PPO checkpoint the iteration among 150, 300 and 500, with the most successes on 112 validation episodes (ties to the later one); nothing else differs between seeds or between the measured and the shuffled graph.
+Across seeds we report the mean and range of the success rate and the pooled count; the measured and the shuffled connectome are compared by Welch's $t$-test on the seed-level rates and by Fisher's exact test on pooled episodes, and paired conditions on the same episodes by exact McNemar tests.
+Applied to seed 0, which was trained before the protocol was written, the protocol selects the checkpoints already reported.
 
 \section{Benchmarks}
 
