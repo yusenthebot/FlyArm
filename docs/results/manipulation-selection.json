@@ -305,5 +305,37 @@
    0.844
   ],
   "subgoal_fraction": 0.8633
+ },
+ "nophase-r09": {
+  "source": "file",
+  "run": "runs/skill-dagger-connectome-nophase-001",
+  "kind": "connectome",
+  "seed": 0,
+  "checkpoint": "runs/skill-dagger-connectome-nophase-001/connectome-0/round-09/policy.safetensors",
+  "episodes": 112,
+  "successes": 65,
+  "success_rate": 0.5804,
+  "wilson_95": [
+   0.4878,
+   0.6676
+  ],
+  "subgoal_fraction": 0.751
+ },
+ "nophase-ppo300": {
+  "source": "ppo",
+  "run": "runs/ppo-manipulation-nophase-001",
+  "iteration": 300,
+  "base_run": "runs/skill-dagger-connectome-nophase-001",
+  "kind": "connectome",
+  "seed": 0,
+  "checkpoint": "runs/ppo-manipulation-nophase-001/policy-0300.safetensors",
+  "episodes": 112,
+  "successes": 84,
+  "success_rate": 0.75,
+  "wilson_95": [
+   0.6624,
+   0.821
+  ],
+  "subgoal_fraction": 0.8604
  }
 }
