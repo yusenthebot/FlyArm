@@ -20,19 +20,19 @@
 \maketitle
 
 \begin{abstract}
-We use the complete connectome of the adult male \emph{Drosophila} central nervous system (MaleCNS v1.0: 166,700 neurons, 10.5 million connections) as the controller of a simulated Franka arm and never train it.
+I use the complete connectome of the adult male \emph{Drosophila} central nervous system (MaleCNS v1.0: 166,700 neurons, 10.5 million connections) as the controller of a simulated Franka arm and never train it.
 Only the interface is trained: a sensory encoder that writes currents into the 1,846 ascending neurons and a linear decoder that reads the 1,314 descending and 708 VNC motor neurons into the action; every signal from observation to action passes through three steps of a rate model on the measured wiring per control step.
 With imitation followed by PPO with a demonstration term, this controller solves all four tasks of D4RL FrankaKitchen in 50 of 50 test episodes of the official environment, including starts it was never trained on.
 On a new articulated multi-step manipulation benchmark (drawers, a lidded cabinet with a shelf, a bin, stacking; tasks of 3 to 8 subgoals over up to 2,600 control steps), skill-level DAgger followed by PPO that also trains the encoder through one step of the frozen connectome reaches 76.3\% full-task success on held-in test episodes and 82.6\% with objects never seen in training, against 63.4\% and 64.7\% for imitation alone, without being told which motor phase of a skill it is in.
 Held-out furniture and task orders remain hard (36.6\% and 26.6\%).
-We describe the method, the benchmark, what did and did not work, and the controls that are still to run: this report shows that a frozen whole-CNS connectome can be trained to control the arm, not that its wiring is what makes this possible.
+I describe the method, the benchmark, what did and did not work, and the controls that are still to run: this report shows that a frozen whole-CNS connectome can be trained to control the arm, not that its wiring is what makes this possible.
 \end{abstract}
 
 \section{Introduction}
 
 Whole-brain connectomes of the fruit fly now exist for the adult brain \citep{dorkenwald2024flywire} and for the complete male central nervous system, brain and ventral nerve cord together \citep{berg2026malecns}.
 Connectome-constrained networks predict neural activity in the fly visual system when their weights are fixed by the wiring and only a few parameters are fitted \citep{lappalainen2024connectome}, and biomechanical fly models close sensorimotor loops with connectome-constrained circuits \citep{wangchen2024neuromechfly}.
-We ask a different, engineering question: can the complete measured wiring of an insect nervous system, frozen as it is, serve as the controller of a robot that has to solve long-horizon manipulation tasks?
+I ask a different, engineering question: can the complete measured wiring of an insect nervous system, frozen as it is, serve as the controller of a robot that has to solve long-horizon manipulation tasks?
 
 FlyArm makes the connectome the only path from perception to action.
 Observations enter as currents into the neurons annotated as ascending; actions are read from the neurons annotated as descending and VNC motor; the recurrent weights are the measured synapse counts with transmitter signs and are never updated.
@@ -64,7 +64,7 @@ The soma map shows measured soma locations (gray), the declared inputs (amber) a
 \label{sec:method}
 
 \paragraph{Connectome.}
-We compile the MaleCNS v1.0 release into a sparse matrix over its 166,700 annotated neurons.
+I compile the MaleCNS v1.0 release into a sparse matrix over its 166,700 annotated neurons.
 A connection is kept when two neurons share at least three synaptic contacts (10,520,377 pairs, 104 million synapses, 84\% of all synapses between annotated neurons); its sign is $+1$ for acetylcholine, $-1$ for GABA and glutamate and $0$ for other or unclear transmitters, and each neuron's incoming absolute strength is normalized to at most one.
 The pack is hash-pinned and a run refuses any other pack.
 
@@ -112,14 +112,14 @@ After ten rounds the aggregate holds 1.8 M labelled steps; the checkpoint is sel
 On FrankaKitchen, imitation is DAgger with a tracker of the benchmark's demonstrations.
 
 \paragraph{PPO with a demonstration term.}
-We fine-tune with PPO \citep{schulman2017ppo} and GAE \citep{schulman2016gae} ($\gamma = 0.995$, $\lambda = 0.95$, clip 0.2) on 128 batched environments with rollouts of 64 steps, a critic on privileged state that is warmed up for 50 iterations before the policy moves, and advantages clipped at ten standard deviations.
+I fine-tune with PPO \citep{schulman2017ppo} and GAE \citep{schulman2016gae} ($\gamma = 0.995$, $\lambda = 0.95$, clip 0.2) on 128 batched environments with rollouts of 64 steps, a critic on privileged state that is warmed up for 50 iterations before the policy moves, and advantages clipped at ten standard deviations.
 Every policy update adds the DAPG term \citep{rajeswaran2018dapg}, the squared error to the teacher's action on a minibatch of 1,024 demonstration steps, with weight one.
 The reward pays a bonus of 50 per subgoal in task order, potential-based shaping toward the current subgoal (weight 10), a potential on the displacement of objects the task does not involve (weight 5), and small penalties for stray robot contact and large actions; every level term is a penalty, so stalling is never worth more than finishing.
 Training runs on a curriculum of two to three subgoals from subgoal resets and then full tasks, with subgoal resets drawn from a bank recorded by the teacher.
 
 \paragraph{Training the encoder with PPO.}
 With the encoder frozen, PPO tunes only the 10 k decoder weights.
-We also update the encoder, with the gradient truncated to one control step: the connectome state before the step is a constant, and only that step's three neural updates are differentiated, so a single step's graph is alive at a time.
+I also update the encoder, with the gradient truncated to one control step: the connectome state before the step is a constant, and only that step's three neural updates are differentiated, so a single step's graph is alive at a time.
 The encoder's loss is PPO's clipped surrogate on the rollout's log-probabilities plus its own DAPG term, differentiated through the same single step from connectome states stored before 1,024 demonstration steps.
 Every 25 iterations the demonstrations are replayed through the current encoder, so the decoder's DAPG features and the stored states follow the encoder.
 An unclipped encoder update collapsed the policy twice in one run (validation 41 of 56 at iteration 100, then 5 of 56 at 250 and 0 of 56 at 400); with the clipped surrogate and a learning rate of $10^{-5}$ the run was stable over 400 iterations.
@@ -128,15 +128,15 @@ An unclipped encoder update collapsed the policy twice in one run (validation 41
 Checkpoints are selected only on validation episodes of the train split.
 Final numbers use 32 fresh episodes per task template on every test split, from seed blocks disjoint from every episode used for training or selection, with deterministic actions and Wilson 95\% intervals \citep{wilson1927}.
 For the three training seeds and the shuffled-connectome control the protocol was fixed before any of their results: the imitation checkpoint is the round among 7, 8 and 9, and the PPO checkpoint the iteration among 150, 300 and 500, with the most successes on 112 validation episodes (ties to the later one); nothing else differs between seeds or between the measured and the shuffled graph.
-Across seeds we report the mean and range of the success rate and the pooled count; the measured and the shuffled connectome are compared by Welch's $t$-test on the seed-level rates and by Fisher's exact test on pooled episodes, and paired conditions on the same episodes by exact McNemar tests.
+Across seeds I report the mean and range of the success rate and the pooled count; the measured and the shuffled connectome are compared by Welch's $t$-test on the seed-level rates and by Fisher's exact test on pooled episodes, and paired conditions on the same episodes by exact McNemar tests.
 Applied to seed 0, which was trained before the protocol was written, the protocol selects the checkpoints already reported.
 
 \section{Benchmarks}
 
 \paragraph{FrankaKitchen.}
-We use the official Gymnasium-Robotics FrankaKitchen environment and the kitchen-complete task of D4RL \citep{fu2020d4rl}: open the microwave, move the kettle, flip the light switch and slide the cabinet, in that order.
+I use the official Gymnasium-Robotics FrankaKitchen environment and the kitchen-complete task of D4RL \citep{fu2020d4rl}: open the microwave, move the kettle, flip the light switch and slide the cabinet, in that order.
 Flat reinforcement learning fails on it \citep{gupta2019relay}.
-We report the benchmark score (tasks ever completed at the threshold 0.3) from the benchmark start and from starts whose joints are perturbed by 0.2 and 0.3\,rad, which were never used in training, and a strict score counting elements that end within 0.1 of their goal.
+I report the benchmark score (tasks ever completed at the threshold 0.3) from the benchmark start and from starts whose joints are perturbed by 0.2 and 0.3\,rad, which were never used in training, and a strict score counting elements that end within 0.1 of their goal.
 
 \begin{figure*}[t]
 \centering
@@ -192,7 +192,7 @@ Controller & Start & Score & All four & Strict \\
 Table~\ref{tab:manip} compares the stages of the recipe on the same fresh test episodes, with and without the motor-phase cue.
 With the cue, PPO on the decoder alone adds 4 to 6 points to imitation, and training the encoder as well adds another 13 points on held-in test episodes and 22 points with unseen objects (episode-level Fisher exact tests against decoder-only PPO: $p = 0.005$ and $p = 2\times10^{-6}$).
 Without the cue, so that the phase has to come from the rest of the observation and the connectome's recurrent state, the same recipe is at least as good on every split: 76.3\% on held-in test episodes and 82.6\% with unseen objects against 69.6\% and 75.0\% with the cue ($p = 0.14$ and $0.064$), and identical counts on unseen furniture and compositions.
-We therefore report the controller without the phase cue.
+I therefore report the controller without the phase cue.
 On unseen furniture and unseen compositions all stages differ little.
 The reported controller completes 86\% of the subgoals of iid episodes and 89\% with unseen objects.
 
@@ -219,7 +219,7 @@ Imitation & 63.4 & 64.7 & 28.1 & 17.2 \\
 \end{table}
 
 \paragraph{Lesions of the trained controller.}
-To see which parts of the frozen connectome the trained controller uses, we lesion it at test time without retraining (Figure~\ref{fig:lesions}): a group of non-interface neurons is clamped to zero after every neural step, and each anatomical group is compared with two random sets of the same size drawn from all non-interface neurons, on the same 112 iid test episodes (exact McNemar tests).
+To see which parts of the frozen connectome the trained controller uses, I lesion it at test time without retraining (Figure~\ref{fig:lesions}): a group of non-interface neurons is clamped to zero after every neural step, and each anatomical group is compared with two random sets of the same size drawn from all non-interface neurons, on the same 112 iid test episodes (exact McNemar tests).
 Clearing the recurrent state before every control step, while keeping the three neural steps within it, removes every success (0 of 112): the controller depends on the connectome's state carried across control steps.
 The effect of silencing follows the anatomy rather than the number of neurons silenced.
 Silencing the 13,161 VNC interneurons, which relay descending neurons to motor neurons, lowers success from 87 to 46 of 112, while random sets of the same size leave 84 and 79 (paired against each random set, $p = 2\times10^{-9}$ and $10^{-6}$).
