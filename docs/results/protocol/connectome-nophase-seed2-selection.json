@@ -1,0 +1,47 @@
+{
+ "connectome-nophase-seed2-r07": {
+  "source": "file",
+  "run": "runs/skill-dagger-connectome-nophase-seed2",
+  "kind": "connectome",
+  "seed": 2,
+  "checkpoint": "runs/skill-dagger-connectome-nophase-seed2/connectome-2/round-07/policy.safetensors",
+  "episodes": 112,
+  "successes": 56,
+  "success_rate": 0.5,
+  "wilson_95": [
+   0.4089,
+   0.5911
+  ],
+  "subgoal_fraction": 0.6832
+ },
+ "connectome-nophase-seed2-r08": {
+  "source": "file",
+  "run": "runs/skill-dagger-connectome-nophase-seed2",
+  "kind": "connectome",
+  "seed": 2,
+  "checkpoint": "runs/skill-dagger-connectome-nophase-seed2/connectome-2/round-08/policy.safetensors",
+  "episodes": 112,
+  "successes": 56,
+  "success_rate": 0.5,
+  "wilson_95": [
+   0.4089,
+   0.5911
+  ],
+  "subgoal_fraction": 0.6886
+ },
+ "connectome-nophase-seed2-r09": {
+  "source": "file",
+  "run": "runs/skill-dagger-connectome-nophase-seed2",
+  "kind": "connectome",
+  "seed": 2,
+  "checkpoint": "runs/skill-dagger-connectome-nophase-seed2/connectome-2/round-09/policy.safetensors",
+  "episodes": 112,
+  "successes": 59,
+  "success_rate": 0.5268,
+  "wilson_95": [
+   0.435,
+   0.6168
+  ],
+  "subgoal_fraction": 0.6882
+ }
+}
