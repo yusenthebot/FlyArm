@@ -165,6 +165,10 @@ class PandaManipulationEnv(gym.Env[np.ndarray, np.ndarray]):
     def render(self, camera: str | mujoco.MjvCamera = CAMERA) -> np.ndarray:
         if self._renderer is None:
             height, width = self.render_size
+            # The offscreen framebuffer defaults to 640 x 480; grow it for larger renders.
+            visual = self.model.vis.global_
+            visual.offwidth = max(int(visual.offwidth), width)
+            visual.offheight = max(int(visual.offheight), height)
             self._renderer = mujoco.Renderer(self.model, height=height, width=width)
         self._renderer.update_scene(self.data, camera=camera)
         return self._renderer.render()

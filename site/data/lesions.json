@@ -1,0 +1,152 @@
+{
+ "intact": {
+  "successes": 87,
+  "episodes": 112,
+  "silenced": 0,
+  "wilson": [
+   0.6912,
+   0.844
+  ],
+  "p": null
+ },
+ "state_reset": {
+  "successes": 0,
+  "episodes": 112,
+  "silenced": 0,
+  "wilson": [
+   0.0,
+   0.0332
+  ],
+  "p": 1.2924697071141057e-26
+ },
+ "silence_central_brain": {
+  "successes": 82,
+  "episodes": 112,
+  "silenced": 32164,
+  "wilson": [
+   0.6434,
+   0.8055
+  ],
+  "p": 0.44206833839416504
+ },
+ "random_as_central_brain_0": {
+  "successes": 75,
+  "episodes": 112,
+  "silenced": 32164,
+  "wilson": [
+   0.5782,
+   0.7499
+  ],
+  "p": 0.022655844688415527
+ },
+ "random_as_central_brain_1": {
+  "successes": 75,
+  "episodes": 112,
+  "silenced": 32164,
+  "wilson": [
+   0.5782,
+   0.7499
+  ],
+  "p": 0.03569813817739487
+ },
+ "silence_optic_lobes": {
+  "successes": 94,
+  "episodes": 112,
+  "silenced": 99167,
+  "wilson": [
+   0.7602,
+   0.8959
+  ],
+  "p": 0.09228515625
+ },
+ "random_as_optic_lobes_0": {
+  "successes": 39,
+  "episodes": 112,
+  "silenced": 99167,
+  "wilson": [
+   0.2663,
+   0.4401
+  ],
+  "p": 7.105427357601002e-15
+ },
+ "random_as_optic_lobes_1": {
+  "successes": 1,
+  "episodes": 112,
+  "silenced": 99167,
+  "wilson": [
+   0.0016,
+   0.0488
+  ],
+  "p": 2.5849394142282115e-26
+ },
+ "silence_vnc_interneurons": {
+  "successes": 46,
+  "episodes": 112,
+  "silenced": 13161,
+  "wilson": [
+   0.324,
+   0.5033
+  ],
+  "p": 2.4647306418046355e-10
+ },
+ "random_as_vnc_interneurons_0": {
+  "successes": 84,
+  "episodes": 112,
+  "silenced": 13161,
+  "wilson": [
+   0.6624,
+   0.821
+  ],
+  "p": 0.629058837890625
+ },
+ "random_as_vnc_interneurons_1": {
+  "successes": 79,
+  "episodes": 112,
+  "silenced": 13161,
+  "wilson": [
+   0.6153,
+   0.7818
+  ],
+  "p": 0.13380050659179688
+ },
+ "silence_sensory": {
+  "successes": 78,
+  "episodes": 112,
+  "silenced": 17873,
+  "wilson": [
+   0.6059,
+   0.7739
+  ],
+  "p": 0.03515625
+ },
+ "random_as_sensory_0": {
+  "successes": 82,
+  "episodes": 112,
+  "silenced": 17873,
+  "wilson": [
+   0.6434,
+   0.8055
+  ],
+  "p": 0.359283447265625
+ },
+ "random_as_sensory_1": {
+  "successes": 76,
+  "episodes": 112,
+  "silenced": 17873,
+  "wilson": [
+   0.5874,
+   0.7579
+  ],
+  "p": 0.052238985896110535
+ },
+ "silence_all_but_interface": {
+  "successes": 16,
+  "episodes": 112,
+  "silenced": 162832,
+  "wilson": [
+   0.0899,
+   0.2195
+  ],
+  "p": 8.470329472543003e-22
+ }
+}

@@ -27,3 +27,8 @@ ui/dist/
 
 # Superseded code, configs, docs and figures, kept locally only
 archive/
+
+# Assembled static site (site/build.sh)
+_site/
+# The site's recorded episodes (scripts/record_brain_activity.py)
+!site/data/

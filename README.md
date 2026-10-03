@@ -6,7 +6,10 @@ A frozen, complete fruit-fly central nervous system (MaleCNS v1.0: 166,700 neuro
 The connectome is never trained; only a sensory encoder into its ascending neurons and a linear decoder out of its descending and motor neurons are.
 It runs in real time on a Mac (MLX, about 4 ms per control step).
 
+**Interactive site: [yusenthebot.github.io/FlyArm](https://yusenthebot.github.io/FlyArm/)**, the arm and the connectome's recorded activity on the same frames, and a lesion lab to try.
+
 **Videos: the frozen fly connectome controls the arm**
+- [The arm and the brain together](docs/videos/fly-brain-demo-vertical.mp4): a seven-subgoal task with objects never seen in training, with 3,200 sampled neurons of the connectome lit by their activity on every frame (vertical, 24 seconds).
 - [Drawers, a lidded cabinet, shelves, a bin and stacking](docs/videos/fly-brain-highlights.mp4): one successful test episode of each of the seven task templates (2 minutes).
 - [Objects never seen in training](docs/videos/fly-brain-unseen-objects.mp4): the seven templates with held-out scanned objects (2 minutes).
 - [Task orders never seen in training](docs/videos/fly-brain-unseen-composition.mp4): two held-out compositions of 5 and 6 subgoals (40 seconds).
