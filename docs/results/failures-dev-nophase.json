@@ -1,0 +1,178 @@
+{
+ "policy": {
+  "source": "ppo",
+  "run": "runs/ppo-manipulation-nophase-001",
+  "iteration": 500,
+  "base_run": "runs/skill-dagger-connectome-nophase-001",
+  "kind": "connectome",
+  "seed": 0,
+  "checkpoint": "runs/ppo-manipulation-nophase-001/policy-0500.safetensors"
+ },
+ "splits": {
+  "unseen_furniture": {
+   "episodes": 112,
+   "learner": 44,
+   "teacher": 108,
+   "failed_at": {
+    "place:D": 9,
+    "close_drawer": 5,
+    "open_drawer": 7,
+    "open_door": 29,
+    "stack:B": 2,
+    "place:region": 11,
+    "place:bin": 4,
+    "place:shelf": 1
+   },
+   "per_template": {
+    "put_away": {
+     "episodes": 16,
+     "learner": 10,
+     "teacher": 15,
+     "learner_fails_teacher_succeeds": 5,
+     "failed_at": {
+      "place:D": 4,
+      "close_drawer": 1,
+      "open_drawer": 1
+     }
+    },
+    "retrieve": {
+     "episodes": 16,
+     "learner": 13,
+     "teacher": 16,
+     "learner_fails_teacher_succeeds": 3,
+     "failed_at": {
+      "open_drawer": 1,
+      "close_drawer": 2
+     }
+    },
+    "shelve": {
+     "episodes": 16,
+     "learner": 0,
+     "teacher": 13,
+     "learner_fails_teacher_succeeds": 13,
+     "failed_at": {
+      "open_door": 16
+     }
+    },
+    "tower": {
+     "episodes": 16,
+     "learner": 12,
+     "teacher": 16,
+     "learner_fails_teacher_succeeds": 4,
+     "failed_at": {
+      "stack:B": 1,
+      "place:region": 3
+     }
+    },
+    "sort": {
+     "episodes": 16,
+     "learner": 6,
+     "teacher": 16,
+     "learner_fails_teacher_succeeds": 10,
+     "failed_at": {
+      "place:bin": 4,
+      "place:region": 5,
+      "stack:B": 1
+     }
+    },
+    "tidy": {
+     "episodes": 16,
+     "learner": 1,
+     "teacher": 16,
+     "learner_fails_teacher_succeeds": 15,
+     "failed_at": {
+      "open_door": 4,
+      "open_drawer": 4,
+      "place:D": 5,
+      "close_drawer": 2
+     }
+    },
+    "unpack": {
+     "episodes": 16,
+     "learner": 2,
+     "teacher": 16,
+     "learner_fails_teacher_succeeds": 14,
+     "failed_at": {
+      "open_door": 9,
+      "place:region": 3,
+      "open_drawer": 1,
+      "place:shelf": 1
+     }
+    }
+   }
+  },
+  "unseen_composition": {
+   "episodes": 64,
+   "learner": 13,
+   "teacher": 60,
+   "failed_at": {
+    "place:shelf": 8,
+    "open_door": 7,
+    "close_door": 1,
+    "open_drawer": 24,
+    "place:D": 4,
+    "place:region": 6,
+    "stack:A": 1
+   },
+   "per_template": {
+    "shelve_then_put_away": {
+     "episodes": 16,
+     "learner": 2,
+     "teacher": 16,
+     "learner_fails_teacher_succeeds": 14,
+     "failed_at": {
+      "place:shelf": 3,
+      "open_door": 3,
+      "close_door": 1,
+      "open_drawer": 7
+     }
+    },
+    "retrieve_to_shelf": {
+     "episodes": 16,
+     "learner": 0,
+     "teacher": 13,
+     "learner_fails_teacher_succeeds": 13,
+     "failed_at": {
+      "open_drawer": 16
+     }
+    },
+    "tower_then_put_away": {
+     "episodes": 16,
+     "learner": 11,
+     "teacher": 15,
+     "learner_fails_teacher_succeeds": 4,
+     "failed_at": {
+      "place:D": 1,
+      "open_drawer": 1,
+      "place:region": 2,
+      "stack:A": 1
+     }
+    },
+    "full_cleanup": {
+     "episodes": 16,
+     "learner": 0,
+     "teacher": 16,
+     "learner_fails_teacher_succeeds": 16,
+     "failed_at": {
+      "open_door": 4,
+      "place:shelf": 5,
+      "place:region": 4,
+      "place:D": 3
+     }
+    }
+   }
+  }
+ },
+ "failed_at_all_splits": {
+  "open_door": 36,
+  "open_drawer": 31,
+  "place:region": 17,
+  "place:D": 13,
+  "place:shelf": 9,
+  "close_drawer": 5,
+  "place:bin": 4,
+  "stack:B": 2,
+  "close_door": 1,
+  "stack:A": 1
+ }
+}

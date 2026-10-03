@@ -11,14 +11,14 @@ Every manipulation claim in the report rests on three training seeds, controls r
 
 ## Goal 2: generalization (since 2026-10-03)
 Close the gap on held-out furniture (36.6%) and held-out task compositions (26.6%, retrieve_to_shelf 0%) without losing iid (76.3%).
-- [ ] G5 Diagnose with evidence: out-of-range inputs (scripts/ood_clamp_probe.py), where unseen-furniture episodes stop, why retrieve_to_shelf never opens its drawer.
-- [ ] G6 Intervene: training-side changes only (data, observation frame, curriculum, augmentation); compare on dev seeds of the held-out splits (declared in the log before use, disjoint from the final seeds 500 onward).
+- [x] G5 Diagnose (E64): not out-of-range inputs; the knob lid (29 of 68 furniture failures) and skills started from unusual poses (open_drawer after the lid: 24 composition failures).
+- [ ] G6 Intervene (running: start detours, runs/skill-dagger-connectome-nophase-detour-001): training-side changes only (data, observation frame, curriculum, augmentation); compare on dev seeds of the held-out splits (declared in the log before use, disjoint from the final seeds 500 onward).
 - [ ] G7 Targets on fresh final episodes: unseen furniture >= 50%, held-out compositions >= 35%, iid within its interval; then replicate the recipe on three seeds.
 
 Running:
 - Connectome seeds 1 and 2: imitation resumes after round 6 (drivers scripts/protocol_pipeline.py).
 - Shuffle seed 2 (lane a), then seed 0 resumed (runs/queue-shuffle-seed0-resume.sh); seed 1 after the connectome seeds (lane b).
-- scripts/ood_clamp_probe.py into docs/results/ood-clamp-probe.json.
+- runs/skill-dagger-connectome-nophase-detour-001: rounds 4 to 9 with start detours.
 
 Gates: GRU and MLP controls not approved; pushing needs the user's word; LIBERO or new dependencies need a yes.
 

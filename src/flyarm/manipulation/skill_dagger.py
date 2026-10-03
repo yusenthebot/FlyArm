@@ -39,6 +39,7 @@ from flyarm.config import DaggerStage, SkillDaggerConfig
 from flyarm.io import save_json
 from flyarm.manipulation import curriculum as cu
 from flyarm.manipulation import rollout
+from flyarm.manipulation.detour import sample_detours
 from flyarm.manipulation.env import DEFAULT_ASSET_ROOT
 from flyarm.manipulation.imitation import (
     PolicyActor,
@@ -82,8 +83,10 @@ def round_plans(
     bank: cu.SubgoalBank,
     generator: np.random.Generator,
     weights: dict[str, float] | None = None,
+    detour: tuple[float, tuple[int, int]] = (0.0, (20, 60)),
 ) -> list[rollout.EpisodePlan]:
-    """The round's episodes: true starts (templates in turn) and skill-balanced subgoal starts."""
+    """The round's episodes: true starts (templates in turn) and skill-balanced subgoal starts,
+    a ``detour[0]`` share of the latter first moved to a random hand pose (detour.py)."""
     true = min(episodes, max(1, int(round(stage.true_start_share * episodes))))
     templates = SPLITS["train"].templates
     names = [templates[i % len(templates)] for i in range(true)]
@@ -111,6 +114,10 @@ def round_plans(
                 budgets=tuple(int(b) for b in budgets),
                 bank=bank,
                 label="dagger-resets",
+                # Drawn last and only when on, so runs without detours keep their random stream.
+                detour=sample_detours(resets, detour[0], detour[1], generator)
+                if detour[0] > 0
+                else None,
             )
         )
     return plans
@@ -417,7 +424,15 @@ def train_rounds(
         beta = beta_for_round(config, index)
         generator = np.random.default_rng([seed, index, 13])
         episodes = config.teacher_episodes if index == 0 else config.episodes_per_round
-        plans = round_plans(stage, index, episodes, bank, generator, config.reset_group_weights)
+        plans = round_plans(
+            stage,
+            index,
+            episodes,
+            bank,
+            generator,
+            config.reset_group_weights,
+            (config.detour_share, config.detour_steps),
+        )
         part, collected = collect_round(
             bench, None if index == 0 else policy, plans, beta, generator
         )

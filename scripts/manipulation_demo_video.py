@@ -83,6 +83,12 @@ def main() -> None:
     parser.add_argument("--label", default=None, help="title on every frame (default: the spec)")
     parser.add_argument("--split", default="iid_test")
     parser.add_argument("--candidates", type=int, default=8)
+    parser.add_argument(
+        "--offset",
+        type=int,
+        default=FINAL_OFFSET,
+        help="seed offset per template block (100 is the development block, research log)",
+    )
     parser.add_argument("--stride", type=int, default=3)
     parser.add_argument("--fps", type=int, default=20)
     parser.add_argument("--successes-only", action="store_true", help="a highlight reel")
@@ -112,7 +118,7 @@ def main() -> None:
     size = (args.height, args.width)
     frames: list[np.ndarray] = []
     shown: dict[str, dict[str, int | None]] = {}
-    plan = rollout.plan(args.split, args.candidates, FINAL_OFFSET)
+    plan = rollout.plan(args.split, args.candidates, args.offset)
     try:
         for template in args.templates or env.split.templates:
             seeds = [s for s, t in zip(plan.seeds, plan.templates, strict=True) if t == template]

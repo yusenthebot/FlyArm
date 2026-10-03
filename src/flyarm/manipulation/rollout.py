@@ -27,6 +27,7 @@ from typing import Any, Protocol
 
 import numpy as np
 
+from flyarm.manipulation.detour import detour_action
 from flyarm.manipulation.env import DEFAULT_ASSET_ROOT, BatchedManipulation
 from flyarm.manipulation.sim import OBS_DIM, RewardConfig
 from flyarm.manipulation.splits import SPLITS
@@ -56,6 +57,9 @@ class EpisodePlan:
     budgets: tuple[int, ...] = ()  # per-episode budgets; empty uses ``budget`` for all
     bank: Any = field(default=None, compare=False, repr=False)
     label: str = ""  # the summary's name ("" names it by the split)
+    # flyarm.manipulation.detour.Detour: steps executed toward a random hand pose before the
+    # episode's policy acts, labelled by the teacher like every other step; None for none.
+    detour: Any = field(default=None, compare=False, repr=False)
 
     def __len__(self) -> int:
         return len(self.seeds)
@@ -195,6 +199,14 @@ def run_episodes(
             if not active[k].any():
                 continue
             log, live, teacher = logs[k], active[k], teachers[k]
+            detour = plans[k].detour
+            in_detour = np.zeros(env.num_envs, dtype=bool)
+            if detour is not None:
+                in_detour = live & (t < detour.steps)
+                if teacher is not None and in_detour.any():
+                    # Its label is what it would do from here: the phase is re-derived from the
+                    # scene every detour step, never advanced on states it did not act on.
+                    teacher.reset(np.flatnonzero(in_detour))
             labels = teacher.act().astype(np.float64) if teacher is not None else None
             if chosen is None:
                 assert labels is not None
@@ -207,6 +219,10 @@ def run_episodes(
                 log.teacher_steps += live & use_teacher
             elif actor is None:
                 log.teacher_steps += live
+            if in_detour.any():
+                grip = labels[:, 4] if labels is not None else action[:, 4]
+                moved = detour_action(env.ee(), env.yaw_command, detour, grip)
+                action = np.where(in_detour[:, None], moved, action)
             if record:
                 assert log.obs is not None and log.labels is not None and labels is not None
                 assert log.mask is not None and log.skill is not None

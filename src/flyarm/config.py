@@ -814,6 +814,11 @@ class SkillDaggerConfig(BaseModel):
     # ("place:shelf", "place:region", "place:bin", "place:drawer"); unlisted groups weigh 1.
     # Empty keeps every skill equally likely, as every run before research log E59.
     reset_group_weights: dict[str, float] = Field(default_factory=dict)
+    # Start detours (flyarm.manipulation.detour, research log E64): the share of subgoal-reset
+    # episodes whose hand first moves to a random pose and heading, and the detour's length
+    # range in control steps. 0 keeps every run before E64.
+    detour_share: float = Field(default=0.0, ge=0.0, le=1.0)
+    detour_steps: tuple[int, int] = (20, 60)
     episodes_per_round: int = Field(default=256, ge=1, le=4096)
     betas: list[float] = Field(default_factory=lambda: [0.5, 0.25])
     first_round_updates: int = Field(default=3000, ge=1, le=1_000_000)
@@ -850,4 +855,6 @@ class SkillDaggerConfig(BaseModel):
             raise ValueError("warmup_updates must leave joint updates in round 0")
         if self.model.sampling != "windows":
             raise ValueError("skill DAgger trains by window sampling")
+        if not 1 <= self.detour_steps[0] <= self.detour_steps[1] <= 200:
+            raise ValueError("detour_steps must be a range within [1, 200]")
         return self

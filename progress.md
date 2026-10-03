@@ -20,6 +20,7 @@
 - pytest without FLYARM_MODEL skips 65 simulator tests; always set FLYARM_MODEL to the Panda scene.xml for the local CI run.
 
 ## Next
+- When the detour run finishes: select among rounds 7 to 9 on validation, compare with seed 0 round 8 on development seeds (iid, unseen furniture, unseen composition); if better, PPO and final evaluation.
 - Repeat lesions on seeds 1 and 2 when their PPO checkpoints are selected.
 - When seeds finish: seed table and statistics; then shuffle comparison.
 

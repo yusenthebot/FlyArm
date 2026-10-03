@@ -400,3 +400,58 @@ def test_the_pads_close_on_an_object_from_a_little_below_the_grasp_point() -> No
     too_low = grasp.copy()
     too_low[2] = lowest - 0.001
     assert not teacher._pads_on_object(0, too_low, grasp, bottom)  # pads would hit the support
+
+
+@needs_env
+def test_a_detour_moves_the_hand_and_keeps_the_episode_recorded_from_its_start(bank) -> None:
+    from flyarm.manipulation.detour import Detour
+    from flyarm.manipulation.imitation import Workbench
+
+    assert MODEL is not None
+    picks = np.flatnonzero(bank.skill == tk.OPEN_DRAWER)[:2]
+    env = rollout.make_env(
+        Path(MODEL),
+        rollout.EpisodePlan(
+            "train",
+            tuple(int(s) for s in bank.seeds[picks]),
+            tuple(str(t) for t in bank.templates[picks]),
+        ),
+        asset_root=OBJECTS,
+        velocities=False,
+    )
+    bank.reset(env, env.rows, picks, np.ones(2, int))
+    start = env.ee()
+    target = start + np.array([[0.08, 0.05, 0.04], [0.05, -0.08, 0.06]])
+    detour = Detour(steps=np.array([60, 0]), target=target, yaw=np.array([0.6, 0.0]))
+    episodes = rollout.EpisodePlan(
+        "train",
+        tuple(int(s) for s in bank.seeds[picks]),
+        tuple(str(t) for t in bank.templates[picks]),
+        starts=tuple(int(p) for p in picks),
+        budget=1,
+        bank=bank,
+        detour=detour,
+    )
+    bench = Workbench(Path(MODEL), OBJECTS, cue=True, velocities=False)
+    (log,) = bench.run([episodes], lambda n: Still(), record=True)
+    data = log.data()
+    assert data["mask"][:, :60].all()  # detour steps are recorded, contiguous from the start
+    ee_index = slice(14, 17)  # flyarm.manipulation.sim.ROBOT_FIELDS: ee_pos after the joints
+    after = data["obs"][0, 60, ee_index]
+    assert np.linalg.norm(after - target[0]) < 0.03
+    # The row without a detour stood still (the learner's zero action) from its start.
+    assert np.linalg.norm(data["obs"][1, 60, ee_index] - start[1]) < 0.02
+    assert sd.ragged([log])["lengths"].sum() == int(log.steps.sum())
+
+
+@needs_env
+def test_detours_go_to_subgoal_resets_only_and_off_keeps_the_random_stream(bank) -> None:
+    stage = DaggerStage(
+        name="two_or_three", rounds=1, min_subgoals=2, max_subgoals=3, true_start_share=0.1
+    )
+    plain = sd.round_plans(stage, 3, 200, bank, np.random.default_rng(0))
+    off = sd.round_plans(stage, 3, 200, bank, np.random.default_rng(0), None, (0.0, (20, 60)))
+    on = sd.round_plans(stage, 3, 200, bank, np.random.default_rng(0), None, (1.0, (20, 60)))
+    assert plain[1].starts == off[1].starts == on[1].starts  # detours are drawn last
+    assert plain[1].detour is None and off[1].detour is None and on[0].detour is None
+    assert on[1].detour.steps.min() >= 20 and len(on[1].detour.steps) == len(on[1])
