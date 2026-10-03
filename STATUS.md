@@ -1,20 +1,25 @@
 # FlyArm status
 
-Goal: a tech report whose every manipulation claim rests on three training seeds, controls run through the identical pipeline, and a protocol fixed before the results.
+Mode: evolving. Two goals share the one GPU; the connectome stays frozen in both.
 
-Mode: evolving; the rigor bar below is round one's floor.
-
-Acceptance (report rigor, 2026-09-30):
+## Goal 1: report rigor (since 2026-09-30)
+Every manipulation claim in the report rests on three training seeds, controls run through the identical pipeline, and a protocol fixed before the results.
 - [ ] G1 Seeds: connectome seeds 0, 1 and 2 through the pre-registered protocol, final evaluation 32 episodes per template on every split.
-- [x] G2 Lesions (seed 0 done; repeat on seeds 1 and 2): test-time silencing of central brain, optic lobes, VNC interneurons, sensory neurons, size-matched random sets, all-but-interface, and state reset; McNemar against intact.
+- [x] G2 Lesions (seed 0 done; repeat on seeds 1 and 2): state reset, anatomical groups against size-matched random sets, all-but-interface; McNemar against intact.
 - [ ] G3 Shuffle: degree-preserving shuffle seeds 0, 1 and 2 through the same protocol; connectome against shuffle at seed and episode level.
-- [ ] G4 Report: seed table with mean and range, controls and lesion sections, statistics protocol, hyperparameters and compute, figures regenerated; claims match the evidence.
+- [ ] G4 Report: seed table with mean and range, controls and lesion sections, statistics protocol, hyperparameters and compute; claims match the evidence.
 
-Running (see progress.md for commands):
-- runs/skill-dagger-connectome-nophase-seed{1,2}, driven by scripts/protocol_pipeline.py.
-- scripts/lesion_analysis.py into docs/results/manipulation-lesions.json.
-- runs/queue-shuffle.sh lanes a (shuffle seeds 0 then 2) and b (seed 1 after the connectome seeds).
+## Goal 2: generalization (since 2026-10-03)
+Close the gap on held-out furniture (36.6%) and held-out task compositions (26.6%, retrieve_to_shelf 0%) without losing iid (76.3%).
+- [ ] G5 Diagnose with evidence: out-of-range inputs (scripts/ood_clamp_probe.py), where unseen-furniture episodes stop, why retrieve_to_shelf never opens its drawer.
+- [ ] G6 Intervene: training-side changes only (data, observation frame, curriculum, augmentation); compare on dev seeds of the held-out splits (declared in the log before use, disjoint from the final seeds 500 onward).
+- [ ] G7 Targets on fresh final episodes: unseen furniture >= 50%, held-out compositions >= 35%, iid within its interval; then replicate the recipe on three seeds.
 
-Gates: GRU and MLP controls are not approved; pushing needs the user's word.
+Running:
+- Connectome seeds 1 and 2: imitation resumes after round 6 (drivers scripts/protocol_pipeline.py).
+- Shuffle seed 2 (lane a), then seed 0 resumed (runs/queue-shuffle-seed0-resume.sh); seed 1 after the connectome seeds (lane b).
+- scripts/ood_clamp_probe.py into docs/results/ood-clamp-probe.json.
 
-Last update: 2026-09-30.
+Gates: GRU and MLP controls not approved; pushing needs the user's word; LIBERO or new dependencies need a yes.
+
+Last update: 2026-10-03.

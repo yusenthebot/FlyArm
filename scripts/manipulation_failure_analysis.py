@@ -32,6 +32,12 @@ def main() -> None:
     parser.add_argument("--policy", required=True)
     parser.add_argument("--episodes-per-template", type=int, default=16)
     parser.add_argument("--splits", nargs="+", default=list(SPLITS))
+    parser.add_argument(
+        "--offset",
+        type=int,
+        default=FINAL_OFFSET,
+        help="seed offset per template block (100 is the development block, research log)",
+    )
     parser.add_argument("--pack", type=Path, default=Path("data/whole_brain/malecns-v1.0-c3"))
     parser.add_argument(
         "--model", type=Path, default=Path("assets/menagerie/franka_emika_panda/scene.xml")
@@ -43,7 +49,7 @@ def main() -> None:
     bench = Workbench(args.model, args.asset_root, config.cue, config.velocities, config.phase_cue)
     report: dict = {"policy": record, "splits": {}}
     for split in args.splits:
-        plan = rollout.plan(split, args.episodes_per_template, FINAL_OFFSET)
+        plan = rollout.plan(split, args.episodes_per_template, args.offset)
         (learner,) = bench.run([plan], lambda n: PolicyActor(policy, n))
         (teacher,) = bench.run([plan], lambda n: None)
         rows: dict = {}
