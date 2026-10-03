@@ -108,20 +108,11 @@ h2 { font-size: clamp(22px, 3vw, 30px); margin: 0 0 8px; letter-spacing: -0.2px;
 .cond .res { font-size: 12.5px; margin-top: 6px; font-variant-numeric: tabular-nums; }
 .res.ok { color: var(--good); } .res.fail { color: var(--bad); }
 
-.bars { display: grid; gap: 8px; }
-.bar-row { display: grid; grid-template-columns: 210px 1fr 110px; gap: 12px; align-items: center; font-size: 14px; }
-.bar-row .name { color: var(--ink); }
-.bar-row .name.rand { color: var(--faint); padding-left: 14px; }
-.bar-row .track { position: relative; height: 18px; background: #0b1120; border-radius: 6px; border: 1px solid var(--line); }
-.bar-row .fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 6px; }
-.bar-row .ci { position: absolute; top: 50%; height: 2px; background: rgba(255,255,255,0.55); transform: translateY(-50%); }
-.bar-row .num { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 13px; }
-.bar-row.group-start { margin-top: 10px; }
-@media (max-width: 720px) { .bar-row { grid-template-columns: 130px 1fr 74px; font-size: 13px; } .bar-row .num { font-size: 12px; } }
 .note { color: var(--muted); font-size: 14px; margin-top: 16px; }
 
 .figure { background: #fff; border-radius: var(--radius); padding: 10px; }
 .figure img { width: 100%; display: block; }
+.figure.narrow { max-width: 760px; margin: 0 auto; }
 .cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
 @media (max-width: 900px) { .cols { grid-template-columns: 1fr; } }
 .cols .card { padding: 16px 18px; }
@@ -234,10 +225,8 @@ footer { border-top: 1px solid var(--line); padding: 28px 0 48px; color: var(--f
 <section id="lesions">
   <div class="wrap">
     <h2>112 次测试的统计</h2>
-    <p class="sub">训练好的控制器在 112 个测试回合上，每种损伤都和"随机关掉同样数量的神经元"对比。白线是 95% 置信区间。</p>
-    <div class="card" style="padding: 18px 18px 14px;">
-      <div class="bars" id="bars"></div>
-    </div>
+    <p class="sub">训练好的控制器在 112 个测试回合上，每种损伤都和"随机关掉同样数量的神经元"在同一批回合上配对比较。误差线是 95% 置信区间，括号里是配对检验的 p 值。</p>
+    <div class="figure narrow"><img src="figures/lesion-figure-zh.png" alt="测试时脑损伤：完整大脑 87/112，每一步清空记忆 0/112，只留输入输出神经元 16/112；VNC 中间神经元 46/112，随机同样数量 84 和 79；视叶 94/112，随机 39 和 1；中央脑 82/112，随机 75 和 75；感觉神经元 78/112，随机 82 和 76" loading="lazy"></div>
     <p class="note">VNC 中间神经元只占全脑 8%，关掉它们成功率从 78% 掉到 41%，随机关掉同样多的神经元几乎没影响。视叶占 60%，关掉反而不受影响，随机关掉同样多则会让控制器崩溃。功能落在特定的解剖结构上，和神经元数量关系不大。</p>
   </div>
 </section>
@@ -515,43 +504,8 @@ async function setupLab() {
   }
 }
 
-async function setupBars() {
-  const data = await json("data/lesions.json");
-  const rows = [
-    ["intact", "完整的大脑", false, "#7bd88f"],
-    ["state_reset", "每一步清空记忆", false, "#ff6b6b", true],
-    ["silence_vnc_interneurons", "VNC 中间神经元", false, "#b69cff", true],
-    ["random_as_vnc_interneurons_0", "随机同样数量 1", true],
-    ["random_as_vnc_interneurons_1", "随机同样数量 2", true],
-    ["silence_optic_lobes", "视叶", false, "#b69cff", true],
-    ["random_as_optic_lobes_0", "随机同样数量 1", true],
-    ["random_as_optic_lobes_1", "随机同样数量 2", true],
-    ["silence_central_brain", "中央脑", false, "#b69cff", true],
-    ["random_as_central_brain_0", "随机同样数量 1", true],
-    ["random_as_central_brain_1", "随机同样数量 2", true],
-    ["silence_sensory", "感觉神经元", false, "#b69cff", true],
-    ["random_as_sensory_0", "随机同样数量 1", true],
-    ["random_as_sensory_1", "随机同样数量 2", true],
-    ["silence_all_but_interface", "只留输入输出神经元", false, "#b69cff", true],
-  ];
-  const box = document.getElementById("bars");
-  for (const [key, name, rand, color, gap] of rows) {
-    const d = data[key]; const rate = d.successes / d.episodes;
-    const row = document.createElement("div");
-    row.className = "bar-row" + (gap ? " group-start" : "");
-    const silenced = d.silenced ? ` · ${d.silenced.toLocaleString()} 个` : "";
-    row.title = `${d.successes}/${d.episodes}` + (d.p != null ? `，与完整大脑相比 McNemar p = ${d.p.toPrecision(2)}` : "") + silenced;
-    row.innerHTML = `<div class="name${rand ? " rand" : ""}">${name}</div>
-      <div class="track"><div class="fill" style="width:${(rate * 100).toFixed(1)}%;background:${rand ? "#3a4560" : color}"></div>
-      <div class="ci" style="left:${(d.wilson[0] * 100).toFixed(1)}%;width:${((d.wilson[1] - d.wilson[0]) * 100).toFixed(1)}%"></div></div>
-      <div class="num">${d.successes}/${d.episodes}</div>`;
-    box.appendChild(row);
-  }
-}
-
 setupHero().catch(e => console.error(e));
 setupLab().catch(e => console.error(e));
-setupBars().catch(e => console.error(e));
 </script>
 </body>
 </html>
