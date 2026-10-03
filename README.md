@@ -10,6 +10,7 @@ It runs in real time on a Mac (MLX, about 4 ms per control step).
 - [Drawers, a lidded cabinet, shelves, a bin and stacking](docs/videos/fly-brain-highlights.mp4): one successful test episode of each of the seven task templates (2 minutes).
 - [Objects never seen in training](docs/videos/fly-brain-unseen-objects.mp4): the seven templates with held-out scanned objects (2 minutes).
 - [Task orders never seen in training](docs/videos/fly-brain-unseen-composition.mp4): two held-out compositions of 5 and 6 subgoals (40 seconds).
+- [The same episode with the brain intact, its state cleared, and lesioned](docs/videos/fly-brain-lesions.mp4): the trained controller succeeds with the intact connectome and fails when its recurrent state is cleared every step or its VNC interneurons are silenced.
 - [FrankaKitchen](docs/videos/kitchen-four-tasks-perturbed.mp4): all four tasks from perturbed starts never trained on.
 
 ## Pipeline
@@ -51,10 +52,25 @@ All four tasks of D4RL kitchen-complete in the official Gymnasium-Robotics envir
 | 0.2 rad perturbed (never trained on) | 100.0 | 50/50 | 70.5 |
 | 0.3 rad perturbed (never trained on) | 100.0 | 50/50 | 68.0 |
 
+### Lesions
+
+The trained controller is lesioned at test time, without retraining, on 112 iid test episodes ([research log E63](docs/RESEARCH_LOG.md), [figure](docs/figures/lesion-figure.png)):
+
+| Lesion | Neurons silenced | Successes | Same-size random sets |
+|---|---:|---:|---:|
+| None | 0 | 87/112 | |
+| State cleared before every control step | 0 | 0/112 | |
+| VNC interneurons | 13,161 | 46/112 | 84, 79 |
+| Optic lobes | 99,167 | 94/112 | 39, 1 |
+| Central brain | 32,164 | 82/112 | 75, 75 |
+| Every neuron but the interface | 162,832 | 16/112 | |
+
+The controller depends on the connectome's state across control steps, and on specific anatomy rather than neuron count: the VNC interneurons between descending and motor neurons are needed beyond their number, and the optic lobes, which get no input here, can be removed.
+
 ### Controls
 
-Whether the measured wiring matters is not yet claimed.
-A degree-preserving shuffle of the connectome, a parameter-matched GRU and an MLP run through the same pipeline; so far only their imitation stage exists on the manipulation benchmark (iid: measured connectome 51.8%, shuffle 44.6%, GRU 66.1%, MLP 26.8%, one seed each), and the full comparison follows once the connectome result is final.
+Whether the measured wiring trains better than another graph is not yet claimed.
+Two more training seeds of the connectome and a degree-preserving shuffle with three seeds run through the identical pipeline under a protocol fixed before their results (research log, "Report rigor plan").
 
 ## Scope and limits
 

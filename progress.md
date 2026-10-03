@@ -6,6 +6,9 @@
 - Lesions (E63, seed 0): state reset 0/112; VNC interneurons 46 vs random 84/79 (specific); optic lobes 94 vs random 39/1 (dispensable); central brain and sensory like random; all-but-interface 16/112.
 - Path analysis (docs/results/connectome-paths.json): 99% of descending and 84% of motor neurons are one synapse from an input, but 69% and 85% of their incoming weight comes from interior neurons.
 
+## Paused 2026-10-03 (user: 暂停训练)
+- SIGSTOP on connectome seeds 1 and 2 PPO (no time budget; at iteration < 50, safe to hold) and the detour imitation run (round 8 in progress; its 48 h budget from 2026-10-03 03:08 ends 2026-10-05 03:08, after which it would stop with TimeoutError and resume from round 7). Resume: `kill -CONT $(pgrep -f 'skill-dagger|rl manipulation|protocol_pipeline')`.
+
 ## Commands
 - One seed end to end: `PYTHONPATH=src:scripts .venv/bin/python scripts/protocol_pipeline.py --kind connectome|shuffled --seed N` (resumable; results in docs/results/protocol/).
 - Lesions: `PYTHONPATH=src:scripts .venv/bin/python scripts/lesion_analysis.py --policy ppo:runs/ppo-manipulation-nophase-001@500 --output docs/results/manipulation-lesions.json`.

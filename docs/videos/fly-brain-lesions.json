@@ -1,0 +1,15 @@
+{
+ "source": "ppo",
+ "run": "runs/ppo-manipulation-nophase-001",
+ "iteration": 500,
+ "base_run": "runs/skill-dagger-connectome-nophase-001",
+ "kind": "connectome",
+ "seed": 3002502,
+ "checkpoint": "runs/ppo-manipulation-nophase-001/policy-0500.safetensors",
+ "template": "shelve",
+ "outcomes": {
+  "intact": true,
+  "state_reset": false,
+  "silence_vnc_interneurons": false
+ }
+}
