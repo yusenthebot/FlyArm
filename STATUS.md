@@ -17,7 +17,7 @@ Close the gap on held-out furniture (36.6%) and held-out task compositions (26.6
 
 Running:
 - Connectome seeds 1 and 2: imitation resumes after round 6 (drivers scripts/protocol_pipeline.py).
-- Shuffle seed 2 (lane a), then seed 0 resumed (runs/queue-shuffle-seed0-resume.sh); seed 1 after the connectome seeds (lane b).
+- Shuffle controls stopped 2026-10-03 (swap at 9.4 GB with four trainings): seed 0 has rounds 0 to 4, seed 2 rounds 0 to 1; restart with `scripts/protocol_pipeline.py --kind shuffled --seed N` (resumes) when the connectome seeds' imitation is done.
 - runs/skill-dagger-connectome-nophase-detour-001: rounds 4 to 9 with start detours.
 
 Gates: GRU and MLP controls not approved; pushing needs the user's word; LIBERO or new dependencies need a yes.
