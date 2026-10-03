@@ -1,6 +1,6 @@
 # FlyArm research log
 
-A dated record of every experiment, written for the paper.
+A dated record of every experiment, written for the technical report.
 Each entry states the question, the method with its commit, config and run directory, the result with counts, the reading, and what it changes.
 Negative and inconclusive results stay in the log.
 Numbers marked exploratory come from scratch probes that were later superseded by committed scripts; the committed version is authoritative.
@@ -88,7 +88,7 @@ Seed 2, fly: 25.0 (microwave in all 40 episodes); lesions edges off 25.0, direct
 Protocol v2 complete (runs/flyleg-kitchen-complete-chunk-001, 2026-09-22): ACT 100, 98.1, 86.9; GRU 57.5, 39.4, 25.0; MLP 31.2, 21.9, 25.0; fly 25.0, 21.25, 25.0; shuffle 0, 15.0, 0 (seeds 0, 1, 2).
 Fly against shuffle over the three seeds: 25 vs 0, 21.25 vs 15, 25 vs 0, better in 3 of 3 (seed-level sign-flip p = 0.125, the minimum with three seeds); at 0.1 rad starts 11.2 vs 0 and 15.0 vs 1.9 in seeds 0 and 1; read with E29 (clean kitchen scores reward replay).
 Open-loop caveat: with every edge removed the readout is exactly constant, so the policy emits one constant action for the whole episode, and in seed 2 that constant action opens the microwave in 40 of 40 episodes.
-The first kitchen task can therefore be solved without perception or feedback, so a score of 25 is not by itself evidence of closed-loop control; seeds 0 and 1 lose the skill with edges off (0), seed 2 does not, and the paper must report an open-loop (constant-action) baseline next to every kitchen score.
+The first kitchen task can therefore be solved without perception or feedback, so a score of 25 is not by itself evidence of closed-loop control; seeds 0 and 1 lose the skill with edges off (0), seed 2 does not, and the technical report must include an open-loop (constant-action) baseline next to every kitchen score.
 
 ## 2026-09-21: reinforcement learning on the frozen connectome
 
@@ -135,7 +135,7 @@ Final, shuffle (runs/ppo-pick-place-randomized-shuffled-001, complete): start ch
 Late-training means over the 9 evaluations from iteration 600 to 800 (place of 24, connectome vs shuffle; the evaluations reuse the test seeds, so they are not independent): heavy 15.1 vs 6.3 (connectome 11 to 18 in every one, shuffle 4 to 9), training distribution 7.7 vs 3.3, nominal 2.7 vs 4.9, far goals 2.0 vs 4.4.
 The shuffle's validation-selected checkpoint (iteration 75, training distribution) places 13/24 on the test seeds, above anything the connectome run reached, and then the shuffle's placement on the training distribution declines.
 Reading: PPO through a shuffled connectome also turns lifting to near ceiling (lift 22 to 24 of 24), so that part is not topology-specific; the measured wiring keeps a consistent late advantage on heavy cubes and the training distribution while the shuffle is better on nominal and far goals.
-With one PPO run per wiring this is not a topology claim; it needs PPO replicates (several PPO seeds and both shuffles) before the paper states any difference.
+With one PPO run per wiring this is not a topology claim; it needs PPO replicates (several PPO seeds and both shuffles) before the technical report states any difference.
 
 ### E18. Beta-mixed DAgger with the tracker on the kitchen, MLP probe (runs/flyleg-kitchen-dagger-dev-001, commit 90cadbf, stopped)
 Method: from behavior cloning, four DAgger rounds of 20 episodes in which the teacher acts with probability 0.5, 0.25, 0.125, 0.0625, every visited state labelled by the tracker.
@@ -162,7 +162,7 @@ Final seed 5 shuffles: 24/4 and 12/1 (lift / place), GRU 14/0.
 Seeds 3 to 5 alone (two shuffles each; scripts/topology_report.py): lift connectome 64% vs shuffles 74%, 1 of 3 seeds better, sign-flip p 0.88, episodes 19 measured-only vs 34 shuffled-only; place 29% vs 24%, 2 of 3 seeds better, p 0.38.
 First protocol pooled, seeds 0 to 5 (docs/results/pick-place-first-protocol-topology.json): lift 72% vs 56%, 4 of 6 seeds better, seed-level p 0.125, episode-level p 0.061; place 24% vs 19%, 5 of 6 better, p 0.14 and 0.096; grasp 86% vs 89%, no difference.
 Reading: the strong advantage of seeds 0 to 2 (E3) did not replicate; pooled over six seeds the measured wiring trends ahead on lifting and placing but no test reaches 0.05.
-Method lesson: the E3 episode-level p of 3.9e-7 treated 72 episodes as independent, but between-seed and between-shuffle variance is large (seed 5 shuffles lift 24 and 12 of 24), so the seed-level test is the primary one and the paper reports both.
+Method lesson: the E3 episode-level p of 3.9e-7 treated 72 episodes as independent, but between-seed and between-shuffle variance is large (seed 5 shuffles lift 24 and 12 of 24), so the seed-level test is the primary one and the technical report reports both.
 This protocol's teacher mislabels some lifted states (E23); the clean and final comparison is E24.
 
 ## Parallel tracks (agents on their own branches)
@@ -171,7 +171,7 @@ This protocol's teacher mislabels some lifted states (E23); the clean and final 
 - Long-horizon (branch feat/long-horizon): multi-object sequences whose progress is visible in the scene, because the default rate model's memory is short.
 - Dexterous hand (branch feat/dexterous-hand): the LEAP hand with four fly legs as fingers; privileged PPO teacher 64/64 in-hand rotation episodes without drops; a GRU distilled from it 60/64; the fly runs wait for GPU.
 
-## Engineering that the paper relies on
+## Engineering that the technical report relies on
 
 - Live progress clips (commit cca0ed7): `flyarm rl watch --run RUN` polls a PPO run and, whenever it saves a newer checkpoint, re-renders two labelled test episodes into RUN/progress/latest.mp4, replacing the previous clip and writing latest.json with the iteration, the episode outcomes and that iteration's curve row; the dashboard's Live tab shows every such clip and refreshes every 30 seconds.
 
@@ -243,7 +243,7 @@ Trained controllers from E11 (seeds 0, 1), clean / 0.05 / 0.1 rad: ACT 100 / 88.
 Reading: the kitchen-complete benchmark as used rewards reproducing the demonstrated trajectory; blind replay of a single demonstration matches or beats every trained controller clean and under both joint-offset perturbations, ACT included.
 Pick-and-place, same test (scripts/pick_place_open_loop.py, docs/results/pick-place-open-loop.json, v2a test seeds): the teacher places 24/24 and the zero action 0/24; replaying each of 10 training demonstrations on all 24 test seeds places 1 of 240, lifts 23 and grasps 79, against 12/24 lifted and 12/24 placed for the v2 connectome of seed 0 and 24/24 lifted, 7/24 placed for seed 3.
 So pick-and-place does need perception: the cube and goal positions change every episode and blind replay fails.
-Consequence for the paper: kitchen scores cannot serve as evidence of closed-loop control and must be reported next to this open-loop replay floor; the closed-loop evidence has to come from pick-and-place, where the cube and goal positions change every episode, and from the dexterous hand; a kitchen protocol that rewards feedback would need physical perturbations larger than the replay tolerates (for example 0.2 rad starts or pushes during the episode) together with training data that covers them.
+Consequence for the technical report: kitchen scores cannot serve as evidence of closed-loop control and must be reported next to this open-loop replay floor; the closed-loop evidence has to come from pick-and-place, where the cube and goal positions change every episode, and from the dexterous hand; a kitchen protocol that rewards feedback would need physical perturbations larger than the replay tolerates (for example 0.2 rad starts or pushes during the episode) together with training data that covers them.
 
 ### E30. A kitchen protocol that needs feedback: perturbed starts (scripts/kitchen_perturbation_probe.py, docs/results/kitchen-perturbation.json, commit 753fad0)
 Question: E29 shows the kitchen rewards trajectory replay; is there a start perturbation under which closed-loop control still succeeds and replay does not?
@@ -309,7 +309,7 @@ Over the three training seeds the validation-selected controllers place 95.8%, 9
 Seed 1 was still rising at iteration 300, so it runs again for 500 iterations (runs/ppo-pick-place-push2-s1-bonus-long-001, started 09:50); its selected checkpoint will be reported whatever it scores.
 Seed 1, 500 iterations (complete 10:19): the first 300 iterations repeat the 300-iteration run exactly (placed 33, 33, 29, ... 45 of 48), then 37, 37, 44, 41, 44, 44, 45, 44, 44, 45; the validation-selected iteration 460 places 44/48 (91.7%).
 Final, validation-selected, 48 test episodes each: seed 3 95.8% (300 iterations), seed 0 97.9% (300), seed 1 91.7% (500; 81.3% at 300); mean 95.1%, every seed above 90%.
-Open for the paper: the same pipeline on a degree-preserving shuffle and on the GRU, to know how much of the 95.8% needs the measured wiring.
+Open for the technical report: the same pipeline on a degree-preserving shuffle and on the GRU, to know how much of the 95.8% needs the measured wiring.
 
 ### E36. Reward only: PPO from a random controller, no demonstrations (commit after 0f722da)
 Question: everything so far starts from the scripted teacher's demonstrations; can the frozen connectome learn pick-and-place from reward alone in the batched environment?
@@ -429,7 +429,7 @@ The total is bounded above by segments x MAX_STEP_REWARD x weight = 4 x 1.0 x 10
 Run (runs/ppo-kitchen-curriculum-001, configs/ppo-kitchen-curriculum-001.json and its README): -003 plus the curriculum (prefix up to 3 drawn per environment, a quarter of environments always from the true start) and the potential task form at weight 10; evaluation is the unmodified benchmark from the true start on -003's seeds with selection on perturbed validation only, and -003 keeps running as the control.
 The trainer now records the most tasks any single finished episode earned, per rollout batch, and prints it, because that is the number the kitchen goal is about; before this run it was 1.0000 for -003 over 4.5 M steps, 0.8750 for -005 and 0.8828 for the warm run, with no batch above 1.0 anywhere.
 
-Result to carry into the paper regardless of how this run ends: three re-aimed shaping proposals (six target rules in E43, the averaged scope in E44, and the level form's per-prefix behaviour here) all measured worse than or no better than the plain first-uncompleted-target reward, and the one change that helped was removing the level's dependence on standing still rather than re-aiming it.
+Result to carry into the technical report regardless of how this run ends: three re-aimed shaping proposals (six target rules in E43, the averaged scope in E44, and the level form's per-prefix behaviour here) all measured worse than or no better than the plain first-uncompleted-target reward, and the one change that helped was removing the level's dependence on standing still rather than re-aiming it.
 Result (stopped by hand at about iteration 150, 1.2 M steps): both evaluations report 0.00 tasks and the mean step reward sits at 0.0017 to 0.0096, below the random-policy floor of 0.0113, so the run is a recorded negative.
 Cause, read off curves.json rather than the printed rewards: during the 5 critic-warmup iterations the random policy stumbled into completions (45 and 50 tasks over 128 episodes), putting rewards of 200 into a buffer whose other entries are about 0.01; at iteration 6, the first policy update, the normalized advantages were dominated by those few spikes and PPO took one enormous step (mean ratio deviation 0.938 against a clip of 0.2, value loss 416) onto a deterministic fixed point that earns 0.0017 per step; from there nothing completes again, the only gradient left is the small approach term, and the clipped updates no longer move the policy at all (ratio deviation 0.003, value loss 0.000 at iteration 143).
 Exploration is not the cause and entropy is not the lever: the measured action standard deviation is 0.478 at iteration 143 against 0.497 at the start, so it has barely moved in 143 iterations.
@@ -453,14 +453,14 @@ Question: is the reward-only failure the connectome's or the reward's?
 Control (controller "mlp", whole_brain.policy.DirectPolicy): a two-layer tanh MLP (256 units) from the same normalized observation, trained end to end by the same PPO, same reward, same seeds and same evaluation; the observation normalization is measured on the same random rollouts.
 Result at about 1.6 M kitchen steps and 2.3 M pick-and-place steps: the MLP fails in the same places, kettle alone in the kitchen evaluations (runs/ppo-kitchen-mlp-003 25 clean and 15 perturbed, runs/ppo-kitchen-mlp-curriculum-001 25 clean and 10 perturbed) and no lift at all on pick-and-place (runs/ppo-pick-place-mlp-001, 0/24).
 Its stochastic training episodes do reach further: 11 batches of runs/ppo-kitchen-mlp-003 had an episode with three tasks and 12 with two, against one batch with two for the connectome curriculum run.
-Reading: at these budgets the reward-only ceiling is set by the reward and the algorithm, not by the connectome, so reward design is iterated on the cheaper controller first; the MLP is also the conventional baseline the paper needs next to every reward-only number.
+Reading: at these budgets the reward-only ceiling is set by the reward and the algorithm, not by the connectome, so reward design is iterated on the cheaper controller first; the MLP is also the conventional baseline the technical report needs next to every reward-only number.
 Throughput note: the MLP is about five times faster only on a contended GPU; with the GPU freed the connectome run rose to about 1,900 steps per second and the environment, not the controller, became the bottleneck.
 Tooling note: something outside the project sets the macOS hidden flag on every file in .venv, and Python 3.12 skips hidden .pth files, so the editable install silently stops importing; runs are now launched with PYTHONPATH=src.
 
 DAPG (Rajeswaran et al. 2018) for the warm start: KitchenPPOConfig.bc_weight adds bc_weight x bc_decay^k x the squared error between the policy mean and the demonstrated action at iteration k, on the base run's own training demonstrations (its splits.json training episodes plus its 150 DART episodes, 45,750 steps), replayed once through the frozen encoder and connectome; the encoder stays frozen so the features stay exact.
 Runs: runs/ppo-kitchen-dapg-decay-001 (bc_weight 1.0, decay 0.995 per iteration, half-life about 140 iterations) and runs/ppo-kitchen-dapg-const-001 (bc_weight 1.0, no decay), otherwise the warm-001 config; the smoke run measured the demonstration loss at 0.10 on the imitation checkpoint.
 Decision rule: DAPG counts as working if a validation-selected checkpoint completes two tasks (score 50) on the clean start or raises the perturbed score above warm-001's 23.75.
-Paper control launched at the same time: runs/ppo-pick-place-push2-s3-bonus-shuffled-001, the push2 seed-3 PPO recipe (bonus 500, 300 iterations, 48 test episodes) from the degree-preserving shuffled connectome's imitation checkpoint, which placed 23/48 against the measured connectome's 35/48 before PPO.
+Report control launched at the same time: runs/ppo-pick-place-push2-s3-bonus-shuffled-001, the push2 seed-3 PPO recipe (bonus 500, 300 iterations, 48 test episodes) from the degree-preserving shuffled connectome's imitation checkpoint, which placed 23/48 against the measured connectome's 35/48 before PPO.
 
 ### E41. A reference trajectory in the reward, without cloning any action (commits 57ca067, cfe70bb)
 Question: -003 learns, so keep the reward-only line and give it a dense reference, in the spirit of DeepMimic and AMP.
@@ -499,7 +499,7 @@ Next: runs/flyleg-kitchen-body-chunk1-001 repeats this with action chunk 1 as th
 Finding: the scripted pick-and-place teacher keeps its own stage machine, so while labelling learner-driven DAgger states it can still be in "approach" or "descend" after the learner has already grasped and lifted the cube, and it then labels those states "open the gripper".
 Quantification over every saved B1a DAgger set (runs/whole-brain-pick-place-001 to -003, 36 files): 337,014 labelled states, 6,353 with both fingers on a cube at least 6 cm above rest, 931 of those (15%) labelled with an open gripper, all in teacher stages 0 or 1.
 Reading: 0.28% of all labels, concentrated in the lift and transport phase; every controller in a run received the same labels, so the comparisons stay matched, but absolute B1a scores are probably depressed.
-Action: the multi-task branch derives the teacher's stage from the physical state (0 of 1,067 such labels remain, its own demonstrations unchanged); B1a pick-and-place should be rerun with a stateless teacher before its numbers go into the paper, with the current runs kept as the first protocol.
+Action: the multi-task branch derives the teacher's stage from the physical state (0 of 1,067 such labels remain, its own demonstrations unchanged); B1a pick-and-place should be rerun with a stateless teacher before its numbers go into the technical report, with the current runs kept as the first protocol.
 
 ## Parallel tracks, status 2026-09-21 evening
 
@@ -578,7 +578,7 @@ Every process paused with SIGSTOP (multitask-001, the long-horizon runs, the dex
 The power-off did not happen: the paused processes are still alive with SIGSTOP.
 New option KitchenPPOConfig.init_checkpoint continues PPO from a saved PPO checkpoint (the base run still supplies the interface and the demonstrations; critic and optimizer start fresh behind the usual 50-iteration critic warmup).
 Queue (runs/overnight-2026-09-23.sh, two lanes, 1,000 iterations each, all trained and selected on the clean start with the perturbed score reported):
-Lane A: dapg-continue550 (from the three-task checkpoint, bc_weight 1.0), then dapg-seed1 and dapg-seed2 (the DAPG recipe from the imitation checkpoint with PPO seeds 1 and 2, for the seed spread the paper needs).
+Lane A: dapg-continue550 (from the three-task checkpoint, bc_weight 1.0), then dapg-seed1 and dapg-seed2 (the DAPG recipe from the imitation checkpoint with PPO seeds 1 and 2, for the seed spread the technical report needs).
 Lane B: dapg-bc3 and dapg-bc10 (bc_weight 3 and 10 from the imitation checkpoint), to test whether a stronger demonstration term keeps the microwave that bc_weight 1.0 lost by iteration 100.
 Decision rules: a recipe improves on dapg-const if its validation-selected checkpoint completes three or more tasks on the clean start and scores above 48.75 from perturbed starts; the microwave is kept if any evaluation after iteration 200 completes it.
 01:25 results and changes: dapg-continue550 kept three tasks only at its first evaluation (75, iteration 50) and settled on two (kettle and light switch, 50 clean, 43.75 to 48.75 perturbed) from iteration 150, so continued training does not stabilize the third task; stopped at iteration 300.
@@ -617,7 +617,7 @@ dapg-ordered-seed1 replicates the ordered result: microwave then kettle on the c
 Recipe, all on the measured connectome with only the linear maps trained: imitation (runs/flyleg-kitchen-body-chunk1-001, whole-body interface, 25: microwave), then PPO with the DAPG term (bc_weight 1.0) and the bonus paid in the split's order (dapg-ordered, 1,000 iterations), then 1,000 more iterations from its policy-0750 with the potential task form at weight 10.
 Batched evaluations (clean / perturbed 0.2 rad, 20 test episodes, episodes with all four in brackets): 50 / 50.0 at iteration 50, 75 / 68.75 (3) at 600, 100 / 55.0 (2) at 700, 75 / 65.0 at 850, 50 / 72.5 (9) at 950 and 50 / 90.0 (16) at 1000, with validation 95.0 perturbed at 1000; the curve was still rising when the run ended.
 Checked in the official gymnasium FrankaKitchen environment (docs/results/kitchen-dapg-ordered-potential-gym.json, 20 test episodes each): iteration 1000 scores 92.5 from 0.2 rad perturbed starts with all four tasks in 17 of 20 episodes (microwave 1.0, kettle 1.0, light switch 0.85, slide cabinet 0.85), and 70.0 from the benchmark's own start with all four in 7 of 20; iteration 700, whose batched clean score was 100, scores 50.0 and 53.75 there, so its single clean episode was marginal and it is not the checkpoint to report.
-Selection caveat: the trainer selected on the clean start (user decision), whose 20 seeds are one deterministic episode, and that picks iteration 700; the perturbed validation seeds, disjoint from the test seeds, pick iteration 1000 (95.0), which is the checkpoint reported here, and the paper must state which rule chose it.
+Selection caveat: the trainer selected on the clean start (user decision), whose 20 seeds are one deterministic episode, and that picks iteration 700; the perturbed validation seeds, disjoint from the test seeds, pick iteration 1000 (95.0), which is the checkpoint reported here, and the technical report must state which rule chose it.
 Seeds so far: the ordered stage replicates on PPO seed 1 (microwave then kettle from iteration 300, best 50 / 50.0); its potential stage (dapg-ordered-potential-seed1, from seed 1's policy-0950) and a continuation of seed 0 from policy-1000 (dapg-ordered-potential-continue) started 07:33.
 Reference points: every earlier reward run stopped at one task (25); the published BC reference for kitchen-complete is about 65; the demonstration tracker scores 100.
 Video: runs/ppo-kitchen-dapg-ordered-potential-001/videos/iteration1000-perturbed-episode0-four-tasks.mp4 (official environment, perturbed start, all four tasks), featured on the dashboard.
@@ -701,7 +701,7 @@ The measured connectome still fits at L1 0.22 to 0.24 and completes almost nothi
 Next probe (branch feat/rate-transfer): a non-negative thresholded firing-rate transfer and more neural steps per control step, the connectome and the two-linear-map training unchanged, judged frame-wise against the linear policy and checked with the edges removed and a shuffle.
 Rate-transfer probe (branch feat/rate-transfer, not merged; transfer option with "tanh" the bit-identical default and "rectified_tanh" = max(0, tanh(x - theta))): no variant beats the linear policy held out; rectified fits training frames better (0.172 to 0.174) and holds out worse (0.301 to 0.317) at 3, 6 and 10 neural steps; direct synapses only and a degree-preserving shuffle match or beat the measured connectome; driving it harder does not help.
 Mechanism: the readout is dominated by one synaptic layer from the ascending inputs; currents arriving by deeper paths are about 1e-3 (median positive input 0.0003), so changing the response function does not change what the network can express.
-Implication for the paper, stated plainly: in this regime the frozen connectome acts as a fixed, nearly one-synapse projection from the ascending to the descending neurons, which a degree-preserving shuffle reproduces; the kitchen and pick-and-place results show it can be trained into a strong controller, not that its wiring computes something a shuffle cannot.
+Implication for the technical report, stated plainly: in this regime the frozen connectome acts as a fixed, nearly one-synapse projection from the ascending to the descending neurons, which a degree-preserving shuffle reproduces; the kitchen and pick-and-place results show it can be trained into a strong controller, not that its wiring computes something a shuffle cannot.
 User decision (2026-09-24): skill curriculum plus PPO, only the two linear maps trained. Launched runs/whole-brain-manipulation-002 (the fixed imitation config, four DAgger rounds, connectome seed 0; runs/whole-brain-manipulation-001 predates the observation change from 217 to 220 features and cannot seed PPO). Curriculum PPO with subgoal resets (episodes start from the teacher's simulator state at the start of a subgoal, earlier subgoals preset, at most m further subgoals, m raised in stages, some true starts always) is being built on branch feat/manipulation-curriculum.
 runs/whole-brain-manipulation-002 complete (fixed task, four DAgger rounds, connectome seed 0): selected phase dagger_2; 0 successes on every split, subgoal fraction 0.099 iid, 0.085 unseen objects, 0.000 unseen furniture, 0.005 unseen composition (0.009 to 0.026 before the fixes); L1 ends at 0.18 / 0.20, the linear-controller level.
 Curriculum PPO started from it at 2026-09-24 17:25 (runs/ppo-manipulation-curriculum-001, configs/ppo-manipulation-curriculum.json: 300 iterations single subgoals, 300 of two or three, 400 full templates; subgoal bank of 595 starts across the seven skills).

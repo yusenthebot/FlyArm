@@ -55,6 +55,6 @@ The four-task stage replicates on three PPO seeds from the same imitation checkp
 - The kettle is struck from the side and left at about 0.23 from its goal instead of being lifted onto the back burner as in the demonstrations; it passes the benchmark's 0.3 but not the strict 0.1. From demonstration mid-lift states the policies reach 0.1 about half the time but do not hold it (E53, E54).
 - Stray contact falls from 0.14 to 0.09 to 0.11 of control steps but is not zero, and the motion-quality controller loses a few episodes from 0.3 rad starts (46 of 50 all four).
 - Controls for the reinforcement-learning stage are not yet run: a degree-preserving shuffle of the connectome and a parameter-matched GRU or MLP through the same recipe; until then the claim is that the frozen connectome can be trained to solve the task, not that its wiring is what makes it solvable.
-- Checkpoint selection: the trainer selected on the clean start, whose 20 seeds are one deterministic episode; the reported checkpoints were chosen on disjoint perturbed validation seeds, and the paper must state that rule.
+- Checkpoint selection: the trainer selected on the clean start, whose 20 seeds are one deterministic episode; the reported checkpoints were chosen on disjoint perturbed validation seeds, and the technical report must state that rule.
 
 Full history: docs/RESEARCH_LOG.md, entries E36 to E54.
