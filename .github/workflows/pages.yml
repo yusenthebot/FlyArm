@@ -3,7 +3,7 @@ name: pages
 on:
   push:
     branches: [main]
-    paths: ["site/**", "docs/videos/**", "docs/figures/pipeline-figure.png", ".github/workflows/pages.yml"]
+    paths: ["site/**", "docs/videos/**", "docs/figures/pipeline-figure.png", "docs/figures/lesion-figure.png", ".github/workflows/pages.yml"]
   workflow_dispatch:
 
 permissions:
