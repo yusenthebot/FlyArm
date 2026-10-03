@@ -6,6 +6,10 @@
 - Lesions (E63, seed 0): state reset 0/112; VNC interneurons 46 vs random 84/79 (specific); optic lobes 94 vs random 39/1 (dispensable); central brain and sensory like random; all-but-interface 16/112.
 - Path analysis (docs/results/connectome-paths.json): 99% of descending and 84% of motor neurons are one synapse from an input, but 69% and 85% of their incoming weight comes from interior neurons.
 
+## Paused (user: 暂停训练, since 2026-10-01)
+- All training suspended with SIGSTOP; memory stays held. Resume: `kill -CONT $(pgrep -f 'skill-dagger|protocol_pipeline|queue-shuffle')`. If the processes were lost, rerun the drivers: skill-DAgger resumes after the last completed round.
+- At pause: connectome seeds 1 and 2 in round 8 of 10, shuffle seed 0 in round 5.
+
 ## Commands
 - One seed end to end: `PYTHONPATH=src:scripts .venv/bin/python scripts/protocol_pipeline.py --kind connectome|shuffled --seed N` (resumable; results in docs/results/protocol/).
 - Lesions: `PYTHONPATH=src:scripts .venv/bin/python scripts/lesion_analysis.py --policy ppo:runs/ppo-manipulation-nophase-001@500 --output docs/results/manipulation-lesions.json`.
