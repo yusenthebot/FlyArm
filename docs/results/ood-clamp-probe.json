@@ -1293,6 +1293,116 @@
           "gained": 1,
           "p": 1.0
         }
+      },
+      "furniture": {
+        "successes": 13,
+        "episodes": 64,
+        "wilson_95": [
+          0.1227,
+          0.3171
+        ],
+        "subgoal_fraction": 0.4582,
+        "per_template": {
+          "shelve_then_put_away": {
+            "episodes": 16,
+            "success_rate": 0.125,
+            "subgoal_fraction": 0.3958333333333333,
+            "mean_subgoals": 2.375,
+            "subgoals": 6
+          },
+          "retrieve_to_shelf": {
+            "episodes": 16,
+            "success_rate": 0.0,
+            "subgoal_fraction": 0.16666666666666666,
+            "mean_subgoals": 1.0,
+            "subgoals": 6
+          },
+          "tower_then_put_away": {
+            "episodes": 16,
+            "success_rate": 0.6875,
+            "subgoal_fraction": 0.7625,
+            "mean_subgoals": 3.8125,
+            "subgoals": 5
+          },
+          "full_cleanup": {
+            "episodes": 16,
+            "success_rate": 0.0,
+            "subgoal_fraction": 0.5078125,
+            "mean_subgoals": 4.0625,
+            "subgoals": 8
+          }
+        },
+        "outcomes": [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          1,
+          1,
+          1,
+          1,
+          0,
+          1,
+          0,
+          1,
+          1,
+          0,
+          1,
+          1,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "mcnemar": {
+          "lost": 0,
+          "gained": 0,
+          "p": 1.0
+        }
       }
     }
   }
