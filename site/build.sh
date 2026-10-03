@@ -10,6 +10,7 @@ cp -R "$root/site/." "$out/"
 rm -f "$out/build.sh"
 cp "$root"/docs/videos/fly-brain-highlights.mp4 "$root"/docs/videos/fly-brain-unseen-objects.mp4 \
   "$root"/docs/videos/fly-brain-unseen-composition.mp4 "$root"/docs/videos/kitchen-four-tasks-perturbed.mp4 \
+  "$root"/docs/videos/fly-brain-demo-vertical.mp4 \
   "$out/videos/"
 cp "$root/docs/figures/pipeline-figure.png" "$out/figures/"
 cp "$root/docs/figures/lesion-figure.png" "$out/figures/lesion-figure-en.png"

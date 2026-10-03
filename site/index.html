@@ -166,6 +166,19 @@ footer { border-top: 1px solid var(--hair); padding: 26px 0 44px; color: var(--f
 .why { margin-top: 16px; background: var(--surface); border: 1px solid var(--hair); border-left: 3px solid var(--inhibit); border-radius: var(--radius); padding: 14px 18px; max-width: 900px; }
 .why h3 { font-family: var(--serif); font-weight: 900; font-size: 18px; margin: 0 0 4px; }
 .why p { margin: 0; color: var(--graphite); }
+.hero { grid-template-columns: 1fr; gap: 14px; padding-bottom: 8px; }
+.hero h1 { font-size: clamp(30px, 4.6vw, 56px); max-width: 980px; }
+.hero .lead { max-width: 820px; font-size: 17.5px; color: var(--ink); }
+.byline { margin: 0; color: var(--graphite); }
+.byline a { color: var(--graphite); }
+.buttons { display: flex; flex-wrap: wrap; gap: 10px; margin: 4px 0 6px; }
+.btn { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--hair); background: var(--surface); color: var(--ink); text-decoration: none; font-weight: 600; font-size: 14.5px; }
+.btn:hover { border-color: var(--graphite); }
+.btn svg { width: 16px; height: 16px; fill: currentColor; }
+.btn.primary { background: var(--ink); color: #fff; border-color: var(--ink); }
+.btn.primary:hover { background: #2a313b; }
+.btn.quiet { font: 600 13px var(--mono); color: var(--graphite); }
+.bib { background: var(--surface); border: 1px solid var(--hair); border-radius: var(--radius); padding: 16px 18px; overflow-x: auto; margin: 0; font-size: 13px; line-height: 1.6; color: var(--ink); }
 </style>
 </head>
 <body>
@@ -173,9 +186,8 @@ footer { border-top: 1px solid var(--hair); padding: 26px 0 44px; color: var(--f
   <div class="wrap">
     <a class="brand" href="#">FlyArm</a>
     <nav aria-label="Sections">
-      <a href="#watch" data-i18n="nav_watch"></a>
-      <a href="#lab" data-i18n="nav_lab"></a>
       <a class="opt" href="#how" data-i18n="nav_how"></a>
+      <a href="#lab" data-i18n="nav_lab"></a>
       <a class="opt" href="#results" data-i18n="nav_results"></a>
       <a href="https://github.com/yusenthebot/FlyArm">GitHub</a>
       <button class="lang" type="button" data-i18n="lang_switch" aria-label="Switch language"></button>
@@ -186,13 +198,14 @@ footer { border-top: 1px solid var(--hair); padding: 26px 0 44px; color: var(--f
 <main>
   <div class="wrap hero">
     <h1 class="reveal" data-i18n="hero_title"></h1>
+    <p class="byline mono reveal d2"><a href="https://github.com/yusenthebot">yusenthebot</a> · 2026</p>
+    <div class="buttons reveal d2">
+      <a class="btn primary" href="https://github.com/yusenthebot/FlyArm"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0a8 8 0 0 0-2.53 15.59c.4.07.55-.17.55-.38v-1.33c-2.23.48-2.7-1.07-2.7-1.07-.36-.92-.89-1.17-.89-1.17-.73-.5.06-.49.06-.49.8.06 1.23.83 1.23.83.72 1.22 1.87.87 2.33.67.07-.52.28-.87.5-1.07-1.78-.2-3.65-.89-3.65-3.95 0-.87.31-1.59.83-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.28.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48v2.2c0 .21.15.46.55.38A8 8 0 0 0 8 0z"/></svg><span data-i18n="btn_code"></span></a>
+      <a class="btn" href="https://github.com/yusenthebot/FlyArm/blob/main/docs/report/main.pdf"><span data-i18n="btn_report"></span></a>
+      <a class="btn" href="videos/fly-brain-demo-vertical.mp4"><span data-i18n="btn_video"></span></a>
+      <a class="btn quiet" href="https://github.com/yusenthebot/FlyArm/blob/main/LICENSE">Apache-2.0</a>
+    </div>
     <p class="lead reveal d2" data-i18n="hero_lead"></p>
-    <dl class="specimen mono reveal d2">
-      <dt data-i18n="spec_brain_k"></dt><dd data-i18n="spec_brain_v"></dd>
-      <dt data-i18n="spec_neurons_k"></dt><dd data-i18n="spec_neurons_v"></dd>
-      <dt data-i18n="spec_edges_k"></dt><dd data-i18n="spec_edges_v"></dd>
-      <dt data-i18n="spec_speed_k"></dt><dd data-i18n="spec_speed_v"></dd>
-    </dl>
   </div>
 
   <section id="watch">
@@ -217,6 +230,22 @@ footer { border-top: 1px solid var(--hair); padding: 26px 0 44px; color: var(--f
           <canvas></canvas>
           <div class="meta mono"><span class="time">0.0 s</span><span class="what" data-i18n="strip_what"></span></div>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <section id="how">
+    <div class="wrap">
+      <div class="kicker mono" data-i18n="how_kicker"></div>
+      <h2 data-i18n="how_title"></h2>
+      <div class="plate"><img src="figures/pipeline-figure.png" data-i18n-alt="how_alt" loading="lazy" alt=""></div>
+      <div class="flow">
+        <div><span class="tag mono" data-i18n="s1_tag"></span><h3 data-i18n="s1_t"></h3><p data-i18n="s1"></p></div>
+        <div class="frozen"><span class="tag mono" data-i18n="s2_tag"></span><h3 data-i18n="s2_t"></h3><p data-i18n="s2"></p></div>
+        <div><span class="tag mono" data-i18n="s3_tag"></span><h3 data-i18n="s3_t"></h3><p data-i18n="s3"></p></div>
+        <div><span class="tag mono" data-i18n="s4_tag"></span><h3 data-i18n="s4_t"></h3><p data-i18n="s4"></p></div>
       </div>
     </div>
   </section>
@@ -293,22 +322,6 @@ footer { border-top: 1px solid var(--hair); padding: 26px 0 44px; color: var(--f
 
   <hr class="rule">
 
-  <section id="how">
-    <div class="wrap">
-      <div class="kicker mono" data-i18n="how_kicker"></div>
-      <h2 data-i18n="how_title"></h2>
-      <div class="plate"><img src="figures/pipeline-figure.png" data-i18n-alt="how_alt" loading="lazy" alt=""></div>
-      <div class="flow">
-        <div><span class="tag mono" data-i18n="s1_tag"></span><h3 data-i18n="s1_t"></h3><p data-i18n="s1"></p></div>
-        <div class="frozen"><span class="tag mono" data-i18n="s2_tag"></span><h3 data-i18n="s2_t"></h3><p data-i18n="s2"></p></div>
-        <div><span class="tag mono" data-i18n="s3_tag"></span><h3 data-i18n="s3_t"></h3><p data-i18n="s3"></p></div>
-        <div><span class="tag mono" data-i18n="s4_tag"></span><h3 data-i18n="s4_t"></h3><p data-i18n="s4"></p></div>
-      </div>
-    </div>
-  </section>
-
-  <hr class="rule">
-
   <section id="results">
     <div class="wrap">
       <div class="kicker mono" data-i18n="res_kicker"></div>
@@ -344,6 +357,21 @@ footer { border-top: 1px solid var(--hair); padding: 26px 0 44px; color: var(--f
       </ul>
     </div>
   </section>
+  <hr class="rule">
+
+  <section id="cite">
+    <div class="wrap">
+      <div class="kicker mono" data-i18n="cite_kicker"></div>
+      <h2 data-i18n="cite_title"></h2>
+      <pre class="bib mono"><code>@misc{flyarm2026,
+  title        = {FlyArm: A Frozen Whole-CNS Fruit-Fly Connectome
+                  as the Controller of a Robot Arm},
+  author       = {yusenthebot},
+  year         = {2026},
+  howpublished = {\url{https://github.com/yusenthebot/FlyArm}}
+}</code></pre>
+    </div>
+  </section>
 </main>
 
 <footer>
@@ -354,15 +382,16 @@ footer { border-top: 1px solid var(--hair); padding: 26px 0 44px; color: var(--f
 "use strict";
 const T = {
   zh: {
-    nav_watch: "看它干活", nav_lab: "做脑损伤", nav_how: "怎么做的", nav_results: "成绩", lang_switch: "EN",
-    hero_title: "我把一整颗果蝇大脑，<br><em>接上了机械臂</em>",
-    hero_lead: "16.7 万个神经元，1050 万条连接，一根线都没改。我只训练了喂给大脑的输入和读出来的输出。下面每个点都是一个真实的神经元。",
-    spec_brain_k: "大脑", spec_brain_v: "MaleCNS v1.0，一只雄果蝇",
-    spec_neurons_k: "神经元", spec_neurons_v: "166,700 个，全部冻结",
-    spec_edges_k: "连接", spec_edges_v: "10,520,377 条，电镜测的",
-    spec_speed_k: "速度", spec_speed_v: "一步 4 ms，Mac 上实时跑",
-    watch_kicker: "回放 · 没见过的物体", watch_title: "看它干活",
-    watch_sub: "7 步：开抽屉，拿出东西放到绿色区域，关抽屉，再开柜盖把另一个东西放上架子，最后合上。下面那条是每个脑区活动变了多少，颜色越深变得越多，拖一下就能跳。",
+    cite_title: "BibTeX",
+    cite_kicker: "引用",
+    btn_video: "演示视频",
+    btn_report: "技术报告 PDF",
+    btn_code: "代码",
+    nav_watch: "看它干活", nav_lab: "脑损伤", nav_how: "技术路线", nav_results: "结果", lang_switch: "EN",
+    hero_title: "FlyArm：一整颗冻结的果蝇大脑，<br><em>控制机械臂</em>",
+    hero_lead: "把一只雄果蝇完整的接线图（16.7 万个神经元，1050 万条连接）原样放进仿真，一根线都不改，只训练输入和输出两头，它就能控制 Franka 机械臂开抽屉、掀柜盖、把东西放上架子。",
+    watch_kicker: "演示 · 没见过的物体", watch_title: "看它干活",
+    watch_sub: "一共 7 步：开抽屉，把东西拿出来放到绿色区域，关抽屉，再开柜盖，把另一个东西放上架子，最后盖上。下面那条是各个脑区活动变了多少，颜色越深变得越多，拖一下就能跳。",
     loading: "神经活动加载中……", load_failed: "神经活动没加载出来，刷新一下试试。",
     key_inhibit: "抑制", key_excite: "兴奋", key_count: "3,200 个神经元", key_off: "关掉的区域留白", strip_what: "活动变化 · 按脑区",
     lab_kicker: "动手试试", lab_title: "给它做个脑损伤",
@@ -379,22 +408,22 @@ const T = {
     f2_t: "VNC 中间神经元很关键", f2: "只占全脑 8%，关掉后掉到 46 次；随机关同样多还有 84 和 79 次。",
     f3_t: "视觉用不上", f3: "关掉视叶还有 94 次，原因见上面；随机关同样多只剩 39 和 1 次。",
     f4_t: "中间那一大片在干活", f4: "只留输入和输出神经元，只剩 16 次。",
-    how_kicker: "怎么做的", how_title: "信号只能穿过这颗大脑",
+    how_kicker: "技术路线", how_title: "信号只能穿过这颗大脑",
     how_alt: "流程：观测，编码器，冻结的果蝇连接组，解码器，仿真里的机械臂，闭环",
-    s1_tag: "输入 · 训练", s1_t: "编码器", s1: "一个小 MLP，把机械臂、物体和家具的状态变成 1,846 个上行神经元的输入电流。",
-    s2_tag: "大脑 · 冻结", s2_t: "果蝇连接组", s2: "权重就是电镜数出来的突触数，每个控制步跑 3 次更新。",
-    s3_tag: "输出 · 训练", s3_t: "解码器", s3: "读 2,022 个下行和运动神经元，算出机械臂下一步怎么动。",
-    s4_tag: "训练", s4_t: "先模仿，再强化", s4: "先跟一个脚本老师学，再用强化学习（PPO）自己练。",
+    s1_tag: "输入 · 训练", s1_t: "编码器", s1: "两层的 MLP，把机械臂、物体和家具的状态，变成 1,846 个上行神经元的输入。",
+    s2_tag: "大脑 · 冻结", s2_t: "果蝇连接组", s2: "16.7 万个神经元的发放率模型，权重就是电镜数出来的突触，每个控制步跑 3 次。",
+    s3_tag: "输出 · 接到机械臂", s3_t: "解码器 + 逆运动学", s3: "一个线性层读 2,022 个下行和运动神经元，输出手的位移、转角和夹爪开合，再用逆运动学换成 Panda 的关节指令。",
+    s4_tag: "训练", s4_t: "先模仿，再强化", s4: "先用技能级 DAgger 跟脚本老师学，再用 PPO 加示范项（DAPG）练，大脑全程冻结。",
     res_kicker: "成绩", res_title: "整个任务做完的成功率",
     res_sub: "都是训练和挑模型时没碰过的新回合，每种任务 3 到 8 步。",
     t_method: "方法", t_seen: "练过的任务", t_objects: "没见过的物体", t_furniture: "没见过的家具", t_orders: "没见过的任务顺序",
     t_imitation: "只模仿", t_rl: "模仿 + 强化学习",
     res_note: "厨房基准 FrankaKitchen 的四个任务 50 次全成功。没见过的家具和任务顺序还弱，正在改。",
     g1: "<b>七种任务</b>，每种一个成功回合", g2: "<b>没见过的物体</b>", g3: "<b>没见过的任务顺序</b>", g4: "<b>FrankaKitchen 厨房</b>，没练过的起点",
-    lim_kicker: "还差什么", lim_title: "还没做到的",
-    l1: "输入是仿真里的真实状态，还没用摄像头。", l2: "神经元模型是简化过的，不是真实果蝇的生理。",
-    l3: "全在仿真里。主结果目前一个训练种子，另外两个在跑。", l4: "真实接线是不是比随机打乱的更好学，对照实验还在跑。",
-    footer: '代码、研究日志和技术报告：<a href="https://github.com/yusenthebot/FlyArm">github.com/yusenthebot/FlyArm</a><br>连接组：MaleCNS v1.0（Janelia / Google / Cambridge / MRC，CC BY 4.0）· 机械臂：MuJoCo Menagerie Franka Panda · 物体：Google Scanned Objects',
+    lim_kicker: "不足", lim_title: "还没做到的",
+    l1: "输入是仿真里的真实状态（GT），不是摄像头画面，所以视觉现在派不上用场。", l2: "下一步该做什么，是任务规划直接告诉它的，它自己不会排顺序。",
+    l3: "神经元用的是简化的发放率模型，不是真实果蝇的生理。", l4: "只在仿真里做过。主结果目前一个训练种子，随机接线的对照还在跑。",
+    footer: "代码以 <a href=\"https://github.com/yusenthebot/FlyArm/blob/main/LICENSE\">Apache License 2.0</a> 开源：<a href=\"https://github.com/yusenthebot/FlyArm\">github.com/yusenthebot/FlyArm</a><br>连接组：MaleCNS v1.0（Janelia / Google / Cambridge / MRC，CC BY 4.0）· 机械臂：MuJoCo Menagerie Franka Panda · 物体：Google Scanned Objects",
     step: (n, total) => `第 ${n}/${total} 步`, done: (n, total) => `完成 ${n}/${total} 步`, success: "成功", failure: "失败",
     outcome: (ok, n, total) => `${ok ? "成功" : "失败"} · ${n}/${total} 步`, off: "（已关闭）",
     play: "播放", pause: "暂停", map_label: "神经活动地图", strip_label: "各脑区活动变化，点击或拖动跳转",
@@ -403,14 +432,15 @@ const T = {
     place: { region: "放到绿色区域", shelf: "放上架子", bin: "扔进垃圾桶", drawer: "放进抽屉" },
   },
   en: {
-    nav_watch: "Watch", nav_lab: "Lesion lab", nav_how: "How", nav_results: "Results", lang_switch: "中文",
-    hero_title: "I wired a whole fruit-fly brain<br><em>to a robot arm</em>",
-    hero_lead: "167k neurons and 10.5M connections, not one rewired. I only trained what goes into the brain and what gets read out of it. Every dot below is a real neuron.",
-    spec_brain_k: "Brain", spec_brain_v: "MaleCNS v1.0, one male fly",
-    spec_neurons_k: "Neurons", spec_neurons_v: "166,700, all frozen",
-    spec_edges_k: "Wiring", spec_edges_v: "10,520,377 connections, from EM",
-    spec_speed_k: "Speed", spec_speed_v: "4 ms a step, real time on a Mac",
-    watch_kicker: "Replay · objects it never saw", watch_title: "Watch it work",
+    cite_title: "BibTeX",
+    cite_kicker: "Cite",
+    btn_video: "Video",
+    btn_report: "Report (PDF)",
+    btn_code: "Code",
+    nav_watch: "Watch", nav_lab: "Lesions", nav_how: "Method", nav_results: "Results", lang_switch: "中文",
+    hero_title: "FlyArm: a frozen fruit-fly brain <em>drives a robot arm</em>",
+    hero_lead: "We drop the complete wiring of a male fruit fly (167k neurons, 10.5M connections) into simulation unchanged, train only the input and output layers, and it controls a Franka arm: drawers, lids, shelves.",
+    watch_kicker: "Demo · objects it never saw", watch_title: "Watch it work",
     watch_sub: "Seven steps: open the drawer, move what's inside to the green patch, close it, then open the lid, put the other thing on the shelf and close it. The strip shows how much each brain region is changing; darker means more. Drag it to jump around.",
     loading: "Loading neural activity…", load_failed: "Neural activity didn't load. Try refreshing.",
     key_inhibit: "inhibited", key_excite: "excited", key_count: "3,200 neurons", key_off: "silenced = blank", strip_what: "activity change by region",
@@ -428,22 +458,22 @@ const T = {
     f2_t: "The VNC interneurons matter", f2: "Just 8% of the brain. Silencing them drops it to 46; random sets of that size leave 84 and 79.",
     f3_t: "Vision isn't used", f3: "94 with the optic lobes off, see why above; random sets of that size leave 39 and 1.",
     f4_t: "The middle does the work", f4: "Keep only the input and output neurons and just 16 succeed.",
-    how_kicker: "How", how_title: "Sensing to acting runs only through the brain",
+    how_kicker: "Method", how_title: "Sensing to acting runs only through the brain",
     how_alt: "Pipeline: observation, encoder, frozen fly connectome, decoder, simulated arm, in a loop",
-    s1_tag: "input · trained", s1_t: "Encoder", s1: "A small MLP turns the arm, object and furniture state into currents for 1,846 ascending neurons.",
-    s2_tag: "brain · frozen", s2_t: "The connectome", s2: "Weights are synapse counts from electron microscopy; 3 updates per control step.",
-    s3_tag: "output · trained", s3_t: "Decoder", s3: "Reads 2,022 descending and motor neurons and turns them into the arm's next move.",
-    s4_tag: "training", s4_t: "Imitate, then practice", s4: "Learn from a scripted teacher first, then practice with reinforcement learning (PPO).",
+    s1_tag: "input · trained", s1_t: "Encoder", s1: "A two-layer MLP turns the arm, object and furniture state into input for 1,846 ascending neurons.",
+    s2_tag: "brain · frozen", s2_t: "The connectome", s2: "A rate model over 167k neurons; weights are synapse counts from electron microscopy; 3 updates per control step.",
+    s3_tag: "output · to the arm", s3_t: "Decoder + IK", s3: "A linear layer reads 2,022 descending and motor neurons and outputs hand motion, turn and grip; inverse kinematics turns that into Panda joint commands.",
+    s4_tag: "training", s4_t: "Imitate, then practice", s4: "Skill-level DAgger with a scripted teacher, then PPO with a demonstration term (DAPG); the brain stays frozen throughout.",
     res_kicker: "Results", res_title: "Whole-task success rate",
     res_sub: "All on fresh runs never used for training or picking the model; each task has 3 to 8 steps.",
     t_method: "Method", t_seen: "Seen tasks", t_objects: "New objects", t_furniture: "New furniture", t_orders: "New task orders",
     t_imitation: "Imitation only", t_rl: "Imitation + RL",
     res_note: "FrankaKitchen: all four tasks in 50 of 50 runs. New furniture and new task orders are still weak; working on it.",
     g1: "<b>Seven tasks</b>, one successful run each", g2: "<b>New objects</b>", g3: "<b>New task orders</b>", g4: "<b>FrankaKitchen</b>, from starts it never trained on",
-    lim_kicker: "Not yet", lim_title: "What's missing",
-    l1: "Input is the simulator's ground truth; no camera yet.", l2: "The neuron model is simplified, not real fly physiology.",
-    l3: "All in simulation. The main result is one training seed; two more are running.", l4: "Whether the real wiring learns better than a shuffled one is still being tested.",
-    footer: 'Code, research log and technical report: <a href="https://github.com/yusenthebot/FlyArm">github.com/yusenthebot/FlyArm</a><br>Connectome: MaleCNS v1.0 (Janelia / Google / Cambridge / MRC, CC BY 4.0) · Arm: MuJoCo Menagerie Franka Panda · Objects: Google Scanned Objects',
+    lim_kicker: "Limitations", lim_title: "What's missing",
+    l1: "Input is the simulator\u2019s ground-truth state, not camera images, so vision has nothing to do yet.", l2: "Which step comes next is given by the task plan; it does not plan the order itself.",
+    l3: "Neurons follow a simplified rate model, not real fly physiology.", l4: "Simulation only. The main result is one training seed; the shuffled-wiring control is still running.",
+    footer: "Code under the <a href=\"https://github.com/yusenthebot/FlyArm/blob/main/LICENSE\">Apache License 2.0</a>: <a href=\"https://github.com/yusenthebot/FlyArm\">github.com/yusenthebot/FlyArm</a><br>Connectome: MaleCNS v1.0 (Janelia / Google / Cambridge / MRC, CC BY 4.0) · Arm: MuJoCo Menagerie Franka Panda · Objects: Google Scanned Objects",
     step: (n, total) => `Step ${n}/${total}`, done: (n, total) => `Done ${n}/${total}`, success: "Success", failure: "Failed",
     outcome: (ok, n, total) => `${ok ? "Success" : "Failed"} · ${n}/${total}`, off: " (off)",
     play: "Play", pause: "Pause", map_label: "Neural activity map", strip_label: "Activity change by brain region; click or drag to seek",

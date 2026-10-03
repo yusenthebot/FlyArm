@@ -104,4 +104,4 @@ The history of every experiment, including what did not work, is in [docs/RESEAR
 
 Data: MaleCNS v1.0 (CC BY 4.0).
 Robot: MuJoCo Menagerie Franka Panda (Apache 2.0) and Gymnasium-Robotics FrankaKitchen.
-Code: MIT; see [third-party attribution](THIRD_PARTY.md).
+Code: [Apache License 2.0](LICENSE); data, models and assets keep their own terms, see [third-party attribution](THIRD_PARTY.md).

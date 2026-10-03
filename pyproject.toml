@@ -3,6 +3,8 @@ name = "flyarm"
 version = "0.1.0"
 description = "Reproducible connectome-informed arm control experiments"
 requires-python = ">=3.12,<3.14"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
 dependencies = [
     "numpy>=2.1",
     "scipy>=1.14",

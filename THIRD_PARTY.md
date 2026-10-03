@@ -1,6 +1,6 @@
 # Reused work and attribution
 
-FlyArm code is MIT. Upstream data, models, packages and papers keep their own terms.
+FlyArm code is licensed under the Apache License 2.0 (LICENSE). Upstream data, models, packages and papers keep their own terms.
 No upstream connectome export or Menagerie mesh is committed to this repository.
 
 | Resource | Role here | Terms / source |
@@ -18,7 +18,7 @@ checkout retains its upstream LICENSE files. Dataset object generations, byte si
 transport MD5 and SHA256 pins live in `src/flyarm/assets.py`. A download manifest is
 recorded alongside the local data and embedded in the derived graph metadata.
 When redistributing derived graphs, retain the MaleCNS attribution, license link,
-source version and transformation metadata. FlyArm's MIT license does not override it.
+source version and transformation metadata. FlyArm's Apache 2.0 license does not override it.
 
 ## Method references, not currently integrated code
 
